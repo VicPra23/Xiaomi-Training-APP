@@ -640,23 +640,23 @@ function renderDashboard(container) {
 let weeklyChart, methodsChart, trainersChart;
 function renderCharts(data) {
     if (!data) return;
-    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const isMobile = window.innerWidth < 768;
     const primaryColor = '#ff6700';
-    const secondaryColor = isDark ? '#f8fafc' : '#1e293b';
-    const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+    const primaryGradientEnd = '#ff9a44';
+    const secondaryColor = isDark ? '#334155' : '#cbd5e0';
+    const secondaryGradientEnd = isDark ? '#1e293b' : '#f1f5f9';
+    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+    const textColor = isDark ? '#f8fafc' : '#4a5568';
     const fontSize = isMobile ? 9 : 12;
     const tickSize = isMobile ? 9 : 11;
 
     if (typeof Chart === 'undefined') {
-        console.error("Chart.js is NOT defined. Ensure the library script is correctly loaded in index.html");
+        console.error("Chart.js is NOT defined.");
         return;
     }
 
     try {
-        const primaryGradientEnd = '#ff9a44';
-        const textColor = isDark ? '#f8fafc' : '#4a5568';
-
         console.log("Rendering Dashboard charts with data:", data);
 
         // Configuración global de Chart.js
