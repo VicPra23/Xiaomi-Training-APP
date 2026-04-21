@@ -52,14 +52,14 @@ function renderCalendar(container) {
                     <h2 id="weekTitle" style="margin:0; font-weight:800; color:var(--xiaomi-orange); font-size:1.1rem; margin-left:10px;"></h2>
                 </div>
                 
-                <div class="legend-bar glass-card" style="padding:10px 18px; display:flex; gap:12px; flex-wrap:wrap; font-size:0.65rem; font-weight:800; text-transform: uppercase; letter-spacing: 0.02em;">
+                <div class="legend-bar glass-card" style="padding:12px; display:flex; gap:10px; flex-wrap:wrap; font-size:0.65rem; font-weight:800; text-transform: uppercase; letter-spacing: 0.02em; justify-content: center;">
                     ${categories.map(c => `
-                        <span style="display:flex; align-items:center; gap:6px;">
-                            <i style="width:10px; height:10px; border-radius:3px; background:${c.color}; display:inline-block;"></i> ${c.label}
+                        <span style="display:flex; align-items:center; gap:5px; white-space: nowrap;">
+                            <i style="width:10px; height:10px; border-radius:3px; background:${c.color}; display:inline-block; flex-shrink:0;"></i> ${c.label}
                         </span>
                     `).join('')}
-                    <span style="display:flex; align-items:center; gap:6px;">
-                        <i style="width:10px; height:10px; border-radius:3px; background:var(--text-muted); opacity:0.3; display:inline-block;"></i> Vac/Ext
+                    <span style="display:flex; align-items:center; gap:5px; white-space: nowrap;">
+                        <i style="width:10px; height:10px; border-radius:3px; background:var(--text-muted); opacity:0.3; display:inline-block; flex-shrink:0;"></i> Vac/Ext
                     </span>
                 </div>
             </header>

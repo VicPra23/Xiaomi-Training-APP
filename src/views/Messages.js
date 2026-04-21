@@ -9,7 +9,10 @@ function renderMessages(container) {
                     <h2 style="font-size: 1.75rem;"><i data-lucide="message-square" style="color: var(--xiaomi-orange); width: 28px; vertical-align: middle; margin-right: 10px;"></i> Buzón de Mensajes</h2>
                     <p style="color:var(--text-medium); font-weight: 500; margin-top: 5px;">Mantente al tanto de las misiones y novedades del equipo.</p>
                 </div>
-                <button id="markAllReadBtn" class="btn-secondary" style="font-size:0.75rem; height: 38px;"><i data-lucide="check-check" style="width:16px;"></i> Marcar todos leídos</button>
+                <button id="markAllReadBtn" class="btn-secondary" style="font-size:0.85rem; height:42px; padding:0 18px; display:flex; align-items:center; gap:8px; font-weight:600; border-radius:10px;">
+                    <i data-lucide="check-check" style="width:18px; height:18px;"></i>
+                    <span>Marcar todos leídos</span>
+                </button>
             </header>
             <div id="msgLogContainer" style="display:flex; flex-direction:column; gap:15px;">
                 <p style="text-align:center; color:#888;">Cargando mensajes...</p>

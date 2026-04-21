@@ -112,7 +112,7 @@ function renderReport(container) {
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2.5rem; padding: 2rem; background: var(--bg-main); border-radius: 24px;">
                     <div class="form-group" id="wrapperPerfil" style="margin:0;">
                         <label id="labelPerfil" class="form-label">Perfil de Alumno *</label>
-                        <select id="perfil" name="perfil" class="form-control" required style="background: white;">
+                        <select id="perfil" name="perfil" class="form-control" required>
                             <option value="Vendedor">Vendedor</option>
                             <option value="Promotor">Promotor</option>
                             <option value="Teleoperador">Teleoperador</option>

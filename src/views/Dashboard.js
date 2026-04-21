@@ -304,7 +304,8 @@ function renderDashboard(container) {
             });
         };
     } else {
-        injectWeeks(sW, weeksList, currentWeek);
+        // En el Dashboard de usuario ya no inyectamos las 52 semanas estáticas.
+        // Se encarga la función dinámica updateWeekSelect tras recibir los datos reales del servidor.
     }
     injectWeeks(hW, weeksList);
 
@@ -391,6 +392,21 @@ function renderDashboard(container) {
     };
     populateAllFilters();
 
+    const updateWeekSelect = (weeks, isAdmin) => {
+        if (isAdmin) return; // Admins use the multi-picker
+        const sel = document.getElementById('dashboardWeek');
+        if (!sel) return;
+        const currentVal = sel.value;
+        sel.innerHTML = '<option value="">Selecciona...</option>';
+        (weeks || []).sort((a, b) => b - a).forEach(w => {
+            const opt = document.createElement('option');
+            opt.value = w;
+            opt.innerText = `Semana ${w}`;
+            if (w.toString() === currentVal) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    };
+
     const loadStats = () => {
         const dTarget = document.getElementById('dashboardTarget');
         const dWeek = document.getElementById('dashboardWeek');
@@ -424,8 +440,12 @@ function renderDashboard(container) {
                     }
 
                     updateWeekSelect(res.availableWeeks, isAdmin);
-                    renderCharts(res);
-                    if (isAdmin && res.adminStats) renderAdminStats(res.adminStats);
+                    
+                    // Delay render to let mobile layout and fonts stabilize
+                    setTimeout(() => {
+                        renderCharts(res);
+                        if (isAdmin && res.adminStats) renderAdminStats(res.adminStats);
+                    }, 250);
                 } catch(e) { console.error("Shielding error in stats rendering:", e); }
             }
         });
@@ -619,8 +639,10 @@ function renderDashboard(container) {
 
 let weeklyChart, methodsChart, trainersChart;
 function renderCharts(data) {
+    if (!data) return;
     try {
-        const isDark = document.documentElement.dataset.theme === 'dark';
+        const theme = document.documentElement.dataset.theme || localStorage.getItem('theme') || 'light';
+        const isDark = theme === 'dark';
         const primaryColor = '#ff6700';
         const primaryGradientEnd = '#ff9a44';
         const secondaryColor = isDark ? '#334155' : '#cbd5e0';
@@ -629,9 +651,11 @@ function renderCharts(data) {
         const gridColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
 
         if (typeof Chart === 'undefined') {
-            console.warn("Chart.js not loaded yet");
+            console.error("Chart.js is NOT defined. Ensure the library script is correctly loaded in index.html");
             return;
         }
+
+        console.log("Rendering Dashboard charts with data:", data);
 
         // Configuración global de Chart.js
         Chart.defaults.font.family = "'Inter', 'Outfit', sans-serif";
@@ -639,14 +663,19 @@ function renderCharts(data) {
         Chart.defaults.borderColor = gridColor;
 
         const createGrad = (ctx, start, end) => {
-            const g = ctx.createLinearGradient(0, 0, 0, 300);
-            g.addColorStop(0, start);
-            g.addColorStop(1, end);
-            return g;
+            if (!ctx) return start;
+            try {
+                const g = ctx.createLinearGradient(0, 0, 0, 300);
+                g.addColorStop(0, start);
+                g.addColorStop(1, end);
+                return g;
+            } catch(e) { return start; }
         };
 
         // --- Weekly Chart ---
-        const ctxW = document.getElementById('chartWeekly').getContext('2d');
+        const canvasW = document.getElementById('chartWeekly');
+        if (!canvasW) return;
+        const ctxW = canvasW.getContext('2d');
         if(weeklyChart) weeklyChart.destroy();
         
         const gradOrange = createGrad(ctxW, primaryColor, primaryGradientEnd);
@@ -710,12 +739,14 @@ function renderCharts(data) {
         });
 
         // --- Methods Chart ---
-        const ctxM = document.getElementById('chartMethods').getContext('2d');
+        const canvasM = document.getElementById('chartMethods');
+        if (!canvasM) return;
+        const ctxM = canvasM.getContext('2d');
         if(methodsChart) methodsChart.destroy();
         methodsChart = new Chart(ctxM, {
             type: 'doughnut',
             data: { 
-                labels: data.pieLabels, 
+                labels: data.pieLabels || [], 
                 datasets: [{ 
                     data: data.pieData, 
                     backgroundColor: [
@@ -738,7 +769,25 @@ function renderCharts(data) {
                 plugins: { 
                     legend: { 
                         position: 'bottom',
-                        labels: { padding: 20, usePointStyle: true, pointStyle: 'circle', font: { size: 12, weight: 600 } }
+                        display: true,
+                        labels: { 
+                            padding: 20, 
+                            usePointStyle: true, 
+                            pointStyle: 'circle', 
+                            font: { size: 12, weight: 600 } 
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) label += ': ';
+                                if (context.parsed !== undefined) {
+                                    label += context.parsed + 'h';
+                                }
+                                return label;
+                            }
+                        }
                     }
                 }
             }

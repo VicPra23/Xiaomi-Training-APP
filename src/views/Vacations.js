@@ -191,15 +191,6 @@ function renderVacations(container) {
                 holidayDates = uRes.festivos || [];
                 document.getElementById('vSedeTitle').innerText = "Calendario de";
                 
-                if (isAdmin && !document.getElementById('userSelect')) {
-                    sendJSONP('getUsersList').then(res => {
-                        if(res.status === 'success') {
-                            allTrainers = res.data;
-                            renderUserSelector();
-                        }
-                    });
-                }
-
                 const hist = uRes.history || [];
                 const uB_A = hist.filter(h => h.status === 'Aprobado' && h.type === 'Vacaciones').reduce((s, h) => s + (parseFloat(h.count)||0), 0);
                 const uE_A = hist.filter(h => h.status === 'Aprobado' && h.type !== 'Vacaciones').reduce((s, h) => s + (parseFloat(h.count)||0), 0);
@@ -219,9 +210,17 @@ function renderVacations(container) {
                 renderHistory(hist);
                 buildCalendar();
             }
+
             if (isAdmin && aRes && aRes.status === 'success') { 
                 adminData = aRes; 
                 renderAdminUI(); 
+                
+                // Mover aquí la población del selector para asegurar que adminData existe
+                if (!document.getElementById('userSelect')) {
+                    allTrainers = adminData.allUsers;
+                    renderUserSelector();
+                }
+
                 const rUI = document.getElementById('adminRequestUI'); if(rUI) rUI.style.display = 'block';
                 const uUI = document.getElementById('userRequestUI'); if(uUI) uUI.style.display = 'none';
                 const tLB = document.getElementById('targetLabel'); if(tLB) tLB.innerText = targetUser;
@@ -235,7 +234,7 @@ function renderVacations(container) {
     function renderUserSelector() {
         const cont = document.getElementById('userSelectorContainer'); if(!cont) return;
         cont.innerHTML = `<select id="userSelect" class="form-control" style="font-weight:bold; color:var(--xiaomi-orange); border-color:var(--xiaomi-orange); padding:2px 10px;">
-            ${allTrainers.map(u => `<option value="${u}" ${u === targetUser ? 'selected' : ''}>${u}</option>`).join('')}
+            ${allTrainers.map(u => `<option value="${u.user}" ${u.user === targetUser ? 'selected' : ''}>${u.name}</option>`).join('')}
         </select>`;
         document.getElementById('userSelect').onchange = (e) => {
             targetUser = e.target.value;

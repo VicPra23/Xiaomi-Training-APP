@@ -109,6 +109,14 @@ function getAdminData() {
   } catch(e) { return { status: "error", message: e.toString() }; }
 }
 
+function getUsersList() {
+  try {
+    const d = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
+    const users = d.slice(1).map(r => ({ user: r[0], name: r[1] }));
+    return { status: "success", data: users };
+  } catch(e) { return { status: "error", message: e.toString() }; }
+}
+
 function updateRequestStatus(id, status) {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
@@ -255,13 +263,19 @@ function getDashboardStats(p) {
   const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
   
   const target = (p.targetUser || "Total").toString().trim();
-  const targetWeeksStr = (p.weeks || "").toString().trim();
+  const targetWeeksStr = (p.weeks || p.week || "").toString().trim();
   const targetMonth = (p.month || "Todos").toString().trim();
-  const targetYear = (p.year || now.getFullYear().toString()).toString().trim();
+  const targetYear = (p.year || "Todos").toString().trim();
   const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
 
-  let selectedWeeks = targetWeeksStr ? targetWeeksStr.split(',').map(Number) : [getWeekNumber(now)];
-  if (selectedWeeks.length === 0) selectedWeeks = [getWeekNumber(now)];
+  // Extraer números de semana (robustez contra "Semana 17" o "17")
+  let selectedWeeks = [];
+  if (targetWeeksStr) {
+    const matches = targetWeeksStr.match(/\d+/g);
+    if (matches) selectedWeeks = matches.map(Number);
+  }
+  
+  if (selectedWeeks.length === 0 && targetMonth === "Todos") selectedWeeks = [getWeekNumber(now)];
 
   const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
@@ -288,8 +302,10 @@ function getDashboardStats(p) {
         if (mobiles.indexOf(targetDevice) === -1 && eco.indexOf(targetDevice) === -1) continue;
     }
 
-    // Registrar semana disponible (después de filtrar por año/mes si aplica)
-    availableWeeks.add(rowWeek);
+    // Registrar semana disponible (FILTRADO por mes si aplica para el dropdown dinámico)
+    if (targetMonth === "Todos" || mNames[rowMonth] === targetMonth) {
+        availableWeeks.add(rowWeek);
+    }
 
     // Filtro de Usuario
     const matchesUser = (target === "Total" || (d[i][1]||"").toString().trim() === target);
@@ -299,7 +315,8 @@ function getDashboardStats(p) {
     var cuenta = (d[i][3]||"Otros").toString().trim();
 
     // Lógica SEMANAL (Totales, Donut, Admin Widgets)
-    if (selectedWeeks.includes(rowWeek)) {
+    // Si selectedWeeks está vacío, significa que queremos ver TODO el mes seleccionado (o el año)
+    if (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek)) {
       if (matchesUser) {
         tS+=ses; tA+=alu; tH+=hor; count++;
         var met=(d[i][5]||"Otros").toString().trim(); mS[met]=(mS[met]||0)+hor;
@@ -316,9 +333,8 @@ function getDashboardStats(p) {
       }
     }
 
-    // Lógica MENS (Bar Chart) - Basado en el mes actual o el filtrado
-    const visibleMonth = targetMonth !== "Todos" ? mNames.indexOf(targetMonth) : todayMonth;
-    if (rowMonth === visibleMonth && matchesUser) {
+    // Lógica MENS (Bar Chart) - Basado en el mes filtrado o todos los del año
+    if (matchesUser && (targetMonth === "Todos" || rowMonth === mNames.indexOf(targetMonth))) {
       if(!monthlyWS[rowWeek]) monthlyWS[rowWeek] = { sesiones:0, alumnos:0 };
       monthlyWS[rowWeek].sesiones += ses;
       monthlyWS[rowWeek].alumnos += alu;
@@ -371,11 +387,22 @@ function getReportsHistory(p) {
         if (!target || rowTrainer === target) {
             const dO = parseDateStable(d[j][2]);
             if (dO) {
-                availableFilters.weeks.add(getWeekNumber(dO));
-                availableFilters.months.add(mNames[dO.getMonth()]);
+                const rowMonth = mNames[dO.getMonth()];
+                const rowWeek = getWeekNumber(dO);
+
+                // Popular filtros siempre con los datos del usuario
                 availableFilters.accounts.add((d[j][3]||"Otros").toString().trim());
                 availableFilters.methods.add((d[j][5]||"Otros").toString().trim());
                 
+                // Vinculación: Los filtros de Mes/Semana/Dispositivo se retroalimentan
+                // Si el usuario ya filtró por mes, solo mostramos semanas de ese mes
+                if (monthFilter === "Todos" || rowMonth === monthFilter) {
+                    availableFilters.weeks.add(rowWeek);
+                }
+                if (weekFilter === null || rowWeek == weekFilter) {
+                    availableFilters.months.add(rowMonth);
+                }
+
                 const devs = ((d[j][14]||"") + ", " + (d[j][15]||"")).split(",");
                 devs.forEach(dev => {
                     const clean = dev.trim();

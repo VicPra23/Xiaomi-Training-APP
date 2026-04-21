@@ -162,6 +162,7 @@ h1, h2, h3, h4, h5, h6 {
     border-radius: var(--border-radius-sm);
     padding: 10px 20px;
     font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -239,6 +240,10 @@ h1, h2, h3, h4, h5, h6 {
 .glass-card:hover {
     box-shadow: var(--shadow-lg);
     transform: translateY(-2px);
+}
+.legend-bar.glass-card:hover {
+    transform: none;
+    box-shadow: var(--shadow-md);
 }
 
 .table-row-hover:hover {
@@ -890,6 +895,23 @@ h1, h2, h3, h4, h5, h6 {
 .mat-link span { font-size: 0.9rem; }
 .mat-link i { font-size: 0.8rem; opacity: 0.5; }
 .mat-subcategory { margin: 15px 0 10px 0; font-weight: 700; font-size: 0.85rem; color: var(--xiaomi-orange); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Dashboard Module Base Styles */
+.dash-module .charts-container {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 24px;
+    margin-top: 2rem;
+}
+.dash-module .chart-wrapper {
+    position: relative;
+    height: 400px;
+    width: 100%;
+}
+.dash-module .glass-card {
+    display: flex;
+    flex-direction: column;
+}
 /* ==========================================================================
    RESPONSIVE DESIGN (Adaptive Layers)
    ========================================================================== */
@@ -995,3 +1017,65 @@ h1, h2, h3, h4, h5, h6 {
     .calendar-weekly .trainer-col { min-width: 100px; font-size: 0.7rem; }
     .assignment-tag { font-size: 0.6rem; padding: 4px 6px; }
 }
+
+/* ==========================================================================
+   TOM SELECT (Customization for Xiaomi Theme)
+   ========================================================================== */
+.ts-wrapper.form-control {
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+.ts-control {
+    background: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-main) !important;
+    border-radius: var(--border-radius-sm) !important;
+    padding: 12px 16px !important;
+    font-family: inherit !important;
+    font-size: 0.95rem !important;
+    transition: all 0.3s ease !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+.ts-wrapper.focus .ts-control {
+    border-color: var(--xiaomi-orange) !important;
+    box-shadow: 0 0 0 3px var(--xiaomi-orange-light) !important;
+}
+.ts-dropdown {
+    background: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-main) !important;
+    border-radius: var(--border-radius-md) !important;
+    box-shadow: var(--shadow-lg) !important;
+    margin-top: 8px !important;
+    z-index: 2000 !important;
+    padding: 8px !important;
+}
+.ts-dropdown .option {
+    padding: 10px 14px !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+}
+.ts-dropdown .active {
+    background: var(--xiaomi-orange-light) !important;
+    color: var(--xiaomi-orange) !important;
+}
+/* Multi-select Items (Badges) */
+.ts-control .item {
+    background: var(--xiaomi-orange-light) !important;
+    color: var(--xiaomi-orange) !important;
+    border: 1px solid rgba(255,103,0,0.1) !important;
+    border-radius: 6px !important;
+    padding: 2px 8px !important;
+    font-weight: 600 !important;
+    display: inline-flex !important;
+    align-items: center !important; gap: 4px !important;
+}
+[data-theme="dark"] .ts-control .item {
+    background: rgba(255,103,0,0.2) !important;
+}
+.ts-control .item .remove { 
+    border: none !important;
+    color: var(--xiaomi-orange) !important;
+}
+.ts-control input { color: var(--text-main) !important; }
