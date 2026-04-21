@@ -1013,6 +1013,18 @@ h1, h2, h3, h4, h5, h6 {
     .report-table td::before { content: attr(data-label); float: left; font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 0.7rem; }
 }
 @media (max-width: 768px) {
+    .chart-wrapper { height: 260px !important; }
+    .legend-bar { 
+        width: 100% !important; 
+        justify-content: center !important; 
+        padding: 1rem !important;
+        margin-top: 10px;
+    }
+    .glass-card { padding: 1.25rem !important; }
+    .dash-header h2 { font-size: 1.8rem !important; margin-bottom: 0.25rem !important; }
+    .dash-header { margin-bottom: 2rem !important; }
+    .dash-header p { font-size: 0.9rem !important; }
+    
     .calendar-weekly th, .calendar-weekly td { min-width: 140px; padding: 6px; }
     .calendar-weekly .trainer-col { min-width: 100px; font-size: 0.7rem; }
     .assignment-tag { font-size: 0.6rem; padding: 4px 6px; }

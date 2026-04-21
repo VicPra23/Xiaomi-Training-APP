@@ -29,15 +29,15 @@ function renderCalendar(container) {
 
     const html = `
         <div class="calendar-module fade-in">
-            <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:15px; border-bottom: 1px solid var(--border-main); padding-bottom: 1.5rem;">
-                <div style="display:flex; align-items:center; gap:12px;">
+            <header class="calendar-header-main" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:15px; border-bottom: 1px solid var(--border-main); padding-bottom: 1.5rem;">
+                <div class="calendar-controls" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                     <div class="btn-group" style="display:flex; gap:4px; background: var(--bg-card); padding: 4px; border-radius: 10px; border: 1px solid var(--border-main);">
                         <button id="prevWeek" class="theme-toggle-btn" style="width:34px; height:34px;"><i data-lucide="chevron-left" style="width:18px;"></i></button>
                         <button id="todayBtn" class="btn-secondary" style="padding:0 15px; font-size: 0.8rem; height:34px; border:none;">Hoy</button>
                         <button id="nextWeek" class="theme-toggle-btn" style="width:34px; height:34px;"><i data-lucide="chevron-right" style="width:18px;"></i></button>
                     </div>
                     
-                    <div style="display:flex; align-items:center; gap:5px; margin-left:10px; background:var(--bg-card); border:1px solid var(--border-main); border-radius:10px; padding:4px 12px; box-shadow: var(--shadow-sm);">
+                    <div style="display:flex; align-items:center; gap:5px; background:var(--bg-card); border:1px solid var(--border-main); border-radius:10px; padding:4px 12px; box-shadow: var(--shadow-sm);">
                         <select id="jumpMonth" class="form-control" style="border:none; background:transparent; font-weight:700; cursor:pointer; width:auto; padding:0; height:auto;">
                             ${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"].map((m, i) => `<option value="${i}">${m}</option>`).join('')}
                         </select>
@@ -49,16 +49,16 @@ function renderCalendar(container) {
                         <button id="jumpBtn" class="btn-primary" style="padding:2px 10px; font-size: 0.7rem; height:24px; border-radius:6px; margin-left:5px;">Ir</button>
                     </div>
 
-                    <h2 id="weekTitle" style="margin:0; font-weight:800; color:var(--xiaomi-orange); font-size:1.1rem; margin-left:10px;"></h2>
+                    <h2 id="weekTitle" style="margin:0; font-weight:800; color:var(--xiaomi-orange); font-size:1.1rem;"></h2>
                 </div>
                 
                 <div class="legend-bar glass-card" style="padding:12px; display:flex; gap:10px; flex-wrap:wrap; font-size:0.65rem; font-weight:800; text-transform: uppercase; letter-spacing: 0.02em; justify-content: center;">
                     ${categories.map(c => `
-                        <span style="display:flex; align-items:center; gap:5px; white-space: nowrap;">
+                        <span style="display:flex; align-items:center; gap:5px;">
                             <i style="width:10px; height:10px; border-radius:3px; background:${c.color}; display:inline-block; flex-shrink:0;"></i> ${c.label}
                         </span>
                     `).join('')}
-                    <span style="display:flex; align-items:center; gap:5px; white-space: nowrap;">
+                    <span style="display:flex; align-items:center; gap:5px;">
                         <i style="width:10px; height:10px; border-radius:3px; background:var(--text-muted); opacity:0.3; display:inline-block; flex-shrink:0;"></i> Vac/Ext
                     </span>
                 </div>

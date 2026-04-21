@@ -640,20 +640,22 @@ function renderDashboard(container) {
 let weeklyChart, methodsChart, trainersChart;
 function renderCharts(data) {
     if (!data) return;
-    try {
-        const theme = document.documentElement.dataset.theme || localStorage.getItem('theme') || 'light';
-        const isDark = theme === 'dark';
-        const primaryColor = '#ff6700';
-        const primaryGradientEnd = '#ff9a44';
-        const secondaryColor = isDark ? '#334155' : '#cbd5e0';
-        const secondaryGradientEnd = isDark ? '#1e293b' : '#f1f5f9';
-        const textColor = isDark ? '#f8fafc' : '#4a5568';
-        const gridColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    const isMobile = window.innerWidth < 768;
+    const primaryColor = '#ff6700';
+    const secondaryColor = isDark ? '#f8fafc' : '#1e293b';
+    const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+    const fontSize = isMobile ? 9 : 12;
+    const tickSize = isMobile ? 9 : 11;
 
-        if (typeof Chart === 'undefined') {
-            console.error("Chart.js is NOT defined. Ensure the library script is correctly loaded in index.html");
-            return;
-        }
+    if (typeof Chart === 'undefined') {
+        console.error("Chart.js is NOT defined. Ensure the library script is correctly loaded in index.html");
+        return;
+    }
+
+    try {
+        const primaryGradientEnd = '#ff9a44';
+        const textColor = isDark ? '#f8fafc' : '#4a5568';
 
         console.log("Rendering Dashboard charts with data:", data);
 
@@ -711,7 +713,12 @@ function renderCharts(data) {
                 plugins: { 
                     legend: { 
                         position: 'bottom',
-                        labels: { padding: 20, usePointStyle: true, pointStyle: 'circle', font: { size: 12, weight: 600 } }
+                        labels: { 
+                            padding: isMobile ? 10 : 20, 
+                            usePointStyle: true, 
+                            pointStyle: 'circle', 
+                            font: { size: fontSize, weight: 600 } 
+                        }
                     },
                     tooltip: {
                         backgroundColor: isDark ? '#1f2937' : '#ffffff',
@@ -728,11 +735,11 @@ function renderCharts(data) {
                     y: { 
                         beginAtZero: true,
                         grid: { color: gridColor, drawBorder: false },
-                        ticks: { font: { size: 11 } }
+                        ticks: { font: { size: tickSize } }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { font: { size: 11, weight: 600 } }
+                        ticks: { font: { size: tickSize, weight: 600 } }
                     }
                 }
             }
@@ -764,17 +771,17 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false, 
-                cutout: '72%',
+                cutout: isMobile ? '65%' : '72%',
                 animation: { animateRotate: true, animateScale: true },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
                         display: true,
                         labels: { 
-                            padding: 20, 
+                            padding: isMobile ? 8 : 20, 
                             usePointStyle: true, 
                             pointStyle: 'circle', 
-                            font: { size: 12, weight: 600 } 
+                            font: { size: fontSize, weight: 600 } 
                         }
                     },
                     tooltip: {
