@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xiaomi Training APP</title>
+    
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons (Vectorial) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="style.css?v=21.0">
+    
+    <!-- TomSelect (Necesario para ReportForm) -->
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+</head>
+<body>
+    <div id="navOverlay" class="nav-overlay"></div>
+
+    <nav class="glass-nav" id="navbar" style="display: none; border-bottom: 1px solid var(--border-main);">
+        <div class="nav-container">
+            <a href="#dashboard" class="nav-brand">
+                <img src="./Xiaomi_logo_(2021-).svg.png" alt="Xiaomi Logo" style="width: 30px; height: 30px; border-radius: 8px;">
+                <div class="brand-info">
+                    <strong class="brand-text">Xiaomi</strong>
+                    <span class="brand-subtext">Trainer APP</span>
+                </div>
+            </a>
+
+            <!-- Mobile Menu Toggle -->
+            <button class="mobile-menu-btn" id="menuToggle" aria-label="Abrir menú">
+                <i data-lucide="menu"></i>
+            </button>
+
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#dashboard" class="nav-link"><i data-lucide="layout-grid"></i> Dashboard</a></li>
+                <li><a href="#report" class="nav-link"><i data-lucide="edit-3"></i> Reporte</a></li>
+                <li><a href="#calendar" class="nav-link"><i data-lucide="calendar"></i> Calendario</a></li>
+                <li><a href="#vacations" class="nav-link"><i data-lucide="umbrella"></i> Vacaciones</a></li>
+                <li><a href="#materials" class="nav-link"><i data-lucide="layers"></i> Materiales</a></li>
+                <li><a href="#mensajes" class="nav-link"><i data-lucide="mail"></i> Mensajes</a></li>
+                <li class="nav-divider"></li>
+                <li class="nav-actions">
+                    <button onclick="window.toggleTheme()" class="theme-toggle-btn" title="Cambiar Tema">
+                        <i data-lucide="sun" class="sun-icon"></i>
+                        <i data-lucide="moon" class="moon-icon"></i>
+                    </button>
+                    <a href="#" id="logoutBtn" class="nav-link danger" title="Cerrar Sesión"><i data-lucide="power"></i></a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="app-container" id="app">
+        <!-- Vistas dinámicas -->
+    </main>
+    
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    
+    <!-- Vistas y Lógica -->
+    <script src="src/services/api.js?v=21.0"></script>
+    <script src="src/views/Login.js?v=21.0"></script>
+    <script src="src/views/Dashboard.js?v=21.0"></script>
+    <script src="src/views/ReportForm.js?v=21.0"></script>
+    <script src="src/views/Calendar.js?v=21.0"></script>
+    <script src="src/views/Vacations.js?v=21.0"></script>
+    <script src="src/views/Materials.js?v=21.0"></script>
+    <script src="src/views/Messages.js?v=21.0"></script>
+    <script src="src/main.js?v=21.0"></script>
+</body>
+</html>
