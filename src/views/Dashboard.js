@@ -149,12 +149,13 @@ function renderDashboard(container) {
                 <div style="padding: 2.5rem; border-bottom: 1px solid var(--border-main);">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; margin-bottom: 2rem;">
                         <h3 style="margin:0; font-size: 1.4rem; display: flex; align-items: center; gap: 12px;"><i data-lucide="history" style="color: var(--xiaomi-orange);"></i> Historial de Actividad</h3>
-                        <div style="display: flex; gap: 12px; flex: 1; max-width: 500px;">
-                            <div style="position: relative; flex: 1;">
-                                <i data-lucide="search" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-muted);"></i>
-                                <input type="text" id="historySearch" class="form-control" placeholder="Buscar por cliente o modelo..." style="margin:0; height: 46px; padding-left: 40px; border-radius: 14px; background: var(--bg-main);">
-                            </div>
-                            <button onclick="window.dashboardLoadHistory()" class="btn-primary" style="height: 46px; padding: 0 20px; border-radius: 14px;"><i data-lucide="refresh-cw" style="width:18px;"></i></button>
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button onclick="window.dashboardLoadHistory()" class="btn-primary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0;" title="Filtrar">
+                                <i data-lucide="search" style="width:20px;"></i>
+                            </button>
+                            <button id="btnClearHistory" class="btn-outline" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Limpiar Filtros">
+                                <i data-lucide="rotate-ccw" style="width:20px;"></i>
+                            </button>
                         </div>
                     </div>
                     
@@ -168,15 +169,15 @@ function renderDashboard(container) {
                             </select>
                         </div>` : ''}
                         <div class="form-group" style="margin:0;">
-                            <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Semana</label>
-                            <select id="histFilterWeek" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
-                                <option value="Todos">Todas</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Mes</label>
                             <select id="histFilterMonth" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
                                 <option value="Todos">Todos</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Semana</label>
+                            <select id="histFilterWeek" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                                <option value="Todos">Todas</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin:0;">
@@ -457,28 +458,29 @@ function renderDashboard(container) {
         loadStats();
         loadHistory();
     };
-
-    const updateWeekSelect = (available, showAll = true) => {
-        const select = document.getElementById('dashboardWeek');
-        if(!select || !select.options) return; // Blindaje para inputs hidden (Admin)
-        const currentVal = select.value;
-        
-        // Si no es admin, ocultamos las semanas que no tienen datos
-        if(!showAll) {
-            Array.from(select.options).forEach(opt => {
-                const isAvail = available.includes(parseInt(opt.value));
-                opt.style.display = isAvail ? "block" : "none";
-                if(opt.value == currentVal) opt.selected = true;
+    
+    let isUpdatingFilters = false;
+    const updateHistoryFilters = (af) => {
+        if (isUpdatingFilters) return;
+        isUpdatingFilters = true;
+        try {
+            const selectors = [
+                { id: 'histFilterMonth', data: af.months, label: 'Todos' },
+                { id: 'histFilterWeek', data: af.weeks, label: 'Todas' },
+                { id: 'histFilterAccount', data: af.accounts, label: 'Todas' },
+                { id: 'histFilterDevice', data: af.devices, label: 'Todos' },
+                { id: 'histFilterMethod', data: af.methods, label: 'Todas' }
+            ];
+            
+            selectors.forEach(s => {
+                const el = document.getElementById(s.id);
+                if (!el) return;
+                const currentVal = el.value;
+                el.innerHTML = `<option value="Todos">${s.label}</option>` + 
+                    s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
             });
-        } else {
-            // Para Admin, solo desactivamos visualmente las vacías
-            Array.from(select.options).forEach(opt => {
-                const isAvail = available.includes(parseInt(opt.value));
-                opt.disabled = !isAvail;
-                opt.style.opacity = isAvail ? "1" : "0.5";
-                if(opt.value == currentVal) opt.disabled = false;
-            });
-        }
+        } catch(e) { console.error("Error updating filters:", e); }
+        isUpdatingFilters = false;
     };
 
     const loadHistory = () => {
@@ -504,6 +506,9 @@ function renderDashboard(container) {
             methodology: method,
             q: q
         }).then(res => {
+            if(res.status === 'success' && res.availableFilters) {
+                updateHistoryFilters(res.availableFilters);
+            }
             const body = document.getElementById('historyBody');
             if(res.status === 'success' && res.data.length > 0) {
                 window.dashboardHistoryData = res.data;
@@ -592,6 +597,18 @@ function renderDashboard(container) {
     const btnFilter = document.getElementById('btnFilter');
     if(btnFilter) btnFilter.onclick = () => { loadStats(); loadHistory(); };
 
+    const btnClearHistory = document.getElementById('btnClearHistory');
+    if(btnClearHistory) btnClearHistory.onclick = () => {
+        ['histFilterMonth', 'histFilterWeek', 'histFilterAccount', 'histFilterDevice', 'histFilterMethod'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.value = 'Todos';
+        });
+        loadHistory();
+    };
+
+    const btnFilterHistory = document.getElementById('btnFilterHistory');
+    if(btnFilterHistory) btnFilterHistory.onclick = () => { loadHistory(); };
+
     const historySearch = document.getElementById('historySearch');
     if(historySearch) historySearch.onkeyup = (e) => { if(e.key === 'Enter') loadHistory(); };
     
@@ -606,14 +623,20 @@ function renderCharts(data) {
         const isDark = document.documentElement.dataset.theme === 'dark';
         const primaryColor = '#ff6700';
         const primaryGradientEnd = '#ff9a44';
-        const secondaryColor = isDark ? '#2a2d32' : '#cbd5e0';
-        const secondaryGradientEnd = isDark ? '#16191c' : '#f1f5f9';
-        const textColor = isDark ? '#e2e8f0' : '#4a5568';
-        const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+        const secondaryColor = isDark ? '#334155' : '#cbd5e0';
+        const secondaryGradientEnd = isDark ? '#1e293b' : '#f1f5f9';
+        const textColor = isDark ? '#f8fafc' : '#4a5568';
+        const gridColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
+
+        if (typeof Chart === 'undefined') {
+            console.warn("Chart.js not loaded yet");
+            return;
+        }
 
         // Configuración global de Chart.js
         Chart.defaults.font.family = "'Inter', 'Outfit', sans-serif";
         Chart.defaults.color = textColor;
+        Chart.defaults.borderColor = gridColor;
 
         const createGrad = (ctx, start, end) => {
             const g = ctx.createLinearGradient(0, 0, 0, 300);

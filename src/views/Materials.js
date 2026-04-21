@@ -92,7 +92,7 @@ function renderMaterials(container) {
         {
             id: 'audio',
             title: 'Audio y Seguridad',
-            icon: 'shield-check',
+            icon: 'headphones',
             subcategories: [
                 {
                     name: 'Auriculares Xiaomi',

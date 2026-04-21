@@ -464,16 +464,17 @@ function renderVacations(container) {
     function isInHistoryRange(d, rangeStr) {
         if (!rangeStr) return false;
         try {
-            // Normalizar a medianoche local para comparación robusta
             const dCheck = new Date(d.getFullYear(), d.getMonth(), d.getDate());
             const targetTime = dCheck.getTime();
             
-            const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/g);
+            const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
             if (!matches) return false;
             
             const parseDate = (s) => {
                 const parts = s.split("/");
-                return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
+                let y = parseInt(parts[2]);
+                if (y < 100) y += 2000;
+                return new Date(y, parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
             };
             
             const start = parseDate(matches[0]);
