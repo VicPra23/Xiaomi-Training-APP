@@ -65,9 +65,6 @@ function renderCalendar(container) {
             </header>
 
             <div class="calendar-scroll-shell">
-                <div class="calendar-scroll-hint">
-                    <i data-lucide="move-horizontal" style="width:14px;"></i> Desliza lateralmente para ver los días
-                </div>
                 <div id="calendarTableContainer" class="calendar-table-scroller">
                 <table class="calendar-weekly">
                     <thead>

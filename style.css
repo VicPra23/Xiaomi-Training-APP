@@ -912,6 +912,7 @@ h1, h2, h3, h4, h5, h6 {
 .dash-module .glass-card {
     display: flex;
     flex-direction: column;
+    min-width: 0; /* Anti brute-force for grid layout */
 }
 /* ==========================================================================
    RESPONSIVE DESIGN (Adaptive Layers)
@@ -978,7 +979,16 @@ h1, h2, h3, h4, h5, h6 {
     .dash-module .chart-wrapper { height: 260px; min-height: 220px !important; }
     .dash-module .dash-header h2 { font-size: 1.8rem; }
     
-    .glass-card { padding: 1.25rem !important; }
+    .glass-card { 
+        padding: 1.25rem !important; 
+        min-width: 0 !important; 
+        max-width: 100%;
+    }
+    
+    .bento-item {
+        min-width: 0 !important;
+        max-width: 100%;
+    }
     
     .calendar-module header {
         flex-direction: column;
@@ -1100,18 +1110,7 @@ h1, h2, h3, h4, h5, h6 {
         overflow: hidden;
     }
     
-    .calendar-scroll-hint {
-        display: none; /* Oculto por defecto en desktop */
-        background: var(--bg-main);
-        color: var(--xiaomi-orange);
-        font-size: 0.7rem;
-        font-weight: 700;
-        padding: 8px;
-        text-align: center;
-        border-bottom: 1px solid var(--border-main);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
+
 
     .calendar-table-scroller {
         overflow-x: auto;
@@ -1163,12 +1162,6 @@ h1, h2, h3, h4, h5, h6 {
     }
 
     @media (max-width: 768px) {
-        .calendar-scroll-hint {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
         .calendar-weekly .trainer-col {
             min-width: 100px !important;
             max-width: 100px !important;
