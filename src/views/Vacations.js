@@ -189,7 +189,8 @@ function renderVacations(container) {
 
             if (uRes.status === 'success') {
                 holidayDates = uRes.festivos || [];
-                document.getElementById('vSedeTitle').innerText = "Calendario de";
+                const sedeTitle = document.getElementById('vSedeTitle');
+                if (sedeTitle) sedeTitle.innerText = "Calendario de";
                 
                 const hist = uRes.history || [];
                 const uB_A = hist.filter(h => h.status === 'Aprobado' && h.type === 'Vacaciones').reduce((s, h) => s + (parseFloat(h.count)||0), 0);
