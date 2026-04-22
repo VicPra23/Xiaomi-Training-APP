@@ -654,8 +654,8 @@ function renderCharts(data) {
     const secondaryGradientEnd = isDark ? '#1e293b' : '#f1f5f9';
     const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
     const textColor = isDark ? '#777777' : '#888888';
-    const fontSize = isMobile ? 7 : 12;
-    const tickSize = isMobile ? 7 : 11;
+    const fontSize = isMobile ? 9 : 12;
+    const tickSize = isMobile ? 8 : 11;
 
     if (typeof Chart === 'undefined') {
         console.error("Chart.js is NOT defined.");
@@ -715,7 +715,8 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                layout: { padding: isMobile ? { top: 5, bottom: 25, left: 5, right: 5 } : 15 },
+                aspectRatio: isMobile ? 1 : 2,
+                layout: { padding: isMobile ? { top: 5, bottom: 5, left: 0, right: 0 } : 15 },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
@@ -776,9 +777,9 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false, 
-                cutout: isMobile ? '60%' : '72%',
+                aspectRatio: isMobile ? 1 : 2,
                 animation: { animateRotate: true, animateScale: true },
-                layout: { padding: isMobile ? { top: 2, bottom: 25, left: 10, right: 10 } : 0 },
+                layout: { padding: isMobile ? { top: 10, bottom: 10, left: 5, right: 5 } : 0 },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
