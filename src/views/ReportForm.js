@@ -36,7 +36,7 @@ function renderReport(container) {
                 <div id="adminArea" style="display:none; background:var(--xiaomi-orange-light); padding:1.5rem; border-radius: 20px; margin-bottom: 2.5rem; border: 1px solid var(--xiaomi-orange);">
                     <div class="form-group" style="margin: 0;">
                         <label class="form-label" style="color: var(--xiaomi-orange); font-weight: 700;">Imputar actividad a:</label>
-                        <select id="trainer" name="trainer" class="form-control" style="background: white;"></select>
+                        <select id="trainer" name="trainer" class="form-control"></select>
                     </div>
                 </div>
 
@@ -86,7 +86,7 @@ function renderReport(container) {
                         <select id="distribuidor" name="distribuidor" class="form-control"></select>
                     </div>
                     <div id="manualEntry" style="display:none; margin-top:1.5rem;">
-                        <input type="text" id="distribuidor_custom" class="form-control" placeholder="Escribe el nombre de la nueva ubicación..." style="background: white;">
+                        <input type="text" id="distribuidor_custom" class="form-control" placeholder="Escribe el nombre de la nueva ubicación...">
                     </div>
                 </div>
 
@@ -168,7 +168,7 @@ function renderReport(container) {
                          <label class="form-label" style="margin:0; display:flex; align-items:center; gap:10px; font-size: 1rem;"><i data-lucide="camera" style="color: var(--xiaomi-orange);"></i> Fotografías de Evidencia ${isEdit ? '<small style="font-weight:400; color:var(--text-muted);">(No editable)</small>' : ''}</label>
                          <span id="photoCounter" class="badge" style="background:var(--xiaomi-orange); color:white; font-weight:700; border-radius: 10px; padding: 5px 12px;">0</span>
                     </div>
-                    <div style="text-align:center; padding: 1rem; border: 1px dashed var(--border-main); border-radius: 16px; background: white; cursor: pointer;" onclick="document.getElementById('fotosInput').click()">
+                    <div style="text-align:center; padding: 1rem; border: 1px dashed var(--border-main); border-radius: 16px; background: var(--bg-card); cursor: pointer;" onclick="document.getElementById('fotosInput').click()">
                         <i data-lucide="upload-cloud" style="width:32px; height:32px; color:var(--text-muted); margin-bottom:0.5rem;"></i>
                         <p style="font-size:0.85rem; color: var(--text-medium); font-weight:500;">Haz clic para seleccionar o arrastra tus imágenes (Máx 20)</p>
                     </div>

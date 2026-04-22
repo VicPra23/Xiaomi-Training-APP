@@ -283,6 +283,12 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 0 0 4px var(--xiaomi-orange-light);
 }
 
+/* Fix for native select options in dark mode */
+[data-theme="dark"] .form-control option {
+    background-color: var(--bg-card);
+    color: var(--text-main);
+}
+
 /* Bages and Dropdown Fixes */
 .badge {
     padding: 4px 8px;
