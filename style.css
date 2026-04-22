@@ -678,7 +678,17 @@ h1, h2, h3, h4, h5, h6 {
 .vaca-module .admin-table td { padding: 5px 10px; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
 
 /* --- WEEKLY CALENDAR V16.9 --- */
-.calendar-weekly { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-sm); table-layout: auto; min-width: 900px; }
+.calendar-weekly { 
+    width: 100%; 
+    border-collapse: separate; /* CRÍTICO: sticky no funciona bien con collapse */
+    border-spacing: 0; 
+    background: var(--bg-card); 
+    border-radius: 12px; 
+    overflow: visible; /* CRÍTICO: quita el hidden */
+    box-shadow: var(--shadow-sm); 
+    table-layout: auto; 
+    min-width: 900px; 
+}
 .calendar-weekly th { background: var(--bg-main); padding: 12px 8px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-medium); border-bottom: 2px solid var(--border-main); text-align: center; min-width: 120px; }
 .calendar-weekly td { border: 1px solid var(--border-main); padding: 8px; vertical-align: top; min-height: 100px; position: relative; height: auto; min-width: 120px; }
 .calendar-weekly .trainer-col { min-width: 140px; font-weight: 700; background: var(--bg-card); color: var(--text-main); vertical-align: middle; text-align: center; border-right: 2px solid var(--border-main); position: sticky; left: 0; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
@@ -1141,6 +1151,7 @@ h1, h2, h3, h4, h5, h6 {
         box-shadow: var(--shadow-sm); 
         table-layout: auto !important; 
         display: table !important;
+        overflow: visible !important; /* AÑADIDO: Libera el sticky */
     }
 
     /* Sticky Trainer Column Fix - Definitivo */
