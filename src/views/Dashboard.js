@@ -534,6 +534,7 @@ function renderDashboard(container) {
             }
             const body = document.getElementById('historyBody');
             if (!body) return; // FIX: Guard if user navigated away
+
             if(res.status === 'success' && res.data.length > 0) {
                 window.dashboardHistoryData = res.data;
                 body.innerHTML = res.data.map((r, idx) => `
@@ -551,8 +552,8 @@ function renderDashboard(container) {
                     </tr>
                 `).join('');
                 if (typeof lucide !== 'undefined') lucide.createIcons();
-                const body = document.getElementById('historyBody');
-                if (body) body.innerHTML = `<tr><td colspan="6" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">${q ? 'No hay resultados para esa búsqueda.' : 'No se encontraron reportes.'}</td></tr>`;
+            } else {
+                body.innerHTML = `<tr><td colspan="6" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">${q ? 'No hay resultados para esa búsqueda.' : 'No se encontraron reportes.'}</td></tr>`;
             }
         }).finally(() => { 
             const loader = document.getElementById('historyLoading');
