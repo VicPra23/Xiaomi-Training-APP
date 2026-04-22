@@ -1014,26 +1014,54 @@ h1, h2, h3, h4, h5, h6 {
     .report-table td::before { content: attr(data-label); float: left; font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 0.7rem; }
 }
 @media (max-width: 768px) {
-    .app-container { padding: 0 0.3rem !important; margin: 0.3rem auto !important; }
-    .chart-wrapper { height: 160px !important; width: 100% !important; }
+    .app-container { padding: 0 0.85rem !important; margin: 0.5rem auto !important; }
+    .chart-wrapper { min-height: 240px !important; height: auto !important; width: 100% !important; }
     .bento-grid, .admin-charts-container, .report-module .report-grid, .dash-module .stats-grid, .dash-module .charts-container {
         grid-template-columns: 1fr !important;
         grid-auto-rows: auto !important;
-        gap: 8px !important;
+        gap: 16px !important;
     }
     .bento-item { grid-column: span 1 !important; grid-row: span 1 !important; }
     
     .legend-bar { 
         width: 100% !important; 
         justify-content: center !important; 
-        padding: 0.75rem !important;
-        margin-top: 8px;
-        gap: 6px !important;
+        padding: 1rem !important;
+        margin-top: 12px;
+        gap: 8px !important;
     }
-    .glass-card { padding: 0.65rem !important; border-radius: 16px !important; overflow: visible !important; }
-    .dash-header h2 { font-size: 1.5rem !important; margin-bottom: 0.2rem !important; }
-    .dash-header { margin-bottom: 1rem !important; padding-top: 0.5rem !important; }
-    .dash-header p { font-size: 0.8rem !important; }
+    .glass-card { padding: 1.15rem !important; border-radius: 20px !important; overflow: visible !important; }
+    .dash-header h2 { font-size: 1.75rem !important; margin-bottom: 0.4rem !important; }
+    .dash-header { margin-bottom: 2rem !important; padding-top: 1rem !important; }
+    .dash-header p { font-size: 0.9rem !important; }
+    
+    /* Report Cards for Mobile */
+    .report-table tr { 
+        display: block; 
+        background: var(--bg-card); 
+        border: 1px solid var(--border-main); 
+        border-radius: 16px; 
+        margin-bottom: 16px; 
+        padding: 1.25rem; 
+        box-shadow: var(--shadow-sm);
+    }
+    .report-table td { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center;
+        padding: 10px 0; 
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    [data-theme="dark"] .report-table td { border-bottom-color: rgba(255,255,255,0.05); }
+    .report-table td:last-child { border: none; }
+    .report-table td::before { 
+        content: attr(data-label); 
+        font-weight: 700; 
+        color: var(--text-muted); 
+        text-transform: uppercase; 
+        font-size: 0.65rem; 
+        letter-spacing: 0.05em;
+    }
     
     .calendar-weekly th, .calendar-weekly td { min-width: 110px; padding: 5px; }
     .calendar-weekly .trainer-col { 

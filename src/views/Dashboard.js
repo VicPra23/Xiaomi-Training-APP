@@ -74,7 +74,7 @@ function renderDashboard(container) {
                         <i data-lucide="activity" style="color: var(--text-medium); width: 22px;"></i>
                         Actividades Registradas
                     </h3>
-                    <div id="stat_count" style="font-size: 5.5rem; font-weight: 800; line-height: 1; letter-spacing: -0.05em; font-family: var(--font-heading); position: relative; z-index: 2; color: var(--xiaomi-orange);">0</div>
+                    <div id="stat_count" style="font-size: clamp(3.5rem, 15vw, 5.5rem); font-weight: 800; line-height: 1; letter-spacing: -0.05em; font-family: var(--font-heading); position: relative; z-index: 2; color: var(--xiaomi-orange);">0</div>
                 </div>
 
                 <!-- Alumnos (Mediano) -->
@@ -84,7 +84,7 @@ function renderDashboard(container) {
                             <i data-lucide="users" style="color: var(--text-muted); width: 16px;"></i>
                             Alumnos Formados
                         </h4>
-                        <div id="stat_alumnos" style="font-size: 2.5rem; font-weight: 800; font-family: var(--font-heading); color: #059669;">0</div>
+                        <div id="stat_alumnos" style="font-size: clamp(2rem, 10vw, 2.5rem); font-weight: 800; font-family: var(--font-heading); color: #059669;">0</div>
                     </div>
                 </div>
 
