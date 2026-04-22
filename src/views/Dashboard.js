@@ -709,12 +709,12 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                layout: { padding: isMobile ? 5 : 15 },
+                layout: { padding: isMobile ? { top: 10, bottom: 20, left: 5, right: 5 } : 15 },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
                         labels: { 
-                            padding: isMobile ? 8 : 20, 
+                            padding: isMobile ? 12 : 20, 
                             usePointStyle: true, 
                             pointStyle: 'circle', 
                             font: { size: fontSize, weight: 600 } 
@@ -735,7 +735,7 @@ function renderCharts(data) {
                     y: { 
                         beginAtZero: true,
                         grid: { color: gridColor, drawBorder: false },
-                        ticks: { font: { size: tickSize }, maxTicksLimit: isMobile ? 6 : 10 }
+                        ticks: { font: { size: tickSize }, maxTicksLimit: isMobile ? 5 : 10 }
                     },
                     x: {
                         grid: { display: false },
@@ -771,14 +771,15 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false, 
-                cutout: isMobile ? '65%' : '72%',
+                cutout: isMobile ? '60%' : '72%',
                 animation: { animateRotate: true, animateScale: true },
+                layout: { padding: isMobile ? { top: 10, bottom: 25, left: 10, right: 10 } : 0 },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
                         display: true,
                         labels: { 
-                            padding: isMobile ? 8 : 20, 
+                            padding: isMobile ? 12 : 20, 
                             usePointStyle: true, 
                             pointStyle: 'circle', 
                             font: { size: fontSize, weight: 600 } 
