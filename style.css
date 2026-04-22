@@ -1031,7 +1031,7 @@ h1, h2, h3, h4, h5, h6 {
     /* Prevenir desbordamiento de contenedores grandes */
     .app-container, .dash-module, .report-module, .vaca-module, .calendar-module {
         max-width: 100vw;
-        overflow-x: hidden;
+        min-width: 0; /* Sustituimos el overflow-x: hidden por esto */
     }
 
     .report-table thead { display: none; }
@@ -1122,7 +1122,7 @@ h1, h2, h3, h4, h5, h6 {
         display: block !important; /* Quitamos el grid, que siempre intenta estirarse */
         width: 100%;
         max-width: 100%;
-        overflow: hidden; /* Prohíbe terminantemente que nada se salga de la pantalla */
+        overflow: visible !important; /* CRÍTICO: Si está en hidden, mata el sticky de la tabla */
         margin-top: 1rem;
         background: var(--bg-card);
         border-radius: 16px;
