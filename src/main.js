@@ -4,6 +4,7 @@ const navigate = (h) => { window.location.hash = h; };
 
 const app = document.getElementById('app');
 const navbar = document.getElementById('navbar');
+const navLinks = document.getElementById('navLinks');
 let lastSeenMsgId = 0;
 let pollerInterval = null;
 
@@ -73,7 +74,7 @@ function initApp() {
         const toggle = document.getElementById('menuToggle');
         const navOverlay = document.getElementById('navOverlay');
         
-        const isClickOutside = navLinks && navLinks.classList.contains('active') && !navLinks.contains(e.target) && !toggle.contains(e.target);
+        const isClickOutside = navLinks && navLinks.classList.contains('active') && !navLinks.contains(e.target) && toggle && !toggle.contains(e.target);
         const isClickOverlay = e.target === navOverlay;
 
         if (isClickOutside || isClickOverlay) {

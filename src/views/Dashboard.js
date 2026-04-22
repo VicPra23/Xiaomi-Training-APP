@@ -1,19 +1,20 @@
 function renderDashboard(container) {
-    let session = getSessionData();
-    const role = session ? session.role : 'User';
-    const currentUser = session ? session.user : 'Desconocido';
-    const nickname = session ? session.name : 'Desconocido';
-    const realName = nickname || currentUser;
-    const isAdmin = (role === 'Admin');
+    try {
+        let session = getSessionData();
+        const role = session ? session.role : 'User';
+        const currentUser = session ? session.user : 'Desconocido';
+        const nickname = session ? session.name : 'Desconocido';
+        const realName = nickname || currentUser;
+        const isAdmin = (role === 'Admin');
 
-    // Almacenamos el listener en window para poder limpiarlo al navegar
-    if (window._dashResizeHandler) window.removeEventListener('resize', window._dashResizeHandler);
-    window._dashResizeHandler = () => {
-        if (window.location.hash === '#dashboard' && window._lastDashData) {
-            renderCharts(window._lastDashData);
-        }
-    };
-    window.addEventListener('resize', window._dashResizeHandler);
+        // Almacenamos el listener en window para poder limpiarlo al navegar
+        if (window._dashResizeHandler) window.removeEventListener('resize', window._dashResizeHandler);
+        window._dashResizeHandler = () => {
+            if (window.location.hash === '#dashboard' && window._lastDashData) {
+                renderCharts(window._lastDashData);
+            }
+        };
+        window.addEventListener('resize', window._dashResizeHandler);
 
     const filterCard = isAdmin ? `
         <div class="glass-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
@@ -22,7 +23,7 @@ function renderDashboard(container) {
                     <label class="form-label" style="display: block; width: 100%;">Trainer</label>
                     <select id="dashboardTarget" class="form-control">
                         <option value="Total">Dato Global</option>
-                        <option value="${user}">Solo Mío</option>
+                        <option value="${currentUser}">Solo Mío</option>
                     </select>
                 </div>
                 <div class="form-group" style="margin:0; min-width: 80px; flex: 0 1 auto; text-align: center;">
@@ -568,6 +569,7 @@ function renderDashboard(container) {
         });
         if(rows) {
             rows += `
+
                 <tr style="background: var(--bg-main); font-weight:900; border-top:2px solid var(--border-main);">
                     <td data-label="Cuenta" style="padding:12px 15px; color:var(--text-main);">TOTAL</td>
                     <td data-label="Sesiones" style="padding:12px 15px; text-align:center; color:var(--xiaomi-orange);">${totalSes}</td>
@@ -631,9 +633,13 @@ function renderDashboard(container) {
     const historySearch = document.getElementById('historySearch');
     if(historySearch) historySearch.onkeyup = (e) => { if(e.key === 'Enter') loadHistory(); };
     
-    // CARGA INICIAL DIFERIDA (Performance V1.1)
-    loadStats();
-    setTimeout(loadHistory, 300); // Retrasar carga de historial para priorizar los números principales
+        // CARGA INICIAL DIFERIDA (Performance V1.1)
+        loadStats();
+        setTimeout(loadHistory, 300); // Retrasar carga de historial para priorizar los números principales
+    } catch(e) {
+        console.error("Dashboard Render Error:", e);
+        container.innerHTML = `<div class="glass-card" style="padding:40px; text-align:center;"><h3>Error al cargar el Dashboard</h3><p>${e.message}</p></div>`;
+    }
 }
 
 let weeklyChart, methodsChart, trainersChart;
