@@ -4,13 +4,13 @@ function renderMessages(container) {
 
     const html = `
         <div class="fade-in">
-            <header class="section-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-main); padding-bottom: 1.5rem; display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <h2 style="font-size: 1.75rem;"><i data-lucide="message-square" style="color: var(--xiaomi-orange); width: 28px; vertical-align: middle; margin-right: 10px;"></i> Buzón de Mensajes</h2>
-                    <p style="color:var(--text-medium); font-weight: 500; margin-top: 5px;">Mantente al tanto de las misiones y novedades del equipo.</p>
+            <header class="section-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-main); padding-bottom: 1.5rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px;">
+                <div style="flex: 1; min-width: 250px;">
+                    <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;"><i data-lucide="message-square" style="color: var(--xiaomi-orange); width: 28px; vertical-align: middle; margin-right: 10px;"></i> Buzón de Mensajes</h2>
+                    <p style="color:var(--text-medium); font-weight: 500;">Mantente al tanto de misiones y novedades.</p>
                 </div>
-                <button id="markAllReadBtn" class="btn-secondary" style="font-size:0.85rem; height:42px; padding:0 18px; display:flex; align-items:center; gap:8px; font-weight:600; border-radius:10px;">
-                    <i data-lucide="check-check" style="width:18px; height:18px;"></i>
+                <button id="markAllReadBtn" class="btn-secondary" style="font-size:0.8rem; height:40px; padding:0 15px; display:flex; align-items:center; gap:8px; font-weight:600; border-radius:10px; flex-shrink: 0;">
+                    <i data-lucide="check-check" style="width:16px; height:16px;"></i>
                     <span>Marcar todos leídos</span>
                 </button>
             </header>
@@ -37,7 +37,8 @@ function renderMessages(container) {
             });
             if (window.updateNavBadge) window.updateNavBadge();
         } catch(e) { console.error(e); }
-        btn.disabled = false; btn.innerText = "Marcar todos como leídos";
+        btn.innerText = "Marcar todos como leídos";
+        btn.disabled = false;
     };
 
     async function loadMessages() {

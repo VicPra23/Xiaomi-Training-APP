@@ -44,12 +44,15 @@ function renderReport(container) {
                     <div class="form-group" style="margin-bottom:0;">
                         <label class="form-label">Fecha del Reporte *</label>
                         <input type="date" id="fecha" name="fecha" class="form-control" required value="${(() => {
-                            if (!editData) return '';
-                            const d = new Date(editData.fecha);
-                            const y = d.getFullYear();
-                            const m = String(d.getMonth() + 1).padStart(2, '0');
-                            const day = String(d.getDate()).padStart(2, '0');
-                            return `${y}-${m}-${day}`;
+                            if (!editData || !editData.fecha) return '';
+                            try {
+                                const d = new Date(editData.fecha);
+                                if (isNaN(d.getTime())) return '';
+                                const y = d.getFullYear();
+                                const m = String(d.getMonth() + 1).padStart(2, '0');
+                                const day = String(d.getDate()).padStart(2, '0');
+                                return `${y}-${m}-${day}`;
+                            } catch(e) { return ''; }
                         })()}">
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
@@ -157,7 +160,7 @@ function renderReport(container) {
 
                 <div class="form-group" style="margin-bottom: 3rem;">
                     <label class="form-label">Observaciones</label>
-                    <textarea name="comentarios" class="form-control" rows="4" placeholder="Algún detalle relevante de la sesión..." style="resize:none; border-radius: 16px;">${editData ? editData.comentarios : ''}</textarea>
+                    <textarea name="comentarios" class="form-control" rows="4" placeholder="Algún detalle relevante de la sesión..." style="resize:none; border-radius: 16px;">${editData ? (editData.comentarios || '') : ''}</textarea>
                 </div>
 
                 <div id="photoSection" style="background: var(--bg-main); padding: 2.5rem; border-radius: 32px; border: 2px dashed var(--border-main); margin-bottom: 4rem; ${isEdit ? 'opacity: 0.5; pointer-events: none;' : ''}">
@@ -250,13 +253,20 @@ function renderReport(container) {
 
     // POBLAR DATOS SI ES EDICIÓN/DUPLICACIÓN
     if(editData) {
-        met.value = editData.metodologia; met.onchange();
-        cue.value = editData.cuenta; cue.onchange();
-        per.value = editData.perfil;
-        con.value = editData.contenidos;
-        document.getElementById('provincia').value = editData.provincia;
-        tsM.setValue(editData.dispositivos.split(', ').filter(Boolean));
-        tsNM.setValue(editData.dispositivos_no_movil.split(', ').filter(Boolean));
+        try {
+            if(editData.metodologia) { met.value = editData.metodologia; met.onchange(); }
+            if(editData.cuenta) { cue.value = editData.cuenta; cue.onchange(); }
+            if(editData.perfil) per.value = editData.perfil;
+            if(editData.contenidos) con.value = editData.contenidos;
+            if(editData.provincia) document.getElementById('provincia').value = editData.provincia;
+            
+            if(editData.dispositivos && tsM) {
+                tsM.setValue(editData.dispositivos.split(', ').filter(Boolean));
+            }
+            if(editData.dispositivos_no_movil && tsNM) {
+                tsNM.setValue(editData.dispositivos_no_movil.split(', ').filter(Boolean));
+            }
+        } catch(e) { console.error("Error populating editData:", e); }
     }
 
     document.getElementById('fotosInput').onchange = (e) => {

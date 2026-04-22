@@ -4,54 +4,54 @@ function renderDashboard(container) {
 
     const filterCard = isAdmin ? `
         <div class="glass-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:16px; align-items:flex-end;">
-                <div class="form-group" style="margin:0;">
-                    <label class="form-label">Trainer</label>
+            <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:center;">
+                <div class="form-group" style="margin:0; min-width: 130px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Trainer</label>
                     <select id="dashboardTarget" class="form-control">
                         <option value="Total">Dato Global</option>
                         <option value="${currentUser}">Solo Mío</option>
                     </select>
                 </div>
-                <div class="form-group" style="margin:0;">
-                    <label class="form-label">Año</label>
+                <div class="form-group" style="margin:0; min-width: 80px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Año</label>
                     <select id="dashboardYear" class="form-control">
                         <option value="Todos">Todos</option>
                     </select>
                 </div>
-                <div class="form-group" style="margin:0;">
-                    <label class="form-label">Mes</label>
+                <div class="form-group" style="margin:0; min-width: 100px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Mes</label>
                     <select id="dashboardMonth" class="form-control" onchange="window.syncWeeksByMonth()">
                         <option value="Todos">Todos</option>
                     </select>
                 </div>
-                <div class="form-group" style="margin:0; position: relative;">
-                    <label class="form-label">Semanas (Multi-click)</label>
-                    <div id="multiWeekContainer" class="form-control" style="height: 42px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px;">
+                <div class="form-group" style="margin:0; position: relative; min-width: 180px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Semanas (Multi-click)</label>
+                    <div id="multiWeekContainer" class="form-control" style="height: 42px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; justify-content: center;">
                         <span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Selecciona periodo...</span>
                     </div>
                     <input type="hidden" id="dashboardWeek" value="">
                 </div>
-                <div class="form-group" style="margin:0;">
-                    <label class="form-label">Dispositivo</label>
+                <div class="form-group" style="margin:0; min-width: 110px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Dispositivo</label>
                     <select id="dashboardDevice" class="form-control">
                         <option value="Todos">Todos</option>
                     </select>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button id="btnFilter" class="btn-primary" style="height:42px; flex: 2; white-space:nowrap;"><i data-lucide="search" style="width:16px;"></i> Filtrar</button>
+                    <button id="btnFilter" class="btn-primary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Filtrar"><i data-lucide="search" style="width:18px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Borrar Filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
                 </div>
             </div>
         </div>` : `
-        <div class="glass-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:16px; align-items:flex-end;">
-                <div class="form-group" style="margin:0;">
-                    <label class="form-label">Semana</label>
+        <div class="glass-card" style="margin-left: 0; margin-right: auto; margin-bottom: 2rem; max-width: 350px; padding: 0.75rem 1.25rem; position: relative; z-index: 10;">
+            <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
+                <div class="form-group" style="margin:0; min-width: 180px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Semana</label>
                     <select id="dashboardWeek" class="form-control"></select>
                 </div>
                 <div style="display:flex; gap:8px;">
-                    <button id="btnFilter" class="btn-primary" style="height:42px; flex: 2; white-space:nowrap;"><i data-lucide="search" style="width:16px;"></i> Filtrar</button>
-                    <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
+                    <button id="btnFilter" class="btn-primary" style="height:42px; width:42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="search" style="width:20px;"></i></button>
+                    <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="refresh-ccw" style="width:18px;"></i></button>
                 </div>
             </div>
         </div>`;
@@ -69,36 +69,41 @@ function renderDashboard(container) {
 
             <div class="bento-grid">
                 <!-- Card Principal: Actividades (Grande) -->
-                <div class="glass-card bento-item" style="grid-column: span 2; grid-row: span 2; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden;">
-                    <div style="position: absolute; top: -20px; right: -20px; opacity: 0.05; transform: rotate(-15deg);"><i data-lucide="activity" style="width: 200px; height: 200px;"></i></div>
-                    <div>
-                        <div style="background: var(--xiaomi-orange-light); color: var(--xiaomi-orange); width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem;"><i data-lucide="activity"></i></div>
-                        <h3 style="font-size: 1.25rem; color: var(--text-medium); font-weight: 500;">Actividades Registradas</h3>
-                    </div>
-                    <div id="stat_count" style="font-size: 5rem; font-weight: 800; line-height: 1; letter-spacing: -0.05em; font-family: var(--font-heading);">0</div>
+                <div class="glass-card bento-item" style="grid-column: span 2; grid-row: span 2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; overflow: hidden;">
+                    <h3 style="font-size: 1.25rem; color: var(--text-medium); font-weight: 500; position: relative; z-index: 2; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        <i data-lucide="activity" style="color: var(--text-medium); width: 22px;"></i>
+                        Actividades Registradas
+                    </h3>
+                    <div id="stat_count" style="font-size: 5.5rem; font-weight: 800; line-height: 1; letter-spacing: -0.05em; font-family: var(--font-heading); position: relative; z-index: 2; color: var(--xiaomi-orange);">0</div>
                 </div>
 
                 <!-- Alumnos (Mediano) -->
-                <div class="glass-card bento-item" style="grid-column: span 2; display: flex; align-items: center; justify-content: space-between; padding: 2rem;">
-                    <div>
-                        <h4 style="color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Alumnos Formados</h4>
-                        <div id="stat_alumnos" style="font-size: 2.5rem; font-weight: 800; font-family: var(--font-heading);">0</div>
+                <div class="glass-card bento-item" style="grid-column: span 2; display: flex; align-items: center; justify-content: center; text-align: center; padding: 2rem; position: relative; overflow: hidden;">
+                    <div style="position: relative; z-index: 2;">
+                        <h4 style="color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.1em; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            <i data-lucide="users" style="color: var(--text-muted); width: 16px;"></i>
+                            Alumnos Formados
+                        </h4>
+                        <div id="stat_alumnos" style="font-size: 2.5rem; font-weight: 800; font-family: var(--font-heading); color: #059669;">0</div>
                     </div>
-                    <div style="background: #e6f9ed; color: #059669; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i data-lucide="users" style="width:28px;"></i></div>
                 </div>
 
                 <!-- Sesiones (Pequeño) -->
-                <div class="glass-card bento-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5rem;">
-                    <i data-lucide="layers" style="color: #3b82f6; width: 24px; margin-bottom: 0.75rem;"></i>
-                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Sesiones</span>
-                    <div id="stat_sesiones" style="font-size: 1.75rem; font-weight: 800; font-family: var(--font-heading);">0</div>
+                <div class="glass-card bento-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5rem; position: relative; overflow: hidden;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; position: relative; z-index: 2; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                        <i data-lucide="layers" style="color: var(--text-muted); width: 14px;"></i>
+                        Sesiones
+                    </span>
+                    <div id="stat_sesiones" style="font-size: 2rem; font-weight: 800; font-family: var(--font-heading); position: relative; z-index: 2; color: #3b82f6;">0</div>
                 </div>
 
                 <!-- Horas (Pequeño) -->
-                <div class="glass-card bento-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5rem;">
-                    <i data-lucide="clock" style="color: #8b5cf6; width: 24px; margin-bottom: 0.75rem;"></i>
-                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Horas</span>
-                    <div id="stat_horas" style="font-size: 1.75rem; font-weight: 800; font-family: var(--font-heading);">0</div>
+                <div class="glass-card bento-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5rem; position: relative; overflow: hidden;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; position: relative; z-index: 2; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                        <i data-lucide="clock" style="color: var(--text-muted); width: 14px;"></i>
+                        Horas
+                    </span>
+                    <div id="stat_horas" style="font-size: 2rem; font-weight: 800; font-family: var(--font-heading); position: relative; z-index: 2; color: #8b5cf6;">0</div>
                 </div>
             </div>
 
@@ -160,7 +165,7 @@ function renderDashboard(container) {
                     </div>
                     
                     <!-- Fila de Filtros Dinámicos -->
-                    <div class="filters-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;">
+                    <div class="filters-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-bottom: 1.5rem;">
                         ${isAdmin ? `
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.65rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Trainer</label>
@@ -231,6 +236,7 @@ function renderDashboard(container) {
     `;
 
     container.innerHTML = html;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 
     // Poblar Selector de Semanas
     const weekNumberISO = (d) => {
@@ -540,7 +546,7 @@ function renderDashboard(container) {
                         <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos}</td>
                         <td data-label="Horas" style="padding: 12px; text-align: center;">${r.duracion}h</td>
                         <td data-label="Acciones" style="padding: 12px; text-align: right; white-space: nowrap;">
-                            <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
+                            <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
                             <button onclick="handleHistoryAction('duplicate', ${idx})" class="btn-outline btn-compact" style="border-color: #0ea5e9; color: #0ea5e9;" title="Duplicar"><i data-lucide="copy" style="width:14px;"></i></button>
                             <button onclick="handleHistoryAction('edit', ${idx})" class="btn-outline btn-compact" title="Editar"><i data-lucide="edit-2" style="width:14px;"></i></button>
                         </td>
@@ -646,10 +652,10 @@ function renderCharts(data) {
     const primaryGradientEnd = '#ff9a44';
     const secondaryColor = isDark ? '#334155' : '#cbd5e0';
     const secondaryGradientEnd = isDark ? '#1e293b' : '#f1f5f9';
-    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
-    const textColor = isDark ? '#f8fafc' : '#4a5568';
-    const fontSize = isMobile ? 9 : 12;
-    const tickSize = isMobile ? 9 : 11;
+    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
+    const textColor = isDark ? '#777777' : '#888888';
+    const fontSize = isMobile ? 7 : 12;
+    const tickSize = isMobile ? 7 : 11;
 
     if (typeof Chart === 'undefined') {
         console.error("Chart.js is NOT defined.");
@@ -709,7 +715,7 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                layout: { padding: isMobile ? { top: 10, bottom: 20, left: 5, right: 5 } : 15 },
+                layout: { padding: isMobile ? { top: 5, bottom: 25, left: 5, right: 5 } : 15 },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
@@ -735,11 +741,11 @@ function renderCharts(data) {
                     y: { 
                         beginAtZero: true,
                         grid: { color: gridColor, drawBorder: false },
-                        ticks: { font: { size: tickSize }, maxTicksLimit: isMobile ? 5 : 10 }
+                        ticks: { color: textColor, font: { size: tickSize }, maxTicksLimit: isMobile ? 4 : 10 }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { font: { size: tickSize, weight: 600 }, maxRotation: 45, minRotation: 0 }
+                        ticks: { color: textColor, font: { size: tickSize, weight: 600 }, maxRotation: 45, minRotation: 0 }
                     }
                 }
             }
@@ -763,8 +769,7 @@ function renderCharts(data) {
                         isDark ? '#8b5cf6' : '#7c3aed', // Purple
                         isDark ? '#f59e0b' : '#d97706'  // Amber
                     ],
-                    borderWidth: isDark ? 2 : 0,
-                    borderColor: isDark ? '#141414' : '#ffffff',
+                    borderWidth: 0,
                     hoverOffset: 12
                 }] 
             },
@@ -773,16 +778,17 @@ function renderCharts(data) {
                 maintainAspectRatio: false, 
                 cutout: isMobile ? '60%' : '72%',
                 animation: { animateRotate: true, animateScale: true },
-                layout: { padding: isMobile ? { top: 10, bottom: 25, left: 10, right: 10 } : 0 },
+                layout: { padding: isMobile ? { top: 2, bottom: 25, left: 10, right: 10 } : 0 },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
                         display: true,
                         labels: { 
+                            color: textColor,
                             padding: isMobile ? 12 : 20, 
                             usePointStyle: true, 
                             pointStyle: 'circle', 
-                            font: { size: fontSize, weight: 600 } 
+                            font: { size: fontSize - 1, weight: 600 } 
                         }
                     },
                     tooltip: {
