@@ -1094,19 +1094,27 @@ h1, h2, h3, h4, h5, h6 {
     .calendar-weekly { 
         border-collapse: separate !important; 
         border-spacing: 0 !important; 
+        display: table !important; 
     }
     .calendar-weekly .trainer-col { 
-        min-width: 90px !important; 
+        min-width: 100px !important; 
+        max-width: 100px !important;
         font-size: 0.65rem; 
         position: sticky !important; 
         left: 0 !important; 
         background: var(--bg-card) !important; 
-        z-index: 100 !important;
-        box-shadow: 4px 0 8px rgba(0,0,0,0.1) !important;
-        border-right: 1px solid var(--border-main) !important;
+        z-index: 50 !important;
+        box-shadow: 6px 0 10px -4px rgba(0,0,0,0.15) !important;
+        border-right: 1.5px solid var(--border-main) !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     /* El header también debe ser sticky */
-    .calendar-weekly th.trainer-col { z-index: 101 !important; }
+    .calendar-weekly th.trainer-col { 
+        z-index: 60 !important; 
+        background: var(--bg-main) !important;
+    }
 
     /* Stats size reduction */
     #stat_count { font-size: 3.5rem !important; }

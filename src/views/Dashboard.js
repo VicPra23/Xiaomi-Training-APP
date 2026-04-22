@@ -1,9 +1,10 @@
 function renderDashboard(container) {
     let session = getSessionData();
+    const role = session ? session.role : 'User';
+    const currentUser = session ? session.user : 'Desconocido';
     const nickname = session ? session.name : 'Desconocido';
-    const user = session ? session.user : 'Desconocido';
-    const realName = nickname || user;
-    const isAdmin = (session && session.role === 'Admin');
+    const realName = nickname || currentUser;
+    const isAdmin = (role === 'Admin');
 
     // Almacenamos el listener en window para poder limpiarlo al navegar
     if (window._dashResizeHandler) window.removeEventListener('resize', window._dashResizeHandler);
@@ -360,12 +361,11 @@ function renderDashboard(container) {
 
         sendJSONP('getUsersList', {}, true).then(res => {
             if (res.status === 'success') {
-                window._lastDashData = res.data;
                 const s = document.getElementById('dashboardTarget');
                 const ht = document.getElementById('histFilterTrainer');
                 const optionsHtml = `
                     <option value="Total">Dato Global</option>
-                    <option value="${user}">Solo Mío</option>
+                    <option value="${currentUser}">Solo Mío</option>
                     <hr>
                     ${res.data.map(u => `<option value="${u}">${u}</option>`).join('')}
                 `;
@@ -441,6 +441,7 @@ function renderDashboard(container) {
                     
                     // Delay render to let mobile layout and fonts stabilize
                     setTimeout(() => {
+                        window._lastDashData = res;
                         renderCharts(res);
                         if (isAdmin && res.adminStats) renderAdminStats(res.adminStats);
                     }, 250);
