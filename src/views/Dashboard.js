@@ -160,7 +160,7 @@ function renderDashboard(container) {
                     </div>
                     
                     <!-- Fila de Filtros Dinámicos -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;">
+                    <div class="filters-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;">
                         ${isAdmin ? `
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.65rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Trainer</label>
@@ -709,12 +709,12 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                animation: { duration: 1500, easing: 'easeInOutQuart' },
+                layout: { padding: isMobile ? 5 : 15 },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
                         labels: { 
-                            padding: isMobile ? 10 : 20, 
+                            padding: isMobile ? 8 : 20, 
                             usePointStyle: true, 
                             pointStyle: 'circle', 
                             font: { size: fontSize, weight: 600 } 
@@ -726,8 +726,8 @@ function renderCharts(data) {
                         bodyColor: isDark ? '#cbd5e0' : '#4b5563',
                         borderColor: isDark ? '#374151' : '#e5e7eb',
                         borderWidth: 1,
-                        padding: 12,
-                        cornerRadius: 10,
+                        padding: isMobile ? 8 : 12,
+                        cornerRadius: 8,
                         displayColors: true
                     }
                 },
@@ -735,11 +735,11 @@ function renderCharts(data) {
                     y: { 
                         beginAtZero: true,
                         grid: { color: gridColor, drawBorder: false },
-                        ticks: { font: { size: tickSize } }
+                        ticks: { font: { size: tickSize }, maxTicksLimit: isMobile ? 6 : 10 }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { font: { size: tickSize, weight: 600 } }
+                        ticks: { font: { size: tickSize, weight: 600 }, maxRotation: 45, minRotation: 0 }
                     }
                 }
             }
@@ -823,11 +823,11 @@ function renderCharts(data) {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { 
-                        legend: { position: 'bottom', labels: { usePointStyle: true, font: { weight: 600 } } }
+                        legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: isMobile ? 9 : 12, weight: 600 } } }
                     },
                     scales: { 
-                        x: { beginAtZero: true, grid: { color: gridColor } },
-                        y: { grid: { display: false }, ticks: { font: { weight: 700 } } }
+                        x: { beginAtZero: true, grid: { color: gridColor }, ticks: { font: { size: isMobile ? 9 : 11 } } },
+                        y: { grid: { display: false }, ticks: { font: { size: isMobile ? 9 : 11, weight: 700 } } }
                     }
                 }
             });

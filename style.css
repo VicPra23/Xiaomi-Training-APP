@@ -1013,12 +1013,12 @@ h1, h2, h3, h4, h5, h6 {
     .report-table td::before { content: attr(data-label); float: left; font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 0.7rem; }
 }
 @media (max-width: 768px) {
-    .app-container { padding: 0 1rem !important; margin: 1rem auto !important; }
-    .chart-wrapper { height: 250px !important; }
+    .app-container { padding: 0 0.5rem !important; margin: 0.5rem auto !important; }
+    .chart-wrapper { height: 280px !important; width: 100% !important; }
     .bento-grid, .admin-charts-container, .report-module .report-grid, .dash-module .stats-grid, .dash-module .charts-container {
         grid-template-columns: 1fr !important;
         grid-auto-rows: auto !important;
-        gap: 15px !important;
+        gap: 12px !important;
     }
     .bento-item { grid-column: span 1 !important; grid-row: span 1 !important; }
     
@@ -1026,17 +1026,32 @@ h1, h2, h3, h4, h5, h6 {
         width: 100% !important; 
         justify-content: center !important; 
         padding: 0.75rem !important;
-        margin-top: 10px;
+        margin-top: 8px;
+        gap: 6px !important;
+    }
+    .glass-card { padding: 0.85rem !important; border-radius: 18px !important; }
+    .dash-header h2 { font-size: 1.5rem !important; margin-bottom: 0.2rem !important; }
+    .dash-header { margin-bottom: 1rem !important; padding-top: 0.5rem !important; }
+    .dash-header p { font-size: 0.8rem !important; }
+    
+    .calendar-weekly th, .calendar-weekly td { min-width: 110px; padding: 5px; }
+    .calendar-weekly .trainer-col { min-width: 80px; font-size: 0.65rem; }
+    .assignment-tag { font-size: 0.55rem; padding: 3px 5px; }
+    
+    /* Compact Filters Grid */
+    .filters-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
         gap: 8px !important;
     }
-    .glass-card { padding: 1rem !important; border-radius: 20px !important; }
-    .dash-header h2 { font-size: 1.6rem !important; margin-bottom: 0.25rem !important; }
-    .dash-header { margin-bottom: 1.5rem !important; padding-top: 1rem !important; }
-    .dash-header p { font-size: 0.85rem !important; }
-    
-    .calendar-weekly th, .calendar-weekly td { min-width: 120px; padding: 6px; }
-    .calendar-weekly .trainer-col { min-width: 90px; font-size: 0.7rem; }
-    .assignment-tag { font-size: 0.6rem; padding: 4px 6px; }
+    .filters-grid .form-control {
+        height: 34px !important;
+        font-size: 0.75rem !important;
+        padding: 5px 8px !important;
+    }
+    .filters-grid .filter-label {
+        font-size: 0.6rem !important;
+        margin-bottom: 2px !important;
+    }
     
     /* Stats size reduction */
     #stat_count { font-size: 3.5rem !important; }
