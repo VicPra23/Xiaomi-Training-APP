@@ -654,8 +654,9 @@ function renderCharts(data) {
     const secondaryGradientEnd = isDark ? '#1e293b' : '#f1f5f9';
     const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
     const textColor = isDark ? '#777777' : '#888888';
-    const fontSize = isMobile ? 9 : 12;
-    const tickSize = isMobile ? 8 : 11;
+    const isLandscape = window.innerHeight < window.innerWidth && isMobile;
+    const fontSize = isMobile ? (isLandscape ? 8 : 9) : 12;
+    const tickSize = isMobile ? (isLandscape ? 7 : 8) : 11;
 
     if (typeof Chart === 'undefined') {
         console.error("Chart.js is NOT defined.");
@@ -715,8 +716,8 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                aspectRatio: isMobile ? 1.1 : 2,
-                layout: { padding: isMobile ? { top: 5, bottom: 5, left: 5, right: 15 } : 15 },
+                aspectRatio: isMobile ? (isLandscape ? 2.5 : 1.2) : 2,
+                layout: { padding: isMobile ? { top: 5, bottom: 5, left: 10, right: 15 } : 15 },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
@@ -777,7 +778,7 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false, 
-                aspectRatio: isMobile ? 1 : 2,
+                aspectRatio: isMobile ? (isLandscape ? 2.2 : 1.2) : 2,
                 animation: { animateRotate: true, animateScale: true },
                 layout: { padding: isMobile ? { top: 10, bottom: 10, left: 5, right: 5 } : 0 },
                 plugins: { 
@@ -830,7 +831,7 @@ function renderCharts(data) {
                     indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
-                    aspectRatio: isMobile ? 0.8 : 2,
+                    aspectRatio: isMobile ? (isLandscape ? 2 : 0.8) : 2,
                     plugins: { 
                         legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: isMobile ? 9 : 12, weight: 600 } } }
                     },
