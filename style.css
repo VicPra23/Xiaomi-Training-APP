@@ -1107,31 +1107,40 @@ h1, h2, h3, h4, h5, h6 {
     }
     
     /* Nuevo Sistema de Scroll Calendario */
+    /* 1. El muro exterior (inquebrantable) */
     .calendar-scroll-shell {
-        position: relative;
+        display: block !important; /* Quitamos el grid, que siempre intenta estirarse */
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden; /* Prohíbe terminantemente que nada se salga de la pantalla */
         margin-top: 1rem;
         background: var(--bg-card);
         border-radius: 16px;
         border: 1px solid var(--border-main);
-        overflow: hidden;
     }
-    
 
-
+    /* 2. El raíl de deslizamiento */
     .calendar-table-scroller {
+        width: 100%;
+        max-width: 100%;
         overflow-x: auto;
         overflow-y: visible;
-        -webkit-overflow-scrolling: touch;
+        -webkit-overflow-scrolling: touch; /* Scroll suave como la seda en iOS */
         position: relative;
+        padding-bottom: 1rem; /* Espacio para que la barra de scroll no pise la tabla */
     }
 
+    /* 3. La tabla (la que empuja) */
     .calendar-weekly { 
+        min-width: 980px !important; /* CRÍTICO: Obligamos a la tabla a ser grande sí o sí */
+        width: 100% !important; 
         border-collapse: separate !important; 
         border-spacing: 0 !important; 
+        background: var(--bg-card); 
+        border-radius: 12px; 
+        box-shadow: var(--shadow-sm); 
+        table-layout: auto !important; 
         display: table !important;
-        width: 100% !important;
-        min-width: 900px !important;
-        table-layout: fixed !important;
     }
 
     /* Sticky Trainer Column Fix - Definitivo */
