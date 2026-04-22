@@ -1,6 +1,18 @@
 function renderDashboard(container) {
-    let session = getSessionData(), role = session?session.role:'User', currentUser = session?session.user:'Desconocido', realName = session?session.name:'Desconocido';
-    const isAdmin = (role === 'Admin');
+    let session = getSessionData();
+    const nickname = session ? session.name : 'Desconocido';
+    const user = session ? session.user : 'Desconocido';
+    const realName = nickname || user;
+    const isAdmin = (session && session.role === 'Admin');
+
+    // Almacenamos el listener en window para poder limpiarlo al navegar
+    if (window._dashResizeHandler) window.removeEventListener('resize', window._dashResizeHandler);
+    window._dashResizeHandler = () => {
+        if (window.location.hash === '#dashboard' && window._lastDashData) {
+            renderCharts(window._lastDashData);
+        }
+    };
+    window.addEventListener('resize', window._dashResizeHandler);
 
     const filterCard = isAdmin ? `
         <div class="glass-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
@@ -9,7 +21,7 @@ function renderDashboard(container) {
                     <label class="form-label" style="display: block; width: 100%;">Trainer</label>
                     <select id="dashboardTarget" class="form-control">
                         <option value="Total">Dato Global</option>
-                        <option value="${currentUser}">Solo Mío</option>
+                        <option value="${user}">Solo Mío</option>
                     </select>
                 </div>
                 <div class="form-group" style="margin:0; min-width: 80px; flex: 0 1 auto; text-align: center;">
@@ -68,7 +80,6 @@ function renderDashboard(container) {
             ${filterCard}
 
             <div class="bento-grid">
-                <!-- Card Principal: Actividades (Grande) -->
                 <div class="glass-card bento-item" style="grid-column: span 2; grid-row: span 2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; overflow: hidden;">
                     <h3 style="font-size: 1.25rem; color: var(--text-medium); font-weight: 500; position: relative; z-index: 2; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
                         <i data-lucide="activity" style="color: var(--text-medium); width: 22px;"></i>
@@ -77,7 +88,6 @@ function renderDashboard(container) {
                     <div id="stat_count" style="font-size: clamp(3.5rem, 15vw, 5.5rem); font-weight: 800; line-height: 1; letter-spacing: -0.05em; font-family: var(--font-heading); position: relative; z-index: 2; color: var(--xiaomi-orange);">0</div>
                 </div>
 
-                <!-- Alumnos (Mediano) -->
                 <div class="glass-card bento-item" style="grid-column: span 2; display: flex; align-items: center; justify-content: center; text-align: center; padding: 2rem; position: relative; overflow: hidden;">
                     <div style="position: relative; z-index: 2;">
                         <h4 style="color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.1em; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -88,7 +98,6 @@ function renderDashboard(container) {
                     </div>
                 </div>
 
-                <!-- Sesiones (Pequeño) -->
                 <div class="glass-card bento-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5rem; position: relative; overflow: hidden;">
                     <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; position: relative; z-index: 2; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
                         <i data-lucide="layers" style="color: var(--text-muted); width: 14px;"></i>
@@ -97,7 +106,6 @@ function renderDashboard(container) {
                     <div id="stat_sesiones" style="font-size: 2rem; font-weight: 800; font-family: var(--font-heading); position: relative; z-index: 2; color: #3b82f6;">0</div>
                 </div>
 
-                <!-- Horas (Pequeño) -->
                 <div class="glass-card bento-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5rem; position: relative; overflow: hidden;">
                     <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; position: relative; z-index: 2; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
                         <i data-lucide="clock" style="color: var(--text-muted); width: 14px;"></i>
@@ -119,7 +127,6 @@ function renderDashboard(container) {
             </div>
 
             ${isAdmin ? `
-            <!-- SECCIÓN ADMIN AVANZADA -->
             <div id="adminWidgets" class="admin-charts-container">
                 <div class="glass-card" style="padding:0; overflow:hidden;">
                     <div style="padding:1.5rem; border-bottom:1px solid var(--border-main); display:flex; align-items:center; gap:10px;">
@@ -149,7 +156,6 @@ function renderDashboard(container) {
             </div>
             ` : ''}
 
-            <!-- SECCIÓN HISTORIAL -->
             <div class="glass-card" style="padding: 0; overflow: hidden; border-radius: 32px;">
                 <div style="padding: 2.5rem; border-bottom: 1px solid var(--border-main);">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; margin-bottom: 2rem;">
@@ -164,7 +170,6 @@ function renderDashboard(container) {
                         </div>
                     </div>
                     
-                    <!-- Fila de Filtros Dinámicos -->
                     <div class="filters-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-bottom: 1.5rem;">
                         ${isAdmin ? `
                         <div class="form-group" style="margin:0;">
@@ -225,7 +230,6 @@ function renderDashboard(container) {
             </div>
         </div>
 
-        <!-- MODAL VER DETALLES -->
         <div id="modalReport" class="calendar-overlay" style="display:none; align-items:center; justify-content:center;">
              <div class="glass-card" style="max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
                 <h3 id="modalTitle" style="color: var(--xiaomi-orange); margin-bottom: 1rem;">Detalles del Reporte</h3>
@@ -238,7 +242,6 @@ function renderDashboard(container) {
     container.innerHTML = html;
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
-    // Poblar Selector de Semanas
     const weekNumberISO = (d) => {
         let d2 = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
         d2.setUTCDate(d2.getUTCDate() + 4 - (d2.getUTCDay() || 7));
@@ -246,7 +249,6 @@ function renderDashboard(container) {
     };
     const currentWeek = weekNumberISO(new Date());
     
-    // Inyectar en ambos selectores (Dashboard y Historial)
     const weeksList = Array.from({length: 52}, (_, i) => i + 1);
     const sW = document.getElementById('dashboardWeek');
     const hW = document.getElementById('histFilterWeek');
@@ -309,13 +311,9 @@ function renderDashboard(container) {
                 }
             });
         };
-    } else {
-        // En el Dashboard de usuario ya no inyectamos las 52 semanas estáticas.
-        // Se encarga la función dinámica updateWeekSelect tras recibir los datos reales del servidor.
     }
     injectWeeks(hW, weeksList);
 
-    // Lógica de Sincronización Mes -> Semanas
     window.syncWeeksByMonth = () => {
         const month = document.getElementById('dashboardMonth')?.value || "Todos";
         const year = parseInt(document.getElementById('dashboardYear')?.value) || new Date().getFullYear();
@@ -348,32 +346,26 @@ function renderDashboard(container) {
     const populateAllFilters = () => {
         if (!isAdmin) return;
         
-        // Cargamos metadatos con CACHÉ para velocidad
         sendJSONP('getFilterMetadata', {}, true).then(res => {
             if (res.status === 'success') {
                 const yS = document.getElementById('dashboardYear');
                 const mS = document.getElementById('dashboardMonth');
                 const dS = document.getElementById('dashboardDevice');
                 
-                if (yS) {
-                    yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}">${y}</option>`).join('');
-                }
-                if (mS) {
-                    mS.innerHTML = '<option value="Todos">Todos</option>' + res.data.months.map(m => `<option value="${m}">${m}</option>`).join('');
-                }
-                if (dS) {
-                    dS.innerHTML = '<option value="Todos">Todos</option>' + res.data.devices.map(d => `<option value="${d}">${d}</option>`).join('');
-                }
+                if (yS) yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}">${y}</option>`).join('');
+                if (mS) mS.innerHTML = '<option value="Todos">Todos</option>' + res.data.months.map(m => `<option value="${m}">${m}</option>`).join('');
+                if (dS) dS.innerHTML = '<option value="Todos">Todos</option>' + res.data.devices.map(d => `<option value="${d}">${d}</option>`).join('');
             }
         });
 
         sendJSONP('getUsersList', {}, true).then(res => {
             if (res.status === 'success') {
+                window._lastDashData = res.data;
                 const s = document.getElementById('dashboardTarget');
                 const ht = document.getElementById('histFilterTrainer');
                 const optionsHtml = `
                     <option value="Total">Dato Global</option>
-                    <option value="${currentUser}">Solo Mío</option>
+                    <option value="${user}">Solo Mío</option>
                     <hr>
                     ${res.data.map(u => `<option value="${u}">${u}</option>`).join('')}
                 `;
