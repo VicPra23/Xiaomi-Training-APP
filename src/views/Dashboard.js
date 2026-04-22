@@ -715,8 +715,8 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                aspectRatio: isMobile ? 1 : 2,
-                layout: { padding: isMobile ? { top: 5, bottom: 5, left: 0, right: 0 } : 15 },
+                aspectRatio: isMobile ? 1.1 : 2,
+                layout: { padding: isMobile ? { top: 5, bottom: 5, left: 5, right: 15 } : 15 },
                 plugins: { 
                     legend: { 
                         position: 'bottom',
@@ -830,12 +830,22 @@ function renderCharts(data) {
                     indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
+                    aspectRatio: isMobile ? 0.8 : 2,
                     plugins: { 
                         legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: isMobile ? 9 : 12, weight: 600 } } }
                     },
                     scales: { 
                         x: { beginAtZero: true, grid: { color: gridColor }, ticks: { font: { size: isMobile ? 9 : 11 } } },
-                        y: { grid: { display: false }, ticks: { font: { size: isMobile ? 9 : 11, weight: 700 } } }
+                        y: { 
+                            grid: { display: false }, 
+                            ticks: { 
+                                font: { size: isMobile ? 9 : 11, weight: 700 },
+                                callback: function(value) {
+                                    const label = this.getLabelForValue(value);
+                                    return isMobile && label.length > 8 ? label.substring(0,7)+'..' : label;
+                                }
+                            } 
+                        }
                     }
                 }
             });

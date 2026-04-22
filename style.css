@@ -1030,7 +1030,7 @@ h1, h2, h3, h4, h5, h6 {
         margin-top: 8px;
         gap: 6px !important;
     }
-    .glass-card { padding: 0.65rem !important; border-radius: 16px !important; }
+    .glass-card { padding: 0.65rem !important; border-radius: 16px !important; overflow: visible !important; }
     .dash-header h2 { font-size: 1.5rem !important; margin-bottom: 0.2rem !important; }
     .dash-header { margin-bottom: 1rem !important; padding-top: 0.5rem !important; }
     .dash-header p { font-size: 0.8rem !important; }
