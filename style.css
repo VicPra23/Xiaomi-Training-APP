@@ -906,7 +906,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .dash-module .chart-wrapper {
     position: relative;
-    height: 400px;
+    height: clamp(280px, 40vh, 380px);
     width: 100%;
 }
 .dash-module .glass-card {
@@ -975,7 +975,7 @@ h1, h2, h3, h4, h5, h6 {
     .bento-item { grid-column: span 1 !important; grid-row: span 1 !important; padding: 1.5rem !important; }
     
     .dash-module .charts-container { grid-template-columns: 1fr; gap: 1rem; }
-    .dash-module .chart-wrapper { height: 260px; min-height: 260px; }
+    .dash-module .chart-wrapper { height: 260px; min-height: 220px !important; }
     .dash-module .dash-header h2 { font-size: 1.8rem; }
     
     .glass-card { padding: 1.25rem !important; }
@@ -1015,7 +1015,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 @media (max-width: 768px) {
     .app-container { padding: 0 0.85rem !important; margin: 0.5rem auto !important; }
-    .chart-wrapper { min-height: 240px !important; height: auto !important; width: 100% !important; }
+    .chart-wrapper { min-height: 240px !important; height: clamp(240px, 30vh, 280px) !important; width: 100% !important; }
     .bento-grid, .admin-charts-container, .report-module .report-grid, .dash-module .stats-grid, .dash-module .charts-container {
         grid-template-columns: 1fr !important;
         grid-auto-rows: auto !important;
@@ -1090,36 +1090,90 @@ h1, h2, h3, h4, h5, h6 {
         margin-bottom: 2px !important;
     }
     
-    /* Sticky Trainer Column Fix - Agresivo */
+    /* Nuevo Sistema de Scroll Calendario */
+    .calendar-scroll-shell {
+        position: relative;
+        margin-top: 1rem;
+        background: var(--bg-card);
+        border-radius: 16px;
+        border: 1px solid var(--border-main);
+        overflow: hidden;
+    }
+    
+    .calendar-scroll-hint {
+        display: none; /* Oculto por defecto en desktop */
+        background: var(--bg-main);
+        color: var(--xiaomi-orange);
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 8px;
+        text-align: center;
+        border-bottom: 1px solid var(--border-main);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .calendar-table-scroller {
+        overflow-x: auto;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+        position: relative;
+    }
+
     .calendar-weekly { 
         border-collapse: separate !important; 
         border-spacing: 0 !important; 
         display: table !important;
-        width: auto !important;
+        width: 100% !important;
         min-width: 900px !important;
-        overflow: visible !important;
-        table-layout: auto !important;
+        table-layout: fixed !important;
     }
+
+    /* Sticky Trainer Column Fix - Definitivo */
     .calendar-weekly .trainer-col { 
-        min-width: 120px !important; 
-        max-width: 120px !important;
+        min-width: 130px !important; 
+        max-width: 130px !important;
+        width: 130px !important;
         font-size: 0.75rem; 
         font-weight: 800 !important;
         position: sticky !important; 
         left: 0 !important; 
         background-color: var(--bg-card) !important; 
-        z-index: 9999 !important;
-        box-shadow: 10px 0 15px -10px rgba(0,0,0,0.5) !important;
+        z-index: 100 !important; /* Inferior al header pero superior al body */
+        box-shadow: 10px 0 15px -10px rgba(0,0,0,0.4) !important;
         border-right: 2px solid var(--xiaomi-orange) !important;
-        padding-left: 10px !important;
+        padding: 12px 10px !important;
         opacity: 1 !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
+
     .calendar-weekly th.trainer-col { 
-        z-index: 10000 !important; 
+        z-index: 1000 !important; 
         background-color: var(--bg-main) !important;
+        top: 0; /* Por si añadimos sticky vertical después */
     }
+
+    /* Estilos de celdas estándar */
     .calendar-weekly td, .calendar-weekly th {
         border: 0.5px solid var(--border-main) !important;
+        height: 60px;
+        vertical-align: top;
+    }
+
+    @media (max-width: 768px) {
+        .calendar-scroll-hint {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .calendar-weekly .trainer-col {
+            min-width: 100px !important;
+            max-width: 100px !important;
+            width: 100px !important;
+        }
     }
 
     /* Stats size reduction */

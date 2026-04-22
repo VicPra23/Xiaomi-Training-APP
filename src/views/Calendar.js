@@ -39,7 +39,7 @@ function renderCalendar(container) {
                     
                     <div style="display:flex; align-items:center; gap:5px; background:var(--bg-card); border:1px solid var(--border-main); border-radius:10px; padding:4px 12px; box-shadow: var(--shadow-sm);">
                         <select id="jumpMonth" class="form-control" style="border:none; background:transparent; font-weight:700; cursor:pointer; width:auto; padding:0; height:auto;">
-                            ${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"].map((m, i) => `<option value="${i}">${m}</option>`).join('')}
+                            \${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"].map((m, i) => `<option value="\${i}">\${m}</option>`).join('')}
                         </select>
                         <select id="jumpYear" class="form-control" style="border:none; background:transparent; font-weight:700; cursor:pointer; width:auto; padding:0; height:auto;">
                             <option value="2025">2025</option>
@@ -53,9 +53,9 @@ function renderCalendar(container) {
                 </div>
                 
                 <div class="legend-bar glass-card" style="padding:12px; display:flex; gap:10px; flex-wrap:wrap; font-size:0.65rem; font-weight:800; text-transform: uppercase; letter-spacing: 0.02em; justify-content: center;">
-                    ${categories.map(c => `
+                    \${categories.map(c => `
                         <span style="display:flex; align-items:center; gap:5px;">
-                            <i style="width:10px; height:10px; border-radius:3px; background:${c.color}; display:inline-block; flex-shrink:0;"></i> ${c.label}
+                            <i style="width:10px; height:10px; border-radius:3px; background:\${c.color}; display:inline-block; flex-shrink:0;"></i> \${c.label}
                         </span>
                     `).join('')}
                     <span style="display:flex; align-items:center; gap:5px;">
@@ -64,7 +64,11 @@ function renderCalendar(container) {
                 </div>
             </header>
 
-            <div id="calendarTableContainer" style="overflow-x:auto;">
+            <div class="calendar-scroll-shell">
+                <div class="calendar-scroll-hint">
+                    <i data-lucide="move-horizontal" style="width:14px;"></i> Desliza lateralmente para ver los días
+                </div>
+                <div id="calendarTableContainer" class="calendar-table-scroller">
                 <table class="calendar-weekly">
                     <thead>
                         <tr id="tableHeader">
@@ -73,6 +77,7 @@ function renderCalendar(container) {
                     </thead>
                     <tbody id="tableBody"></tbody>
                 </table>
+                </div>
             </div>
             <div id="loadingOverlay" style="text-align:center; padding:2rem; display:none;">
                 <div class="loader"></div>
@@ -82,6 +87,7 @@ function renderCalendar(container) {
     `;
 
     container.innerHTML = html;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
     
     // Set current month/year in jump menus
     document.getElementById('jumpMonth').value = currentMonday.getMonth();
@@ -105,12 +111,12 @@ function renderCalendar(container) {
 
         const weekEnd = new Date(currentMonday); weekEnd.setDate(weekEnd.getDate() + 6);
         const startISO = toISO(currentMonday), endISO = toISO(weekEnd);
-        const cacheKey = `${startISO}_${endISO}`;
+        const cacheKey = \`\${startISO}_\${endISO}\`;
         
         const weekNum = getWeekNumber(currentMonday);
         const monthName = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][currentMonday.getMonth()];
         const wTitle = document.getElementById('weekTitle');
-        if (wTitle) wTitle.innerText = `${monthName} ${currentMonday.getFullYear()} - Sem ${weekNum}`;
+        if (wTitle) wTitle.innerText = \`\${monthName} \${currentMonday.getFullYear()} - Sem \${weekNum}\`;
 
         if (calendarCache[cacheKey]) {
             loader.style.display = 'none'; tableCont.style.opacity = '1';
@@ -131,7 +137,7 @@ function renderCalendar(container) {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             } else {
                 const err = usersRes.message || scheduleRes.message || "Error desconocido";
-                loader.innerHTML = `<p style="color:var(--status-rejected-text); font-weight:bold; display:flex; align-items:center; justify-content:center; gap:8px;"><i data-lucide="alert-triangle"></i> Error: ${err}</p>`;
+                loader.innerHTML = \`<p style="color:var(--status-rejected-text); font-weight:bold; display:flex; align-items:center; justify-content:center; gap:8px;"><i data-lucide="alert-triangle"></i> Error: \${err}</p>\`;
                 loader.style.display = 'block';
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
@@ -152,7 +158,7 @@ function renderCalendar(container) {
             const iso = toISO(d);
             const label = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"][i];
             const th = document.createElement('th');
-            th.innerHTML = `${label}<br><span style="font-size:0.65rem; opacity:0.9; font-weight:800;">${d.getDate()}/${d.getMonth()+1}</span>`;
+            th.innerHTML = \`\${label}<br><span style="font-size:0.65rem; opacity:0.9; font-weight:800;">\${d.getDate()}/\${d.getMonth()+1}</span>\`;
             header.appendChild(th);
             days.push({ iso, isWeekend: (i >= 5) });
         }
@@ -181,18 +187,18 @@ function renderCalendar(container) {
 
                 if (matchedVaca) {
                     td.classList.add('day-blocked');
-                    td.innerHTML = `<div class="assignment-tag" style="background:var(--text-muted); opacity:0.6; color:white; font-size:0.6rem;">${matchedVaca.status === 'Pendiente' ? 'SOLICITUD' : 'VACACIONES'}</div>`;
+                    td.innerHTML = \`<div class="assignment-tag" style="background:var(--text-muted); opacity:0.6; color:white; font-size:0.6rem;">\${matchedVaca.status === 'Pendiente' ? 'SOLICITUD' : 'VACACIONES'}</div>\`;
                 } else if (isHoliday) {
                     const canEditHoliday = isAdmin;
                     if (!canEditHoliday) td.classList.add('day-blocked');
-                    let itemsHtml = `<div class="assignment-tag cat-fest">FESTIVO</div>`;
-                    itemsHtml += dayItems.map(it => `<div class="assignment-tag cat-${it.category}">${linkify(it.text)}</div>`).join('');
+                    let itemsHtml = \`<div class="assignment-tag cat-fest">FESTIVO</div>\`;
+                    itemsHtml += dayItems.map(it => \`<div class="assignment-tag cat-\${it.category}">\${linkify(it.text)}</div>\`).join('');
                     td.innerHTML = itemsHtml;
                     if (canEditHoliday) td.onclick = (e) => { if (e.target.tagName !== 'A') openEditModal(user, day.iso, dayItems); };
                 } else {
                     const canEdit = (isAdmin || (user === currentUser && !day.isWeekend));
                     if (!canEdit) td.classList.add('day-blocked');
-                    td.innerHTML = dayItems.map(it => `<div class="assignment-tag cat-${it.category}">${linkify(it.text)}</div>`).join('') || (canEdit ? '<div style="color:var(--text-muted); opacity:0.6; font-size:0.6rem; text-align:center;">Libre</div>' : '');
+                    td.innerHTML = dayItems.map(it => \`<div class="assignment-tag cat-\${it.category}">\${linkify(it.text)}</div>\`).join('') || (canEdit ? '<div style="color:var(--text-muted); opacity:0.6; font-size:0.6rem; text-align:center;">Libre</div>' : '');
                     if (canEdit) td.onclick = (e) => { if (e.target.tagName !== 'A') openEditModal(user, day.iso, dayItems); };
                 }
                 tr.appendChild(td);
@@ -208,26 +214,26 @@ function renderCalendar(container) {
             const div = document.createElement('div');
             div.className = 'assignment-row';
             div.style.cssText = 'display:flex; gap:5px; margin-bottom:8px; align-items:center;';
-            div.innerHTML = `
+            div.innerHTML = \`
                 <div style="display:flex; flex-direction:column; gap:2px;">
                     <button type="button" class="btn-secondary move-up" style="padding:0; width:22px; height:20px; font-size:10px;"><i data-lucide="chevron-up" style="width:12px;"></i></button>
                     <button type="button" class="btn-secondary move-down" style="padding:0; width:22px; height:20px; font-size:10px;"><i data-lucide="chevron-down" style="width:12px;"></i></button>
                 </div>
                 <select class="form-control sel-cat" style="flex:1; padding:6px; font-size: 0.8rem;">
-                    ${categories.map(c => `<option value="${c.id}" ${it && c.id === it.category ? 'selected' : ''}>${c.label}</option>`).join('')}
+                    \${categories.map(c => \`<option value="\${c.id}" \${it && c.id === it.category ? 'selected' : ''}>\${c.label}</option>\`).join('')}
                 </select>
-                <textarea class="form-control inp-text" style="flex:2; padding:8px; font-size:0.75rem; border:1px solid var(--border-main); border-radius:10px; resize:vertical; min-height:45px;" placeholder="Detalle...">${it ? it.text : ''}</textarea>
+                <textarea class="form-control inp-text" style="flex:2; padding:8px; font-size:0.75rem; border:1px solid var(--border-main); border-radius:10px; resize:vertical; min-height:45px;" placeholder="Detalle...">\${it ? it.text : ''}</textarea>
                 <button type="button" class="btn-outline danger" onclick="this.parentElement.remove()" style="padding:0; width:34px; height:34px; display:flex; align-items:center; justify-content:center;"><i data-lucide="x" style="width:16px;"></i></button>
-            `;
+            \`;
             div.querySelector('.move-up').onclick = () => { if(div.previousElementSibling) div.parentElement.insertBefore(div, div.previousElementSibling); };
             div.querySelector('.move-down').onclick = () => { if(div.nextElementSibling) div.parentElement.insertBefore(div.nextElementSibling, div); };
             return div;
         }
 
-        modal.innerHTML = `
+        modal.innerHTML = \`
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h4 style="margin:0; font-size: 1.25rem;">${user}</h4>
-                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; display:flex; align-items:center; gap:5px;"><i data-lucide="calendar" style="width:14px;"></i> ${date}</div>
+                <h4 style="margin:0; font-size: 1.25rem;">\${user}</h4>
+                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; display:flex; align-items:center; gap:5px;"><i data-lucide="calendar" style="width:14px;"></i> \${date}</div>
             </div>
             <div id="itemsContainer"></div>
             <button type="button" id="addItem" class="btn-secondary" style="width:100%; margin-top:15px; font-size:0.75rem; height:36px; border-style:dashed;">+ Añadir opción</button>
@@ -235,7 +241,7 @@ function renderCalendar(container) {
                 <button id="cancelModal" class="btn-outline" style="flex:1;">Cerrar</button>
                 <button id="saveModal" class="btn-primary" style="flex:1;">Guardar</button>
             </div>
-        `;
+        \`;
 
         document.body.appendChild(overlay);
         document.body.appendChild(modal);
@@ -275,7 +281,7 @@ function renderCalendar(container) {
         const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|meet\.google\.com\/[^\s]+|teams\.microsoft\.com\/[^\s]+)/gi;
         return str.replace(urlRegex, (url) => {
             let href = url; if (!url.startsWith('http')) href = 'http://' + url;
-            return `<a href="${href}" target="_blank" style="color:white; text-decoration:underline; font-weight:bold;">Link</a>`;
+            return \`<a href="\${href}" target="_blank" style="color:white; text-decoration:underline; font-weight:bold;">Link</a>\`;
         });
     }
 

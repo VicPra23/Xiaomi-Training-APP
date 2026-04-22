@@ -7,11 +7,14 @@ function renderDashboard(container) {
         const realName = nickname || currentUser;
         const isAdmin = (role === 'Admin');
 
-        // Almacenamos el listener en window para poder limpiarlo al navegar
+        // El redimensionamiento ahora lo gestiona Chart.js automáticamente con ResizeObserver
+        // gracias a que el tamaño de los contenedores está definido en CSS (clamp + media queries).
         if (window._dashResizeHandler) window.removeEventListener('resize', window._dashResizeHandler);
         window._dashResizeHandler = () => {
-            if (window.location.hash === '#dashboard' && window._lastDashData) {
-                renderCharts(window._lastDashData);
+            // Solo si queremos actualizar fuentes o algo muy específico al cambiar de modo (móvil/desktop)
+            // pero el re-render total ya no es necesario.
+            if (window.location.hash === '#dashboard' && window.weeklyChart) {
+                 // Chart.js hará el reflow por sí solo.
             }
         };
         window.addEventListener('resize', window._dashResizeHandler);
@@ -715,7 +718,6 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                aspectRatio: isMobile ? (isLandscape ? 2.5 : 1.2) : 2,
                 layout: { padding: isMobile ? { top: 5, bottom: 5, left: 10, right: 15 } : 15 },
                 plugins: { 
                     legend: { 
@@ -777,7 +779,6 @@ function renderCharts(data) {
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false, 
-                aspectRatio: isMobile ? (isLandscape ? 2.2 : 1.2) : 2,
                 animation: { animateRotate: true, animateScale: true },
                 layout: { padding: isMobile ? { top: 10, bottom: 10, left: 5, right: 5 } : 0 },
                 plugins: { 
@@ -830,7 +831,6 @@ function renderCharts(data) {
                     indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
-                    aspectRatio: isMobile ? (isLandscape ? 2 : 0.8) : 2,
                     plugins: { 
                         legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: isMobile ? 9 : 12, weight: 600 } } }
                     },
