@@ -48,12 +48,14 @@ function renderMessages(container) {
             log.innerHTML = res.data.map(m => {
                 const isRead = m.read || (m.id && localReadCache.includes(m.id.toString()));
                 const isVac = m.text.toLowerCase().includes('vacacio') || m.text.toLowerCase().includes('extra');
-                const isCal = m.text.toLowerCase().includes('calendario');
+                const isCal = m.text.toLowerCase().includes('calendario') || m.text.toLowerCase().includes('planifica');
                 const isMat = m.text.toLowerCase().includes('material');
+                const isRep = m.text.toLowerCase().includes('reporte') || m.text.toLowerCase().includes('historial');
                 let targetHash = '';
                 if (isVac) targetHash = '#vacations';
                 else if (isCal) targetHash = '#calendar';
                 else if (isMat) targetHash = '#materials';
+                else if (isRep) targetHash = '#dashboard';
 
                 return `
                 <article id="msg-${m.id}" class="glass-card fade-in" style="padding: 1.2rem; border-left: 6px solid ${isRead ? 'var(--border-main)' : (m.from === 'Admin' ? 'var(--xiaomi-orange)' : '#10b981')}; position:relative; opacity: ${isRead ? '0.7' : '1'};">

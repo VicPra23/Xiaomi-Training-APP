@@ -51,8 +51,6 @@ function doGet(e) {
     if (action === "getMessages")       res = getMessages(p);
     if (action === "getWeekly")         res = getWeeklySchedule(p);
     if (action === "updateReport")      res = updateReport(p);
-    if (action === "getUsersList")      res = getUsersList();
-    if (action === "getCitiesList")     res = getCitiesList();
   } catch(err) { res = { status: "error", message: "Backend Error: " + err.toString() }; }
   return ContentService.createTextOutput(callback + "(" + JSON.stringify(res) + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
@@ -66,6 +64,7 @@ function doPost(e) {
     if (req.action === "requestVacation") res = handleRequestVacation(req);
     if (req.action === "updateRequest")   res = updateRequestStatus(req.id, req.status);
     if (req.action === "modifyExtra")     res = modifyExtraDays(req.user, req.delta);
+    if (req.action === "modifyBase")      res = modifyBaseDays(req.user, req.delta);
     if (req.action === "markMessageRead") res = handleMarkMessageRead(req);
     if (req.action === "markAllMessagesRead") res = handleMarkAllMessagesRead(req);
     if (req.action === "saveAssignment")  res = saveWeeklyAssignment(req);
@@ -101,7 +100,16 @@ function getAdminData() {
         const u = r[0].toString().toLowerCase();
         const cons = consumedMap[u] || {base:0, extra:0};
         const totalExtra = extraMap[u] || 0;
-        return { user: r[0], name: r[1], sede: r[2], baseAvail: 23 - cons.base, extraAvail: totalExtra - cons.extra, extraTotal: totalExtra };
+        const totalBase = parseFloat(r[6]) || 23; 
+        return { 
+          user: r[0], 
+          name: r[1], 
+          sede: r[2], 
+          baseTotal: totalBase,
+          baseAvail: totalBase - cons.base, 
+          extraTotal: totalExtra,
+          extraAvail: totalExtra - cons.extra
+        };
     });
 
     const pending = dV.slice(1).filter(r => r[5] === 'Pendiente').map(r => ({ id: r[7], date: r[0], user: r[1], fechas: r[2], month: r[3], type: r[4], count: r[6] }));
@@ -134,6 +142,27 @@ function updateRequestStatus(id, status) {
   } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); }
 }
 
+function modifyBaseDays(user, delta) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
+    let s = ss.getSheetByName(CONFIG.USUARIOS_SHEET_NAME);
+    const d = s.getDataRange().getValues();
+    for (let i = 1; i < d.length; i++) {
+      if (d[i][0].toString().toLowerCase() === user.toLowerCase()) {
+        const current = (parseFloat(d[i][6]) || 23);
+        const newVal = Math.max(0, current + delta);
+        s.getRange(i + 1, 7).setValue(newVal);
+        const diff = newVal - current;
+        if(diff !== 0) {
+            notifyUser(user, "Se han actualizado tus días de vacaciones.");
+        }
+        return { status: "success", newVal: newVal };
+      }
+    }
+    return { status: "error", message: "Usuario no encontrado en la hoja de Usuarios" };
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); }
+}
+
 function modifyExtraDays(user, delta) {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
@@ -146,18 +175,7 @@ function modifyExtraDays(user, delta) {
         const newVal = Math.max(0, current + delta);
         s.getRange(i + 1, 2).setValue(newVal);
         const diff = newVal - current;
-        if(diff !== 0) {
-            // Calcular disponibilidad real para el mensaje
-            let usedE = 0;
-            const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
-            for (let j=1; j<dV.length; j++) {
-              if (dV[j][1].toString().toLowerCase() === user.toLowerCase() && dV[j][4] !== "Vacaciones" && dV[j][5] !== "Rechazado") {
-                 usedE += parseFloat(dV[j][6]) || 0;
-              }
-            }
-            const avail = Math.max(0, newVal - usedE);
-            notifyUser(user, "Se han " + (diff > 0 ? "añadido" : "restado") + " " + Math.abs(diff) + " día(s) extra(s). Tu nuevo saldo disponible es: " + avail + ".");
-        }
+            notifyUser(user, "Se han actualizado tus días de vacaciones.");
         return { status: "success", newVal: newVal };
       }
     }
@@ -169,8 +187,16 @@ function modifyExtraDays(user, delta) {
 // --- CORE VACATION LOGIC ---
 function getVacationData(user) {
   if (!user) return { status: "error" };
-  let festivos = [], userSede = "Genérica";
+  let festivos = [], userSede = "Genérica", baseTotal = 23;
   
+  const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
+  for (let i = 1; i < dU.length; i++) {
+    if (dU[i][0].toString().toLowerCase() === user.toLowerCase()) {
+      baseTotal = parseFloat(dU[i][6]) || 23;
+      break;
+    }
+  }
+
   const dF = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.FESTIVOS_SHEET_NAME);
   for (let i = 1; i < dF.length; i++) {
     if (dF[i][0].toString().trim().toLowerCase() === user.toLowerCase()) {
@@ -196,7 +222,7 @@ function getVacationData(user) {
       history.push({ id: dV[i][7], date: dV[i][0], fechas: dV[i][2], month: dV[i][3], type: type, status: status, count: count });
     }
   }
-  return { status: "success", stats: { baseTotal: 23, extraTotal: extra, usedBase: uB, usedExtra: uE, sede: userSede }, festivos: festivos, history: history };
+  return { status: "success", stats: { baseTotal: baseTotal, extraTotal: extra, usedBase: uB, usedExtra: uE, sede: userSede }, festivos: festivos, history: history };
 }
 
 function handleRequestVacation(req) {
@@ -205,40 +231,26 @@ function handleRequestVacation(req) {
     let sV = ss.getSheetByName(CONFIG.VACACIONES_SHEET_NAME) || ss.insertSheet(CONFIG.VACACIONES_SHEET_NAME);
     const groups = {};
     req.dates.forEach(dStr => {
-      const d = new Date(dStr);
+      const d = parseDateStable(dStr) || new Date(dStr);
       const mLabel = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][d.getMonth()] + " " + d.getFullYear();
       if (!groups[mLabel]) groups[mLabel] = []; groups[mLabel].push(dStr);
     });
     for (let m in groups) {
       const s = groups[m].sort();
       const label = s.length>1 ? ("Del "+formatDateS(s[0])+" al "+formatDateS(s[s.length-1])) : ("Día "+formatDateS(s[0]));
-      sV.appendRow([ new Date(), req.user, label, m, req.type, "Pendiente", s.length, "REQ_"+Date.now() ]);
+      const uniqueId = "REQ_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+      sV.appendRow([ new Date(), req.user, label, m, req.type, "Pendiente", s.length, uniqueId ]);
       notifyAdmins("Nueva solicitud de " + req.user + " (" + req.type + "): " + label, req.user);
     }
     return { status: "success" };
   } catch(e) { return { status: "error", message: e.toString() }; }
 }
 
-function parseDateStable(v) {
-  if (v instanceof Date && !isNaN(v.getTime())) return v;
-  if (!v) return null;
-  const s = v.toString();
-  const d = new Date(s); if (!isNaN(d.getTime())) return d;
-  const p = s.split(/[-\/]/);
-  if (p.length === 3) {
-    var dd, mm, yy;
-    if (p[0].length === 4) { yy = parseInt(p[0]); mm = parseInt(p[1]); dd = parseInt(p[2]); }
-    else { dd = parseInt(p[0]); mm = parseInt(p[1]); yy = parseInt(p[2]); }
-    if (yy < 100) yy += 2000;
-    return new Date(yy, mm - 1, dd);
-  }
-  return null;
-}
-
 function formatDateS(iso) { 
     const p = iso.split("-").map(Number);
     return Utilities.formatDate(new Date(p[0], p[1]-1, p[2]), Session.getScriptTimeZone(), "dd/MM/yy"); 
 }
+
 
 // --- DASHBOARD / LOGIN (PROTECTED - DO NOT MODIFY) ---
 function attemptLogin(u, p) {
@@ -517,6 +529,12 @@ function updateReport(p) {
     
     s.getRange(rowIdx, 1, 1, rowData.length).setValues([rowData]);
     SpreadsheetApp.flush();
+
+    // Notificar al trainer original si un Admin ha editado su reporte
+    if (isAdmin && existingTrainer !== incomingTrainer) {
+        notifyUser(currentRow[1], "Se ha actualizado un reporte. Revísalo en tu historial", "Admin");
+    }
+
     return { status: "success", message: "Reporte actualizado correctamente." };
   } catch(e) { return { status: "error", message: e.toString() }; }
 }
@@ -671,19 +689,6 @@ function notifyAdmins(text, fromUser) {
     } catch(e) {}
 }
 
-function notifyUser(user, text) {
-    try {
-        const target = user.trim().toLowerCase();
-        const isAdmin = CONFIG.ADMINS.some(a => a.toLowerCase() === target) || /Manager|Coordinator|Creator/i.test(target);
-        if (isAdmin) return;
-
-        const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
-        let smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
-        if (!smsg) smsg = ss.insertSheet(CONFIG.MENSAJES_SHEET_NAME);
-        
-        smsg.appendRow([ Date.now() + Math.floor(Math.random()*1000), new Date(), user, "System", text, "FALSE" ]);
-    } catch(e) {}
-}
 
 function notifyAllUsers(text) {
     try {
@@ -828,6 +833,7 @@ function adminProcessSelection(req) {
       }
 
       rowsToDelete.forEach(rowIdx => s.deleteRow(rowIdx));
+      SpreadsheetApp.flush();
 
       // AUTO-LIMPIEZA: Marcar mensajes de "Nueva solicitud" de este usuario como leídos
       const smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
@@ -841,11 +847,11 @@ function adminProcessSelection(req) {
       }
 
       const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-      newIndividualDays.forEach(obj => {
+      newIndividualDays.forEach((obj, idx) => {
           const dObj = obj.date;
           const label = "Día " + Utilities.formatDate(dObj, Session.getScriptTimeZone(), "dd/MM/yy");
           const mLabel = mNames[dObj.getMonth()] + " " + dObj.getFullYear();
-          const id = "ADM_" + Date.now() + "_" + Math.floor(Math.random()*1000);
+          const id = "ADM_" + Date.now() + "_" + Math.floor(Math.random()*1000) + "_" + idx;
           s.appendRow([obj.originalDateVal, req.user, label, mLabel, obj.type, "Aprobado", 1, id]);
       });
 
@@ -867,7 +873,7 @@ function adminProcessSelection(req) {
           }
       });
       
-      for (let m in groups) {
+      Object.keys(groups).forEach((m, idx) => {
           const sDates = groups[m].sort();
           let label = "";
           if (sDates.length > 1) {
@@ -878,9 +884,9 @@ function adminProcessSelection(req) {
               const dObj = parseDateStable(sDates[0]);
               label = "Día " + Utilities.formatDate(dObj, Session.getScriptTimeZone(), "dd/MM/yy");
           }
-          const id = "ADM_" + Date.now() + "_" + Math.floor(Math.random()*1000);
+          const id = "ADM_" + Date.now() + "_" + Math.floor(Math.random()*1000) + "_" + idx;
           s.appendRow([new Date(), req.user, label, m, type, "Aprobado", sDates.length, id]);
-      }
+      });
 
       notifyUser(req.user, `Admin ha ASIGNADO ${type} en tu calendario para: ${req.dates.join(", ")}.`);
       SpreadsheetApp.flush();
@@ -915,23 +921,30 @@ function saveWeeklyAssignment(req) {
       req.items.forEach(it => {
         s.appendRow([Date.now(), req.user, req.date, it.text, it.category, req.modifiedBy || '']);
       });
-      SpreadsheetApp.flush();
-      notifyUser(req.user, "Se ha actualizado tu planificación semanal.");
-      return { status: "success" };
     }
+    SpreadsheetApp.flush();
+    notifyUser(req.user, "Se ha actualizado tu planificación semanal.");
+    return { status: "success" };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); }
 }
 
 
 function parseDateStable(val) {
   if (!val) return null;
-  if (val instanceof Date) return val;
+  if (val instanceof Date && !isNaN(val.getTime())) return val;
   try {
     const s = val.toString();
-    if (s.indexOf('/') > -1) {
-      const p = s.split('/');
-      let y = parseInt(p[2]); if (y < 100) y += 2000;
-      return new Date(y, parseInt(p[1]) - 1, parseInt(p[0]));
+    // Esta expresión regular divide tanto 15/04/2026 como 2026-04-15
+    const p = s.split(/[-\/]/); 
+    if (p.length === 3) {
+      let dd, mm, yy;
+      // Detecta si empieza por el año (YYYY-MM-DD) o por el día (DD/MM/YYYY)
+      if (p[0].length === 4) { yy = parseInt(p[0]); mm = parseInt(p[1]); dd = parseInt(p[2]); }
+      else { dd = parseInt(p[0]); mm = parseInt(p[1]); yy = parseInt(p[2]); }
+      
+      if (yy < 100) yy += 2000;
+      // Usar new Date(yy, mm, dd) usa la zona horaria LOCAL, evitando saltos de día
+      return new Date(yy, mm - 1, dd); 
     }
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d;

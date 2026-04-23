@@ -13,14 +13,21 @@ window.adminAction = {
         const el = document.getElementById(`extra-${user}`); if (!el) return;
         let current = parseFloat(el.innerText) || 0;
         if (current <= 0 && delta < 0) return;
-        const newVal = current + delta;
-        el.innerText = newVal;
-        const btnMinus = event.target.closest('div').querySelector('.btn-minus');
-        if (btnMinus) btnMinus.disabled = (newVal <= 0);
+        el.innerText = current + delta; // Optimistic
         try {
             await sendPost('modifyExtra', { user: user, delta: delta });
             if(window.refreshVacationsData) window.refreshVacationsData();
-        } catch(e) { console.error(e); }
+        } catch(e) { console.error(e); el.innerText = current; }
+    },
+    modifyBase: async (user, delta) => {
+        const el = document.getElementById(`base-${user}`); if (!el) return;
+        let current = parseFloat(el.innerText) || 0;
+        if (current <= 0 && delta < 0) return;
+        el.innerText = current + delta; // Optimistic
+        try {
+            await sendPost('modifyBase', { user: user, delta: delta });
+            if(window.refreshVacationsData) window.refreshVacationsData();
+        } catch(e) { console.error(e); el.innerText = current; }
     },
     processSelection: async (opAction, user, dates) => {
         if (!dates || dates.length === 0) return;
@@ -60,29 +67,34 @@ function renderVacations(container) {
 
             <div class="stats-grid">
                 <div class="glass-card stat-card">
-                    <div class="stat-icon"><i data-lucide="calendar-check"></i></div>
-                    <small>Disponibles</small>
-                    <h2 id="statBase">--</h2>
+                    <div class="stat-badge"><i data-lucide="calendar-check"></i><span>Disponibles</span></div>
+                    <div class="stat-content">
+                        <h2 id="statBase">--</h2>
+                    </div>
                 </div>
                 <div class="glass-card stat-card">
-                    <div class="stat-icon" style="background: rgba(33, 150, 243, 0.1); color: #2196f3;"><i data-lucide="award"></i></div>
-                    <small>Días Extras</small>
-                    <h2 id="statExtra">--</h2>
+                    <div class="stat-badge sb-blue"><i data-lucide="award"></i><span>Extras</span></div>
+                    <div class="stat-content">
+                        <h2 id="statExtra">--</h2>
+                    </div>
                 </div>
                 <div class="glass-card stat-card">
-                    <div class="stat-icon" style="background: rgba(255, 193, 7, 0.1); color: #ffc107;"><i data-lucide="clock"></i></div>
-                    <small>Pendientes</small>
-                    <h2 id="statPending">--</h2>
+                    <div class="stat-badge sb-amber"><i data-lucide="clock"></i><span>Pendientes</span></div>
+                    <div class="stat-content">
+                        <h2 id="statPending">--</h2>
+                    </div>
                 </div>
                 <div class="glass-card stat-card">
-                    <div class="stat-icon" style="background: rgba(76, 175, 80, 0.1); color: #4caf50;"><i data-lucide="check-circle"></i></div>
-                    <small>Aprobadas</small>
-                    <h2 id="statAccepted">--</h2>
+                    <div class="stat-badge sb-green"><i data-lucide="check-circle"></i><span>Aprobadas</span></div>
+                    <div class="stat-content">
+                        <h2 id="statAccepted">--</h2>
+                    </div>
                 </div>
                 <div class="glass-card stat-card">
-                    <div class="stat-icon" style="background: rgba(156, 39, 176, 0.1); color: #9c27b0;"><i data-lucide="star"></i></div>
-                    <small>Extras Aprobados</small>
-                    <h2 id="statExtraAcc">--</h2>
+                    <div class="stat-badge sb-purple"><i data-lucide="star"></i><span>Ex. Aprob.</span></div>
+                    <div class="stat-content">
+                        <h2 id="statExtraAcc">--</h2>
+                    </div>
                 </div>
             </div>
 
@@ -199,7 +211,7 @@ function renderVacations(container) {
                 const pE = hist.filter(h => h.status === 'Pendiente' && h.type !== 'Vacaciones').reduce((s, h) => s + (parseFloat(h.count)||0), 0);
 
                 vacationStats = { 
-                    baseTotal: 23, 
+                    baseTotal: (uRes.stats && uRes.stats.baseTotal) || 23, 
                     extraTotal: (uRes.stats && uRes.stats.extraTotal) || 0, 
                     usedBase: uB_A, 
                     usedExtra: uE_A, 
@@ -210,6 +222,7 @@ function renderVacations(container) {
                 updateStatsUI();
                 renderHistory(hist);
                 buildCalendar();
+                updateSummary();
             }
 
             if (isAdmin && aRes && aRes.status === 'success') { 
@@ -300,11 +313,16 @@ function renderVacations(container) {
                 if(holidayDates.includes(iso)) cell.classList.add("day-holiday", "day-blocked");
             }
             
+            // Pintar solo si es día laborable
+            const isWorkingDay = (date.getDay() !== 0 && date.getDay() !== 6 && !holidayDates.includes(iso));
+            
             vacationStats.history.forEach(h => {
                 if (isInHistoryRange(date, h.fechas)) {
                    cell.classList.add('day-blocked');
-                   if(h.status === 'Aprobado') cell.classList.add(h.type === 'Vacaciones' ? 'day-approved' : 'day-extra-ap');
-                   else if(h.status === 'Pendiente') cell.classList.add('day-pending');
+                   if (isWorkingDay) {
+                       if(h.status === 'Aprobado') cell.classList.add(h.type === 'Vacaciones' ? 'day-approved' : 'day-extra-ap');
+                       else if(h.status === 'Pendiente') cell.classList.add('day-pending');
+                   }
                 }
             });
 
@@ -321,11 +339,11 @@ function renderVacations(container) {
         const isWknd = cell.classList.contains('day-wknd');
         const isHoli = cell.classList.contains('day-holiday');
         
-        if (isPast || isWknd || isHoli) return;
-        
+        // Si NO es Admin, bloqueamos pasado, findes, festivos y ocupados
         if (!isAdmin) {
-            if (cell.classList.contains('day-blocked')) return;
+            if (isPast || isWknd || isHoli || cell.classList.contains('day-blocked')) return;
         }
+        // Si es Admin, permitimos pulsar todo (para poder limpiar/corregir cualquier error)
 
         if (!selection.start || (selection.start && selection.end)) { 
             selection.start = iso; selection.end = null; 
@@ -372,11 +390,13 @@ function renderVacations(container) {
             return;
         }
 
-        let selectedDates = [];
+        let selectedDates = []; // Laborables para Contar/Añadir
+        let allPossibleDates = []; // Absolutamente todos para Borrar
         let s = new Date(selection.start.split('-').join('/')), e = selection.end ? new Date(selection.end.split('-').join('/')) : s;
         let cur = new Date(s);
         while(cur <= e) {
             const iso = cur.getFullYear() + "-" + String(cur.getMonth()+1).padStart(2,'0') + "-" + String(cur.getDate()).padStart(2,'0');
+            allPossibleDates.push(iso);
             if(cur.getDay()!==0 && cur.getDay()!==6 && !holidayDates.includes(iso)) selectedDates.push(iso);
             cur.setDate(cur.getDate()+1);
         }
@@ -390,9 +410,9 @@ function renderVacations(container) {
             const availBase = Math.max(0, vacationStats.baseTotal - (vacationStats.usedBase + vacationStats.pendingBase));
             const availExtra = Math.max(0, vacationStats.extraTotal - (vacationStats.usedExtra + vacationStats.pendingExtra));
             
-            // ¿Algún día de la selección ya tiene algo registrado?
+            // ¿Algún día de la selección ya tiene algo registrado? (Miramos en todos los días)
             let hasExisting = false;
-            selectedDates.forEach(iso => {
+            allPossibleDates.forEach(iso => {
                 const d = new Date(iso.split('-').join('/'));
                 if (vacationStats.history.some(h => isInHistoryRange(d, h.fechas))) hasExisting = true;
             });
@@ -403,7 +423,7 @@ function renderVacations(container) {
 
             btnVac.disabled = (count === 0 || count > availBase);
             btnExt.disabled = (count === 0 || count > availExtra);
-            btnDel.disabled = (count === 0 || !hasExisting);
+            btnDel.disabled = (allPossibleDates.length === 0 || !hasExisting);
 
             // Block adding if selection contains ANY day-past
             let hasPast = Array.from(document.querySelectorAll('.day-selected, .day-range')).some(c => c.classList.contains('day-past'));
@@ -435,7 +455,7 @@ function renderVacations(container) {
             
             btnVac.onclick = () => window.adminAction.processSelection('add_vacation', targetUser, selectedDates);
             btnExt.onclick = () => window.adminAction.processSelection('add_extra', targetUser, selectedDates);
-            btnDel.onclick = () => window.adminAction.processSelection('remove', targetUser, selectedDates);
+            btnDel.onclick = () => window.adminAction.processSelection('remove', targetUser, allPossibleDates);
             
         } else {
             const count = selectedDates.length;
@@ -520,14 +540,23 @@ function renderVacations(container) {
             
         const uContainer = document.getElementById('adminUserTableContainer');
         uContainer.innerHTML = adminData.allUsers.map(u => `
-            <div class="history-item">
-                <div>
-                    <div style="font-weight:700; font-size:0.8rem; color:var(--text-main);">${u.name}</div>
-                    <div style="font-size:0.7rem; color:var(--text-muted);">V: <b style="color:var(--xiaomi-orange);">${u.baseAvail}</b> | E: <b id="extra-${u.user}" style="color:#2196f3;">${u.extraAvail}</b></div>
+            <div class="glass-card" style="padding: 0.8rem; margin-bottom: 0.6rem; border-radius: 12px; border: 1px solid var(--border-main); display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-weight:700; font-size:0.85rem; color:var(--text-main); border-bottom: 1px solid var(--border-main); padding-bottom: 4px;">${u.name}</div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">VAC: <b id="base-${u.user}" style="color:var(--xiaomi-orange); font-size:1rem;">${u.baseAvail}</b></div>
+                    <div style="display:flex; gap:3px;">
+                        <button class="btn-secondary btn-compact" style="width:24px; height:24px; font-size:0.8rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyBase('${u.user}', -1)">-</button>
+                        <button class="btn-secondary btn-compact" style="width:24px; height:24px; font-size:0.8rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyBase('${u.user}', 1)">+</button>
+                    </div>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <button class="btn-secondary btn-compact" style="padding:2px 8px;" onclick="window.adminAction.modifyExtra('${u.user}', 1)">+</button>
-                    <button class="btn-secondary btn-compact btn-minus" style="padding:2px 8px;" onclick="window.adminAction.modifyExtra('${u.user}', -1)" ${u.extraTotal <= 0 ? 'disabled' : ''}>-</button>
+
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">EXT: <b id="extra-${u.user}" style="color:#2196f3; font-size:1rem;">${u.extraAvail}</b></div>
+                    <div style="display:flex; gap:3px;">
+                        <button class="btn-secondary btn-compact" style="width:24px; height:24px; font-size:0.8rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyExtra('${u.user}', -1)">-</button>
+                        <button class="btn-secondary btn-compact" style="width:24px; height:24px; font-size:0.8rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyExtra('${u.user}', 1)">+</button>
+                    </div>
                 </div>
             </div>
         `).join('');

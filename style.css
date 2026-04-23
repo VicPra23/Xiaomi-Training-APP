@@ -1261,3 +1261,47 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--xiaomi-orange) !important;
 }
 .ts-control input { color: var(--text-main) !important; }
+
+/* VACATION STATS CARDS REDESIGN */
+.vaca-module .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 15px;
+    margin-bottom: 2rem;
+}
+.vaca-module .stat-card {
+    padding: 1.5rem 1rem !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 15px;
+    border: 1px solid var(--border-main);
+}
+.vaca-module .stat-badge {
+    background: var(--xiaomi-orange-light);
+    color: var(--xiaomi-orange);
+    padding: 6px 14px;
+    border-radius: 50px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+.vaca-module .stat-badge i { width: 14px; height: 14px; }
+.vaca-module .stat-badge.sb-blue { background: rgba(33, 150, 243, 0.1); color: #2196f3; }
+.vaca-module .stat-badge.sb-amber { background: rgba(255, 193, 7, 0.1); color: #ffc107; }
+.vaca-module .stat-badge.sb-green { background: rgba(76, 175, 80, 0.1); color: #4caf50; }
+.vaca-module .stat-badge.sb-purple { background: rgba(156, 39, 176, 0.1); color: #9c27b0; }
+.vaca-module .stat-content h2 { 
+    font-size: 2.2rem; 
+    margin: 0; 
+    line-height: 1; 
+    font-weight: 900; 
+    color: var(--text-main);
+    letter-spacing: -0.04em;
+}
