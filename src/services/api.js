@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbzKej06Kk-XBmpYDaohLyyrNtyVUoZULMsAbZYjKehe3dtQkA2K8XnVmhOTazXLrWrg1A/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxfvdff5d2r6ObThjnPu7KqknepAusIZsD-7QZbZMfHvYOvccS8gThEIwo2UnV_2u2ZWA/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -32,7 +32,9 @@ function sendJSONP(action, params = {}, useCache = false) {
 
         let fullUrl = API_URL + "?action=" + action + "&callback=" + callbackName + "&_cache=" + Date.now();
         for (let key in params) {
-            fullUrl += "&" + key + "=" + encodeURIComponent(params[key]);
+            const val = params[key];
+            const finalVal = (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
+            fullUrl += "&" + key + "=" + encodeURIComponent(finalVal);
         }
         
         script.src = fullUrl;
@@ -47,12 +49,20 @@ function sendJSONP(action, params = {}, useCache = false) {
 
 async function sendPost(action, data = {}) {
     const payload = JSON.stringify({ action, ...data });
+    console.log(`[API] sending POST for action: ${action}`);
     try {
-        const res = await fetch(API_URL, { method: 'POST', body: payload, mode: 'no-cors' });
+        const res = await fetch(API_URL, { 
+            method: 'POST', 
+            body: payload, 
+            mode: 'no-cors' 
+        });
+        
+        console.log(`[API] POST sent successfully (opaque response)`);
         // Importante: Al recibir un POST exitoso, invalidamos la caché porque los datos pueden haber cambiado
         _metadataCache.clear();
         return { status: "success" };
     } catch (e) {
+        console.error(`[API] fetch error, falling back to JSONP:`, e);
         return sendJSONP(action, { payload_hack: payload });
     }
 }

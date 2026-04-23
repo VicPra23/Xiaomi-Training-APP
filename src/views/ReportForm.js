@@ -19,6 +19,7 @@ function renderReport(container) {
 
     let session = getSessionData(), currentUser = session?session.user:'Desconocido', realName = session?session.name:'Desconocido', role = session?session.role:'User';
     let additiveFiles = [];
+    let isLoadingEdit = false;
     
     // RECUPERAR DATOS DE EDICIÓN/DUPLICACIÓN
     const editData = window.reportEditData || null;
@@ -82,7 +83,7 @@ function renderReport(container) {
 
                 <div id="distWrapper" style="display:none; margin-bottom:2rem; background: var(--bg-main); padding: 2rem; border-radius: 24px; border: 1px solid var(--border-main);">
                     <div class="form-group" style="margin: 0;">
-                        <label class="form-label"><i data-lucide="map-pin" style="width:14px; margin-right:5px;"></i> Punto de Venta / Tienda / Call Center *</label>
+                        <label class="form-label"><i data-lucide="map-pin" style="width:14px; margin-right:5px;"></i> Distribuidor / Tienda / Call Center *</label>
                         <select id="distribuidor" name="distribuidor" class="form-control"></select>
                     </div>
                     <div id="manualEntry" style="display:none; margin-top:1.5rem;">
@@ -104,7 +105,7 @@ function renderReport(container) {
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
                     <div class="form-group">
                         <label class="form-label">Duración Total (h) *</label>
-                        <input type="number" name="duracion" class="form-control" step="0.1" required min="0.5" value="${editData ? editData.duracion : ''}">
+                        <input type="number" id="duracion" name="duracion" class="form-control" step="0.1" required min="0.5" value="${editData ? editData.duracion : ''}">
                     </div>
                     <div class="form-group" id="wrapperTiendas">
                         <label class="form-label">Impacto en Tiendas *</label>
@@ -116,6 +117,7 @@ function renderReport(container) {
                     <div class="form-group" id="wrapperPerfil" style="margin:0;">
                         <label id="labelPerfil" class="form-label">Perfil de Alumno *</label>
                         <select id="perfil" name="perfil" class="form-control" required>
+                            <option value="" selected disabled>Selecciona...</option>
                             <option value="Vendedor">Vendedor</option>
                             <option value="Promotor">Promotor</option>
                             <option value="Teleoperador">Teleoperador</option>
@@ -132,6 +134,7 @@ function renderReport(container) {
                    <div class="form-group" id="wrapperContenidos">
                         <label id="labelContenidos" class="form-label">Tipo de Contenido *</label>
                         <select id="contenidos" name="contenidos" class="form-control" required>
+                            <option value="" selected disabled>Selecciona...</option>
                             <option value="On boarding">On boarding</option>
                             <option value="Launch">Launch</option>
                             <option value="Refresh">Refresh</option>
@@ -205,9 +208,9 @@ function renderReport(container) {
     }
 
     const tsCiudad = new TomSelect("#ciudad", { create: true, placeholder: "Escribe..." });
-    const tsM = new TomSelect("#dispositivos", { plugins: ['remove_button'], placeholder: "Móviles..." });
+    const tsM = new TomSelect("#dispositivos", { plugins: ['remove_button'], create: true, placeholder: "Móviles..." });
     dispositivosMobiles.forEach(d => tsM.addOption({value:d, text:d}));
-    const tsNM = new TomSelect("#dispositivos_no_movil", { plugins: ['remove_button'], placeholder: "Ecosistema..." });
+    const tsNM = new TomSelect("#dispositivos_no_movil", { plugins: ['remove_button'], create: true, placeholder: "Ecosistema..." });
     dispositivosNoMobiles.forEach(d => tsNM.addOption({value:d, text:d}));
 
     sendJSONP('getCitiesList').then(res => { 
@@ -225,8 +228,14 @@ function renderReport(container) {
         cue.disabled = isBlock; cue.required = !isBlock; con.disabled = isBlock; con.required = !isBlock;
         per.disabled = isBlock; per.required = !isBlock; ses.disabled = isBlock; ses.required = !isBlock;
         alu.disabled = isBlock; alu.required = !isBlock; tie.disabled = isBlock; tie.required = !isBlock;
-        ['wrapperCuenta', 'wrapperContenidos', 'wrapperPerfil', 'wrapperSesiones', 'wrapperAlumnos', 'wrapperTiendas'].forEach(id => document.getElementById(id).style.opacity = isBlock ? "0.4" : "1");
-        if(isBlock) { cue.value = ""; con.value = ""; per.value = ""; ses.value = "0"; alu.value = "0"; tie.value = "0"; document.getElementById('distWrapper').style.display='none'; }
+        ['wrapperCuenta', 'wrapperContenidos', 'wrapperPerfil', 'wrapperSesiones', 'wrapperAlumnos', 'wrapperTiendas'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.style.opacity = isBlock ? "0.4" : "1";
+        });
+        if(isBlock && !isLoadingEdit) { 
+            cue.value = ""; con.value = ""; per.value = ""; ses.value = "0"; alu.value = "0"; tie.value = "0"; 
+            document.getElementById('distWrapper').style.display='none'; 
+        }
     };
 
     let tsDist;
@@ -245,14 +254,17 @@ function renderReport(container) {
                 onItemRemove: () => document.getElementById('manualEntry').style.display = 'none'
             });
             if(editData && editData.cuenta === val) {
-                if(distribuidores[val].includes(editData.distribuidor)) tsDist.setValue(editData.distribuidor);
-                else { tsDist.setValue("+"); document.getElementById('distribuidor_custom').value = editData.distribuidor; }
+                const currentDist = editData.distribuidor || "";
+                if(distribuidores[val].includes(currentDist)) tsDist.setValue(currentDist);
+                else if(currentDist) { tsDist.setValue("+"); document.getElementById('distribuidor_custom').value = currentDist; }
             }
         } else dw.style.display = 'none';
     };
 
     // POBLAR DATOS SI ES EDICIÓN/DUPLICACIÓN
     if(editData) {
+        isLoadingEdit = true;
+        console.log("[DEBUG] Populating editData:", editData);
         try {
             if(editData.metodologia) { met.value = editData.metodologia; met.onchange(); }
             if(editData.cuenta) { cue.value = editData.cuenta; cue.onchange(); }
@@ -260,13 +272,29 @@ function renderReport(container) {
             if(editData.contenidos) con.value = editData.contenidos;
             if(editData.provincia) document.getElementById('provincia').value = editData.provincia;
             
+            if(editData.sesiones) document.getElementById('sesiones').value = parseFloat(editData.sesiones) || 0;
+            if(editData.alumnos) document.getElementById('alumnos').value = parseFloat(editData.alumnos) || 0;
+            if(editData.tiendas) document.getElementById('tiendas').value = parseFloat(editData.tiendas) || 0;
+            if(editData.ciudad) document.getElementById('ciudad').value = editData.ciudad;
+            
+            // Defensivo: Si duracion tiene una T (ISO), lo ignoramos. Si tiene texto (Ej: "2h"), extraemos el número.
+            if(editData.duracion && !editData.duracion.toString().includes('T')) {
+                document.getElementById('duracion').value = parseFloat(editData.duracion) || 0;
+            }
+
             if(editData.dispositivos && tsM) {
-                tsM.setValue(editData.dispositivos.split(', ').filter(Boolean));
+                const items = editData.dispositivos.split(/,\s*/).filter(Boolean);
+                items.forEach(it => tsM.addOption({value: it, text: it})); // Asegurar que existan
+                tsM.setValue(items);
             }
             if(editData.dispositivos_no_movil && tsNM) {
-                tsNM.setValue(editData.dispositivos_no_movil.split(', ').filter(Boolean));
+                const items = editData.dispositivos_no_movil.split(/,\s*/).filter(Boolean);
+                items.forEach(it => tsNM.addOption({value: it, text: it})); // Asegurar que existan
+                tsNM.setValue(items);
             }
+            if(editData.comentarios) document.getElementsByName('comentarios')[0].value = editData.comentarios;
         } catch(e) { console.error("Error populating editData:", e); }
+        isLoadingEdit = false;
     }
 
     document.getElementById('fotosInput').onchange = (e) => {
@@ -301,14 +329,28 @@ function renderReport(container) {
         try {
             const action = isEdit ? 'updateReport' : 'saveReport';
             const payload = isEdit ? { data, rowIdx: editData.rowIdx } : { data, photos };
-            const res = await (isEdit ? sendPost(action, payload) : sendPost(action, payload));
+            console.log("Submitting report:", { action, payload });
+            
+            // Si es edición, preferimos JSONP para poder ver errores del servidor (CORS bypass)
+            // Save sigue por POST porque lleva fotos (body pesado)
+            const res = isEdit ? await sendJSONP(action, payload) : await sendPost(action, payload);
+            console.log("Server response:", res);
             
             if(res.status === 'success') { 
-                showToast("Éxito", isEdit ? "Reporte actualizado." : "Reporte enviado.", "#dashboard");
-                window.reportEditData = null; navigate('#dashboard'); 
-            } else showToast("Error", res.message, "#report");
-        } catch(err) { showToast("Error", "Fallo de conexión.", "#report"); }
-        btn.disabled = false; btn.innerText = isEdit ? "Actualizar Reporte" : "Enviar Reporte";
+                console.log("Server message:", res.message);
+                showToast("Éxito", res.message || (isEdit ? "Reporte actualizado." : "Reporte enviado."), "#dashboard");
+                window.reportEditData = null;
+                setTimeout(() => navigate('#dashboard'), 100); 
+            } else {
+                console.warn("Report error:", res.message);
+                showToast("Error", res.message || "No se pudo guardar el reporte.", "#report");
+            }
+        } catch(err) { 
+            console.error("Submission failed:", err);
+            showToast("Error", "Fallo de conexión o del servidor.", "#report"); 
+        }
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="check" style="width:20px; margin-right: 8px;"></i> ${isEdit ? 'Actualizar Reporte' : 'Enviar Reporte'}`;
         if (typeof lucide !== 'undefined') lucide.createIcons();
     };
 

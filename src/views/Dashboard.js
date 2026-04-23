@@ -527,7 +527,8 @@ function renderDashboard(container) {
             account: account,
             device: device,
             methodology: method,
-            q: q
+            q: q,
+            _nocache: Date.now() 
         }).then(res => {
             if(res.status === 'success' && res.availableFilters) {
                 updateHistoryFilters(res.availableFilters);
@@ -542,8 +543,8 @@ function renderDashboard(container) {
                         <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${new Date(r.fecha).toLocaleDateString()}</td>
                         <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
                         <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
-                        <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos}</td>
-                        <td data-label="Horas" style="padding: 12px; text-align: center;">${r.duracion}h</td>
+                        <td data-label="Alumnos" style="padding: 12px; text-align: center;">${(r.alumnos && r.alumnos.toString().includes('T')) ? '-' : (r.alumnos || '0')}</td>
+                        <td data-label="Horas" style="padding: 12px; text-align: center;">${(r.duracion && r.duracion.toString().includes('T')) ? '-' : (r.duracion || '0')}h</td>
                         <td data-label="Acciones" style="padding: 12px; text-align: right; white-space: nowrap;">
                             <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
                             <button onclick="handleHistoryAction('duplicate', ${idx})" class="btn-outline btn-compact" style="border-color: #0ea5e9; color: #0ea5e9;" title="Duplicar"><i data-lucide="copy" style="width:14px;"></i></button>
@@ -615,6 +616,7 @@ function renderDashboard(container) {
                     <hr style="border: 0; border-top: 1px solid var(--border-main); margin: 15px 0;">
                     <p style="margin-bottom:8px;"><strong>Contenidos:</strong> ${report.contenidos}</p>
                     <p style="margin-bottom:8px;"><strong>Móviles:</strong> ${report.dispositivos || '-'}</p>
+                    <p style="margin-bottom:8px;"><strong>Ecosistema:</strong> ${report.dispositivos_no_movil || '-'}</p>
                     <p><strong>Comentarios:</strong><br><span style="color: var(--text-medium); font-style: italic;">${report.comentarios || 'Sin comentarios'}</span></p>
                 </div>
             `;

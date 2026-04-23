@@ -50,6 +50,7 @@ function doGet(e) {
     if (action === "getFilterMetadata") res = getFilterMetadata();
     if (action === "getMessages")       res = getMessages(p);
     if (action === "getWeekly")         res = getWeeklySchedule(p);
+    if (action === "updateReport")      res = updateReport(p);
     if (action === "getUsersList")      res = getUsersList();
     if (action === "getCitiesList")     res = getCitiesList();
   } catch(err) { res = { status: "error", message: "Backend Error: " + err.toString() }; }
@@ -436,9 +437,24 @@ function getReportsHistory(p) {
       
       result.push({
         rowIdx: i + 1,
-        id: d[i][18] || ("R_" + dO.getTime() + "_" + i),
-        timestamp: d[i][0], trainer: d[i][1], fecha: d[i][2], cuenta: d[i][3], metodologia: d[i][5],
-        sesiones: d[i][6], alumnos: d[i][7], duracion: d[i][9], tiendas: d[i][10], dispositivos: d[i][14], comentarios: d[i][16]
+        id: (d[i][17] || "").toString() || ("R_" + dO.getTime() + "_" + i),
+        timestamp: d[i][0], 
+        trainer: (d[i][1] || "").toString(), 
+        fecha: d[i][2], 
+        cuenta: (d[i][3] || "").toString(), 
+        distribuidor: (d[i][4] || "").toString(), 
+        metodologia: (d[i][5] || "").toString(),
+        sesiones: d[i][6], 
+        alumnos: d[i][7], 
+        provincia: (d[i][8] || "").toString(), 
+        duracion: d[i][9], 
+        tiendas: d[i][10], 
+        perfil: (d[i][11] || "").toString(), 
+        ciudad: (d[i][12] || "").toString(), 
+        contenidos: (d[i][13] || "").toString(), 
+        dispositivos: (d[i][14] || "").toString(), 
+        dispositivos_no_movil: (d[i][15] || "").toString(), 
+        comentarios: (d[i][16] || "").toString()
       });
       if (result.length >= limit) break;
     }
@@ -459,14 +475,21 @@ function getReportsHistory(p) {
 
 function updateReport(p) {
   try {
-    const data = p.data;
+    let data = p.data;
+    if (typeof data === 'string') data = JSON.parse(data);
     const rowIdx = parseInt(p.rowIdx);
     const s = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID).getSheetByName(CONFIG.REPORTES_SHEET_NAME);
     
-    // Verificamos que el rowIdx sea válido y coincida el usuario (seguridad básica)
-    const currentRow = s.getRange(rowIdx, 1, 1, 2).getValues()[0];
-    if (currentRow[1] !== data.trainer && !CONFIG.ADMINS.includes(data.trainer)) {
-        return { status: "error", message: "No tienes permiso para editar este reporte." };
+    // Verificamos que el rowIdx sea válido y coincida el usuario (seguridad básica) ABRAZO
+    const currentRow = s.getRange(rowIdx, 1, 1, 18).getValues()[0];
+    const existingTrainer = (currentRow[1] || "").toString().trim().toLowerCase();
+    const incomingTrainer = (data.trainer || "").toString().trim().toLowerCase();
+    
+    // Alineamos detección de admin con attemptLogin (regex)
+    const isAdmin = CONFIG.ADMINS.some(a => a.toLowerCase() === incomingTrainer) || /Manager|Coordinator|Creator/i.test(incomingTrainer);
+    
+    if (existingTrainer !== incomingTrainer && !isAdmin) {
+        return { status: "error", message: "No tienes permiso para editar este reporte de " + currentRow[1] };
     }
 
     // Actualizamos la fila (manteniendo el timestamp original o actualizando?)
@@ -489,11 +512,12 @@ function updateReport(p) {
       data.dispositivos,
       data.dispositivos_no_movil,
       data.comentarios,
-      p.photos || "" // Si enviamos nuevas fotos se sobreescriben las URLs
+      p.photos || currentRow[17] || "" // Si p.photos no viene (Edit), mantenemos las existentes en Col 18
     ];
     
     s.getRange(rowIdx, 1, 1, rowData.length).setValues([rowData]);
-    return { status: "success" };
+    SpreadsheetApp.flush();
+    return { status: "success", message: "Reporte actualizado correctamente." };
   } catch(e) { return { status: "error", message: e.toString() }; }
 }
 
