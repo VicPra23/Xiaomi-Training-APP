@@ -1,55 +1,40 @@
-const API_URL = "https://script.google.com/macros/s/AKfycb0AmP--ziJLKtOE0W_C8ekc37gE73CYKBjVicVpDTCNA5VQflbJ6Yn5mls7snzP3r5XQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxlwtPBT3kH8FJeS1hHHFw6sn2S3WOkaklvusOJp_BHEdPq0ipqQHBk7EgsdCoEpyHzvg/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
 
-function sendJSONP(action, params = {}, useCache = false) {
+/**
+ * Motor de comunicación GET (V6.8) - Migración total a Fetch
+ */
+async function sendGet(action, params = {}, useCache = false) {
     const cacheKey = action + JSON.stringify(params);
     if (useCache && _metadataCache.has(cacheKey)) {
-        return Promise.resolve(_metadataCache.get(cacheKey));
+        return _metadataCache.get(cacheKey);
     }
 
-    return new Promise((resolve, reject) => {
-        const callbackName = 'jsonp_' + Math.round(100000 * Math.random());
-        const script = document.createElement('script');
-        
-        const timeout = setTimeout(() => {
-            cleanup();
-            reject(new Error("Timeout: El servidor de Google no responde o hay un bloqueo en tu navegador."));
-        }, 15000); // Reducido a 15s para mejor UX
-
-        function cleanup() {
-            clearTimeout(timeout);
-            if (script.parentNode) script.parentNode.removeChild(script);
-            delete window[callbackName];
-        }
-
-        window[callbackName] = function(data) {
-            cleanup();
-            if (useCache) _metadataCache.set(cacheKey, data);
-            resolve(data);
-        };
-
-        let fullUrl = API_URL + "?action=" + action + "&callback=" + callbackName + "&_cache=" + Date.now();
-        for (let key in params) {
-            let val = params[key];
-            if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
-            fullUrl += "&" + key + "=" + encodeURIComponent(val);
-        }
-        
-        script.src = fullUrl;
-        script.onerror = () => {
-            cleanup();
-            reject(new Error("Error de red o bloqueo de seguridad."));
-        };
-        
-        document.body.appendChild(script);
-    });
+    const query = new URLSearchParams({ action, ...params }).toString();
+    const url = `${API_URL}?${query}`;
+    
+    console.log(`[API] GET: ${action}`);
+    try {
+        const res = await fetch(url, { method: 'GET' });
+        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+        const result = await res.json();
+        if (useCache) _metadataCache.set(cacheKey, result);
+        return result;
+    } catch (e) {
+        console.error(`[API] GET Error:`, e);
+        // Fallback para errores de red/bloqueo
+        throw new Error("Error de red o bloqueo de seguridad (VPN/Adblock).");
+    }
 }
 
+/**
+ * Motor de comunicación POST (V6.8) - Sincronía honesta
+ */
 async function sendPost(action, data = {}) {
     const payload = JSON.stringify({ action, ...data });
-    console.log(`[API] Sending POST: ${action}`);
+    console.log(`[API] POST: ${action}`);
     
     try {
         const res = await fetch(API_URL, { 
@@ -59,37 +44,57 @@ async function sendPost(action, data = {}) {
         });
         
         const result = await res.json(); 
-        console.log(`[API] Result:`, result);
+        console.log(`[API] POST Result:`, result);
         
         _metadataCache.clear();
         return result; 
     } catch (e) {
-        console.error(`[API] POST failure:`, e);
-        return { status: "error", message: "Fallo de conexión o archivo demasiado pesado." };
+        console.error(`[API] POST Error:`, e);
+        return { status: "error", message: "Error al enviar: archivo pesado o fallo de conexión." };
     }
 }
 
+// Compatibilidad con código antiguo que usa sendJSONP
+const sendJSONP = (action, params, useCache) => sendGet(action, params, useCache);
+
+// GESTIÓN DE SESIÓN
 function setSessionData(data) { 
-    try {
-        localStorage.setItem('userSession', JSON.stringify(data)); 
-    } catch(e) { console.warn("LocalStorage bloqueado:", e); }
+    try { localStorage.setItem('userSession', JSON.stringify(data)); } catch(e) {}
 }
-
 function getSessionData() { 
-    try {
-        return JSON.parse(localStorage.getItem('userSession')); 
-    } catch(e) { return null; }
+    try { return JSON.parse(localStorage.getItem('userSession')); } catch(e) { return null; }
 }
-
 function clearSessionData() { 
-    try {
-        localStorage.removeItem('userSession'); 
-        _metadataCache.clear();
-    } catch(e) {}
+    try { localStorage.removeItem('userSession'); _metadataCache.clear(); } catch(e) {}
 }
 
+// EXPOSICIÓN DE MÉTODOS
+const api = {
+    login: (user, pass) => sendGet("login", { user, pass }),
+    getUsersList: () => sendGet("getUsersList", {}, true),
+    getVacationData: (user) => sendGet("getVacationData", { user }),
+    getAdminData: () => sendGet("getAdminData"),
+    getDashboardStats: (params) => sendGet("getDashboardStats", params),
+    getReportsHistory: (params) => sendGet("getReportsHistory", params),
+    getCitiesList: () => sendGet("getCitiesList", {}, true),
+    getFilterMetadata: () => sendGet("getFilterMetadata", {}, true),
+    getMessages: (params) => sendGet("getMessages", params),
+    getWeekly: (params) => sendGet("getWeekly", params),
+    
+    saveReport: (data, photos) => sendPost("saveReport", { data, photos }),
+    updateReport: (req) => sendPost("updateReport", req),
+    requestVacation: (req) => sendPost("requestVacation", req),
+    updateRequest: (id, status) => sendPost("updateRequest", { id, status }),
+    modifyExtra: (user, delta) => sendPost("modifyExtra", { user, delta }),
+    modifyBase: (user, delta) => sendPost("modifyBase", { user, delta }),
+    markMessageRead: (msgId) => sendPost("markMessageRead", { msgId }),
+    markAllMessagesRead: (user) => sendPost("markAllMessagesRead", { user }),
+    saveAssignment: (req) => sendPost("saveAssignment", req),
+    adminProcessSelection: (req) => sendPost("adminProcessSelection", req)
+};
 
-
-
-
-
+// Hacer funciones globales para compatibilidad con main.js
+window.sendJSONP = sendJSONP;
+window.getSessionData = getSessionData;
+window.clearSessionData = clearSessionData;
+window.api = api;
