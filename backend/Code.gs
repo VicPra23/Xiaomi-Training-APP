@@ -124,7 +124,11 @@ function doGet(e) {
     if (action === "getWeekly")         res = getWeeklySchedule(p);
     if (action === "updateReport")      res = updateReport(p);
   } catch(err) { res = { status: "error", message: "Backend Error: " + err.toString() }; }
-  return ContentService.createTextOutput(callback + "(" + JSON.stringify(res) + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);
+  if (p.callback) {
+    return ContentService.createTextOutput(p.callback + "(" + JSON.stringify(res) + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);
+  } else {
+    return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function doPost(e) {
