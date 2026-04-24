@@ -281,11 +281,18 @@ function renderReport(container) {
 
             if(editData.fecha) {
                 try {
-                    const d = new Date(editData.fecha);
-                    if(!isNaN(d.getTime())) {
-                        document.getElementById('fecha').value = d.toISOString().split('T')[0];
+                    // Evitar el error de resta de día: extraer componentes locales
+                    let dStr = "";
+                    if (typeof editData.fecha === 'string' && editData.fecha.includes('-')) {
+                        dStr = editData.fecha.split('T')[0]; // Ya es YYYY-MM-DD
+                    } else {
+                        const d = new Date(editData.fecha);
+                        if(!isNaN(d.getTime())) {
+                            dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                        }
                     }
-                } catch(e) { console.error("Error parsing date for edit:", e); }
+                    if(dStr) document.getElementById('fecha').value = dStr;
+                } catch(e) { console.error("Error setting date for edit:", e); }
             }
             
             // Extraer horas de forma robusta (maneja números y strings ISO de GAS)
@@ -334,6 +341,33 @@ function renderReport(container) {
     }
     window.removePhoto = (i) => { additiveFiles.splice(i, 1); updatePhotoList(); };
 
+    async function _compressImage(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const MAX_SIZE = 1200;
+                    if (width > height) {
+                        if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+                    } else {
+                        if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7)); // 70% calidad
+                };
+            };
+        });
+    }
+
     const form = document.getElementById('activityForm');
     form.onsubmit = async (e) => {
         e.preventDefault();
@@ -343,7 +377,7 @@ function renderReport(container) {
         data.dispositivos = tsM.getValue().join(', '); data.dispositivos_no_movil = tsNM.getValue().join(', ');
         if(data.distribuidor === "+") data.distribuidor = document.getElementById('distribuidor_custom').value || "Manual";
         
-        const photos = await Promise.all(additiveFiles.map(f => processImage(f)));
+        const photos = await Promise.all(additiveFiles.map(f => _compressImage(f).then(base64 => ({name: f.name, mimeType: "image/jpeg", base64Data: base64}))));
         
         try {
             const action = isEdit ? 'updateReport' : 'saveReport';
@@ -371,21 +405,5 @@ function renderReport(container) {
         btn.innerHTML = `<i data-lucide="check" style="width:20px; margin-right: 8px;"></i> ${isEdit ? 'Actualizar Reporte' : 'Enviar Reporte'}`;
         if (typeof lucide !== 'undefined') lucide.createIcons();
     };
-
-    function processImage(file) {
-        return new Promise(res => {
-            const r = new FileReader(); r.readAsDataURL(file);
-            r.onload = (ev) => {
-                const img = new Image(); img.src = ev.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas'); const max = 800; let w = img.width, h = img.height;
-                    if(w > h) { if(w > max) { h *= max/w; w = max; } } else { if(h > max) { w *= max/h; h = max; } }
-                    canvas.width = w; canvas.height = h;
-                    canvas.getContext('2d').drawImage(img,0,0,w,h);
-                    res({ name: file.name, mimeType: "image/jpeg", base64Data: canvas.toDataURL("image/jpeg", 0.6) });
-                };
-            };
-        });
-    }
 }
 window.renderReport = renderReport;

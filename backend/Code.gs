@@ -23,7 +23,8 @@ function _getColMap(sheet) {
   const map = {};
   headers.forEach((h, i) => {
     const clean = h.toString().trim().toUpperCase();
-    if (clean.includes("FECHA")) map.FECHA = i;
+    if (clean === "FECHA") map.FECHA = i; // Coincidencia exacta primero
+    else if (clean.includes("FECHA") && map.FECHA === undefined) map.FECHA = i; // Fallback
     else if (clean.includes("CUENTA")) map.CUENTA = i;
     else if (clean.includes("DISTRIBUIDOR")) map.DISTRIBUIDOR = i;
     else if (clean.includes("METODOLOG")) map.METODOLOGIA = i;
@@ -499,7 +500,12 @@ function getReportsHistory(p) {
         id: (d[i][colMap.FOTOS] || d[i][17] || "").toString() || ("R_" + dO.getTime() + "_" + i),
         timestamp: d[i][0], 
         trainer: (d[i][colMap.TRAINER] || d[i][1] || "").toString(), 
-        fecha: d[i][colMap.FECHA], 
+        fecha: (function(val) {
+          const tz = ss.getSpreadsheetTimeZone();
+          if (val instanceof Date) return Utilities.formatDate(val, tz, "yyyy-MM-dd");
+          const dO2 = parseDateStable(val);
+          return dO2 ? Utilities.formatDate(dO2, tz, "yyyy-MM-dd") : (val||"").toString();
+        })(d[i][colMap.FECHA]),
         cuenta: (d[i][colMap.CUENTA] || "").toString(), 
         distribuidor: (d[i][colMap.DISTRIBUIDOR] || d[i][4] || "").toString(), 
         metodologia: (d[i][colMap.METODOLOGIA] || "").toString(),
@@ -642,11 +648,13 @@ function _uploadPhotos(photos) {
       for (var i=0; i<photos.length; i++) {
           var p = photos[i];
           if (p && p.base64Data) {
-              var splitted = p.base64Data.split(',');
-              var base64 = splitted.length > 1 ? splitted[1] : splitted[0];
-              var blob = Utilities.newBlob(Utilities.base64Decode(base64), p.mimeType || "image/jpeg", p.name || ("photo_" + i + ".jpg"));
-              var file = folder.createFile(blob);
-              photoUrls.push(file.getUrl());
+              try {
+                var splitted = p.base64Data.split(',');
+                var base64 = splitted.length > 1 ? splitted[1] : splitted[0];
+                var blob = Utilities.newBlob(Utilities.base64Decode(base64), p.mimeType || "image/jpeg", p.name || ("photo_" + i + ".jpg"));
+                var file = folder.createFile(blob);
+                photoUrls.push(file.getUrl());
+              } catch(err) { console.error("Error individual photo:", err); }
           }
       }
     } catch(e) { console.error("Error uploading photos:", e); }
