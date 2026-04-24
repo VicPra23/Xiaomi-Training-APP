@@ -41,7 +41,7 @@ function renderLogin(container) {
             userSelect.innerHTML = '<option value="" disabled selected>Selecciona tu cuenta</option>';
             res.data.forEach(function(u) {
                 var opt = document.createElement('option');
-                opt.value = u; opt.innerText = u;
+                opt.value = u.user; opt.innerText = u.name;
                 userSelect.appendChild(opt);
             });
         } else {
