@@ -108,7 +108,7 @@ function renderReport(container) {
                         <input type="number" id="duracion" name="duracion" class="form-control" step="0.1" required min="0.5" value="${editData ? editData.duracion : ''}">
                     </div>
                     <div class="form-group" id="wrapperTiendas">
-                        <label class="form-label">Impacto en Tiendas *</label>
+                        <label class="form-label">Nº Tiendas *</label>
                         <input type="number" id="tiendas" name="tiendas" class="form-control" required min="0" value="${editData ? (editData.tiendas || 0) : ''}">
                     </div>
                 </div>
