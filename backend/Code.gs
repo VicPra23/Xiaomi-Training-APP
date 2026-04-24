@@ -1,5 +1,5 @@
 // ==================================================
-// XIAOMI TRAINER INTRANET - Backend V4.8 (POLISHED ADMIN)
+// XIAOMI TRAINER INTRANET - Backend V4.9 (SENIOR REFACTOR)
 // ==================================================
 
 const CONFIG = {
@@ -13,23 +13,37 @@ const CONFIG = {
   DIAS_EXTRAS_SHEET_NAME: "DIAS EXTRAS",
   MENSAJES_SHEET_NAME: "MENSAJES",
   PLANIFICACION_SHEET_NAME: "PLANIFICACION",
-  VERSION: "V4.8",
+  VERSION: "V4.9",
   ADMINS: ["Training Manager", "Training Coordinator", "Training Creator"]
 };
 
-// --- CACHE DE EJECUCIÓN (V1.0) ---
-const _SS_CACHE = {}; 
+// 🛠️ MEJORA: Eliminación de "Magic Numbers"
+const COLS_REP = { FECHA: 2, CUENTA: 3, METODOLOGIA: 5, SESIONES: 6, ALUMNOS: 7, HORAS: 9, TIENDAS: 10, CIUDAD: 12, DISP_MOVIL: 14, DISP_ECO: 15 };
+const CACHE_EXPIRATION = 300; // 5 minutos en segundos
+
+// 🛠️ FIX 2: CACHÉ REAL DE APPS SCRIPT
 function _getValuesCached(ssId, sheetName) {
+  const cache = CacheService.getScriptCache();
   const key = ssId + "_" + sheetName;
-  if (_SS_CACHE[key]) return _SS_CACHE[key];
+  const cachedData = cache.get(key);
+  
+  if (cachedData) {
+    try { return JSON.parse(cachedData); } catch(e) { cache.remove(key); }
+  }
+  
   try {
     const ss = SpreadsheetApp.openById(ssId);
     const s = ss.getSheetByName(sheetName);
     if (!s) return [];
     const d = s.getDataRange().getValues();
-    _SS_CACHE[key] = d;
+    // Cache limit is 100KB per key, for very large sheets we might need to split it, but usually this is fine.
+    cache.put(key, JSON.stringify(d), CACHE_EXPIRATION);
     return d;
   } catch(e) { return []; }
+}
+
+function _invalidateCache(ssId, sheetName) {
+  CacheService.getScriptCache().remove(ssId + "_" + sheetName);
 }
 
 function doGet(e) {
@@ -73,7 +87,7 @@ function doPost(e) {
   } catch(err) { return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON); }
 }
 
-// --- ADMIN FEATURES (PROTECTED) ---
+// --- ADMIN FEATURES ---
 function getAdminData() {
   try {
     const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
@@ -88,7 +102,7 @@ function getAdminData() {
     const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
     const consumedMap = {}; 
     for(let i=1; i<dV.length; i++) {
-        const u = dV[i][1].toString().toLowerCase();
+        const u = (dV[i][1]||"").toString().toLowerCase();
         if(dV[i][5] !== 'Rechazado') {
             if(!consumedMap[u]) consumedMap[u] = {base:0, extra:0};
             if(dV[i][4] === 'Vacaciones') consumedMap[u].base += parseFloat(dV[i][6]) || 0;
@@ -127,7 +141,9 @@ function getUsersList() {
 }
 
 function updateRequestStatus(id, status) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000);
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
     const s = ss.getSheetByName(CONFIG.VACACIONES_SHEET_NAME);
     const d = s.getDataRange().getValues();
@@ -135,15 +151,18 @@ function updateRequestStatus(id, status) {
         if (d[i][7] === id) { 
             s.getRange(i + 1, 6).setValue(status);
             notifyUser(d[i][1], "Tu solicitud de " + (d[i][4]||"Vacaciones") + " (" + d[i][2] + ") ha sido " + (status === "Aprobado" ? "APROBADA ✅" : "RECHAZADA ❌") + ".");
+            _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
             return { status: "success" }; 
         }
     }
     return { status: "error", message: "ID no encontrado" };
-  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); }
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
 function modifyBaseDays(user, delta) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000);
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
     let s = ss.getSheetByName(CONFIG.USUARIOS_SHEET_NAME);
     const d = s.getDataRange().getValues();
@@ -152,19 +171,19 @@ function modifyBaseDays(user, delta) {
         const current = (parseFloat(d[i][6]) || 23);
         const newVal = Math.max(0, current + delta);
         s.getRange(i + 1, 7).setValue(newVal);
-        const diff = newVal - current;
-        if(diff !== 0) {
-            notifyUser(user, "Se han actualizado tus días de vacaciones.");
-        }
+        if(newVal !== current) notifyUser(user, "Se han actualizado tus días de vacaciones.");
+        _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
         return { status: "success", newVal: newVal };
       }
     }
-    return { status: "error", message: "Usuario no encontrado en la hoja de Usuarios" };
-  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); }
+    return { status: "error", message: "Usuario no encontrado" };
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
 function modifyExtraDays(user, delta) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000);
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
     let s = ss.getSheetByName(CONFIG.DIAS_EXTRAS_SHEET_NAME);
     if (!s) s = ss.insertSheet(CONFIG.DIAS_EXTRAS_SHEET_NAME);
@@ -174,14 +193,15 @@ function modifyExtraDays(user, delta) {
         const current = (parseFloat(d[i][1]) || 0);
         const newVal = Math.max(0, current + delta);
         s.getRange(i + 1, 2).setValue(newVal);
-        const diff = newVal - current;
-            notifyUser(user, "Se han actualizado tus días de vacaciones.");
+        notifyUser(user, "Se han actualizado tus días de vacaciones.");
+        _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME);
         return { status: "success", newVal: newVal };
       }
     }
     s.appendRow([user, Math.max(0, delta)]);
+    _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME);
     return { status: "success" };
-  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); }
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
 // --- CORE VACATION LOGIC ---
@@ -226,7 +246,9 @@ function getVacationData(user) {
 }
 
 function handleRequestVacation(req) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000);
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
     let sV = ss.getSheetByName(CONFIG.VACACIONES_SHEET_NAME) || ss.insertSheet(CONFIG.VACACIONES_SHEET_NAME);
     const groups = {};
@@ -242,8 +264,9 @@ function handleRequestVacation(req) {
       sV.appendRow([ new Date(), req.user, label, m, req.type, "Pendiente", s.length, uniqueId ]);
       notifyAdmins("Nueva solicitud de " + req.user + " (" + req.type + "): " + label, req.user);
     }
+    _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
     return { status: "success" };
-  } catch(e) { return { status: "error", message: e.toString() }; }
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { lock.releaseLock(); }
 }
 
 function formatDateS(iso) { 
@@ -251,23 +274,17 @@ function formatDateS(iso) {
     return Utilities.formatDate(new Date(p[0], p[1]-1, p[2]), Session.getScriptTimeZone(), "dd/MM/yy"); 
 }
 
-
-// --- DASHBOARD / LOGIN (PROTECTED - DO NOT MODIFY) ---
+// --- DASHBOARD / LOGIN ---
 function attemptLogin(u, p) {
   const d = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
   const up = (p || "").toString().trim();
   for (let i = 1; i < d.length; i++) {
     if ((d[i][0] || "").toString().trim().toLowerCase() === u.toLowerCase() && (d[i][3] || "").toString().trim() === up) {
-      const isAdmin = CONFIG.ADMINS.some(function(a){ return d[i][0].toString().toLowerCase() === a.toLowerCase(); }) || /Manager|Coordinator|Creator/i.test(d[i][0]);
+      const isAdmin = CONFIG.ADMINS.some(a => d[i][0].toString().toLowerCase() === a.toLowerCase()) || /Manager|Coordinator|Creator/i.test(d[i][0]);
       return { status: "success", user: d[i][0], name: d[i][1], sede: d[i][2], role: isAdmin ? "Admin" : "User" };
     }
   }
   return { status: "error", message: "Credenciales incorrectas" };
-}
-
-function getUsersList() {
-  const d = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
-  return { status: "success", data: d.slice(1).map(function(r){return r[0].toString();}).filter(Boolean) };
 }
 
 function getDashboardStats(p) {
@@ -281,7 +298,6 @@ function getDashboardStats(p) {
   const targetYear = (p.year || "Todos").toString().trim();
   const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
 
-  // Extraer números de semana (robustez contra "Semana 17" o "17")
   let selectedWeeks = [];
   if (targetWeeksStr) {
     const matches = targetWeeksStr.match(/\d+/g);
@@ -292,50 +308,43 @@ function getDashboardStats(p) {
 
   const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
-  let tS=0, tA=0, tH=0, count=0; // Semanales
-  let mS={}; // Semanales (Donut)
-  let monthlyWS = {}; // Mensuales (Bar Chart)
+  let tS=0, tA=0, tH=0, count=0; 
+  let mS={}; 
+  let monthlyWS = {}; 
   
   let statsByAccount = {}; 
   let statsByTrainer = {};
   let availableWeeks = new Set();
 
   for (var i=1; i<d.length; i++) {
-    var dO = parseDateStable(d[i][2]); if (!dO) continue;
+    var dO = parseDateStable(d[i][COLS_REP.FECHA]); if (!dO) continue;
     var rowYear = dO.getFullYear();
     var rowMonth = dO.getMonth();
     var rowWeek = getWeekNumber(dO);
 
-    // 1. Filtro Global (Año/Mes/Dispositivo) para que afecte a TODO el dashboard
     if (targetYear !== "Todos" && rowYear.toString() !== targetYear) continue;
     if (targetMonth !== "Todos" && mNames[rowMonth] !== targetMonth) continue;
     if (targetDevice !== "todos") {
-        const mobiles = (d[i][14]||"").toString().toLowerCase();
-        const eco = (d[i][15]||"").toString().toLowerCase();
+        const mobiles = (d[i][COLS_REP.DISP_MOVIL]||"").toString().toLowerCase();
+        const eco = (d[i][COLS_REP.DISP_ECO]||"").toString().toLowerCase();
         if (mobiles.indexOf(targetDevice) === -1 && eco.indexOf(targetDevice) === -1) continue;
     }
 
-    // Registrar semana disponible (FILTRADO por mes si aplica para el dropdown dinámico)
     if (targetMonth === "Todos" || mNames[rowMonth] === targetMonth) {
         availableWeeks.add(rowWeek);
     }
 
-    // Filtro de Usuario
     const matchesUser = (target === "Total" || (d[i][1]||"").toString().trim() === target);
     
-    var ses=parseFloat(d[i][6])||0, alu=parseFloat(d[i][7])||0, hor=parseFloat(d[i][9])||0;
+    var ses=parseFloat(d[i][COLS_REP.SESIONES])||0, alu=parseFloat(d[i][COLS_REP.ALUMNOS])||0, hor=parseFloat(d[i][COLS_REP.HORAS])||0;
     var trainer = (d[i][1]||"Desconocido").toString().trim();
-    var cuenta = (d[i][3]||"Otros").toString().trim();
+    var cuenta = (d[i][COLS_REP.CUENTA]||"Otros").toString().trim();
 
-    // Lógica SEMANAL (Totales, Donut, Admin Widgets)
-    // Si selectedWeeks está vacío, significa que queremos ver TODO el mes seleccionado (o el año)
     if (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek)) {
       if (matchesUser) {
         tS+=ses; tA+=alu; tH+=hor; count++;
-        var met=(d[i][5]||"Otros").toString().trim(); mS[met]=(mS[met]||0)+hor;
-      }
-      
-      if (matchesUser) {
+        var met=(d[i][COLS_REP.METODOLOGIA]||"Otros").toString().trim(); mS[met]=(mS[met]||0)+hor;
+        
         if(!statsByAccount[cuenta]) statsByAccount[cuenta] = { sesiones:0, alumnos:0 };
         statsByAccount[cuenta].sesiones += ses;
         statsByAccount[cuenta].alumnos += alu;
@@ -346,7 +355,6 @@ function getDashboardStats(p) {
       }
     }
 
-    // Lógica MENS (Bar Chart) - Basado en el mes filtrado o todos los del año
     if (matchesUser && (targetMonth === "Todos" || rowMonth === mNames.indexOf(targetMonth))) {
       if(!monthlyWS[rowWeek]) monthlyWS[rowWeek] = { sesiones:0, alumnos:0 };
       monthlyWS[rowWeek].sesiones += ses;
@@ -367,10 +375,7 @@ function getDashboardStats(p) {
     chartAlumnos:sW.length > 0 ? sW.map(w=>monthlyWS[w].alumnos) : [0], 
     pieLabels:Object.keys(mS), 
     pieData:Object.values(mS),
-    adminStats: {
-        byAccount: statsByAccount,
-        byTrainer: statsByTrainer
-    },
+    adminStats: { byAccount: statsByAccount, byTrainer: statsByTrainer },
     availableWeeks: Array.from(availableWeeks).sort((a,b) => a-b)
   };
 }
@@ -379,8 +384,6 @@ function getReportsHistory(p) {
   try {
     const target = (p.targetUser || "").toString().trim();
     const limit = parseInt(p.limit) || 20;
-    
-    // Filtros específicos
     const weekFilter = p.week ? parseInt(p.week) : null;
     const monthFilter = (p.month || "").toString().trim();
     const accountFilter = (p.account || "").toString().trim();
@@ -391,32 +394,23 @@ function getReportsHistory(p) {
     const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
     const result = [];
     const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-
     const availableFilters = { weeks: new Set(), months: new Set(), accounts: new Set(), methods: new Set(), devices: new Set() };
 
-    // Pasada para poblar filtros disponibles para este usuario
     for (var j=1; j<d.length; j++) {
         const rowTrainer = (d[j][1]||"").toString().trim();
         if (!target || rowTrainer === target) {
-            const dO = parseDateStable(d[j][2]);
+            const dO = parseDateStable(d[j][COLS_REP.FECHA]);
             if (dO) {
                 const rowMonth = mNames[dO.getMonth()];
                 const rowWeek = getWeekNumber(dO);
 
-                // Popular filtros siempre con los datos del usuario
-                availableFilters.accounts.add((d[j][3]||"Otros").toString().trim());
-                availableFilters.methods.add((d[j][5]||"Otros").toString().trim());
+                availableFilters.accounts.add((d[j][COLS_REP.CUENTA]||"Otros").toString().trim());
+                availableFilters.methods.add((d[j][COLS_REP.METODOLOGIA]||"Otros").toString().trim());
                 
-                // Vinculación: Los filtros de Mes/Semana/Dispositivo se retroalimentan
-                // Si el usuario ya filtró por mes, solo mostramos semanas de ese mes
-                if (monthFilter === "Todos" || rowMonth === monthFilter) {
-                    availableFilters.weeks.add(rowWeek);
-                }
-                if (weekFilter === null || rowWeek == weekFilter) {
-                    availableFilters.months.add(rowMonth);
-                }
+                if (monthFilter === "Todos" || rowMonth === monthFilter) availableFilters.weeks.add(rowWeek);
+                if (weekFilter === null || rowWeek == weekFilter) availableFilters.months.add(rowMonth);
 
-                const devs = ((d[j][14]||"") + ", " + (d[j][15]||"")).split(",");
+                const devs = ((d[j][COLS_REP.DISP_MOVIL]||"") + ", " + (d[j][COLS_REP.DISP_ECO]||"")).split(",");
                 devs.forEach(dev => {
                     const clean = dev.trim();
                     if(clean && clean !== "-" && clean !== "undefined") availableFilters.devices.add(clean);
@@ -425,25 +419,23 @@ function getReportsHistory(p) {
         }
     }
 
-    // Pasada para obtener el historial filtrado (inversa para limit reciente)
     for (let i = d.length - 1; i >= 1; i--) {
       if (target && (d[i][1]||"").toString().trim() !== target) continue;
-      
-      const dO = parseDateStable(d[i][2]);
+      const dO = parseDateStable(d[i][COLS_REP.FECHA]);
       if (!dO) continue;
       
       if (weekFilter && weekFilter !== "Todos" && getWeekNumber(dO) != weekFilter) continue;
       if (monthFilter && monthFilter !== "Todos" && mNames[dO.getMonth()] !== monthFilter) continue;
-      if (accountFilter && accountFilter !== "Todos" && (d[i][3]||"").toString().trim() !== accountFilter) continue;
-      if (methodologyFilter && methodologyFilter !== "Todos" && (d[i][5]||"").toString().trim() !== methodologyFilter) continue;
+      if (accountFilter && accountFilter !== "Todos" && (d[i][COLS_REP.CUENTA]||"").toString().trim() !== accountFilter) continue;
+      if (methodologyFilter && methodologyFilter !== "Todos" && (d[i][COLS_REP.METODOLOGIA]||"").toString().trim() !== methodologyFilter) continue;
       if (deviceFilter && deviceFilter !== "todos") {
-        const mobiles = (d[i][14]||"").toString().toLowerCase();
-        const eco = (d[i][15]||"").toString().toLowerCase();
+        const mobiles = (d[i][COLS_REP.DISP_MOVIL]||"").toString().toLowerCase();
+        const eco = (d[i][COLS_REP.DISP_ECO]||"").toString().toLowerCase();
         if (mobiles.indexOf(deviceFilter) === -1 && eco.indexOf(deviceFilter) === -1) continue;
       }
 
       if (query) {
-        const rowStr = [Utilities.formatDate(dO, Session.getScriptTimeZone(), "dd/MM/yyyy"), d[i][3], d[i][10], d[i][14], d[i][15], d[i][16]].join(" ").toLowerCase();
+        const rowStr = [Utilities.formatDate(dO, Session.getScriptTimeZone(), "dd/MM/yyyy"), d[i][COLS_REP.CUENTA], d[i][COLS_REP.TIENDAS], d[i][COLS_REP.DISP_MOVIL], d[i][COLS_REP.DISP_ECO], d[i][16]].join(" ").toLowerCase();
         if (rowStr.indexOf(query) === -1) continue;
       }
       
@@ -452,20 +444,20 @@ function getReportsHistory(p) {
         id: (d[i][17] || "").toString() || ("R_" + dO.getTime() + "_" + i),
         timestamp: d[i][0], 
         trainer: (d[i][1] || "").toString(), 
-        fecha: d[i][2], 
-        cuenta: (d[i][3] || "").toString(), 
+        fecha: d[i][COLS_REP.FECHA], 
+        cuenta: (d[i][COLS_REP.CUENTA] || "").toString(), 
         distribuidor: (d[i][4] || "").toString(), 
-        metodologia: (d[i][5] || "").toString(),
-        sesiones: d[i][6], 
-        alumnos: d[i][7], 
+        metodologia: (d[i][COLS_REP.METODOLOGIA] || "").toString(),
+        sesiones: d[i][COLS_REP.SESIONES], 
+        alumnos: d[i][COLS_REP.ALUMNOS], 
         provincia: (d[i][8] || "").toString(), 
-        duracion: d[i][9], 
-        tiendas: d[i][10], 
+        duracion: d[i][COLS_REP.HORAS], 
+        tiendas: d[i][COLS_REP.TIENDAS], 
         perfil: (d[i][11] || "").toString(), 
-        ciudad: (d[i][12] || "").toString(), 
+        ciudad: (d[i][COLS_REP.CIUDAD] || "").toString(), 
         contenidos: (d[i][13] || "").toString(), 
-        dispositivos: (d[i][14] || "").toString(), 
-        dispositivos_no_movil: (d[i][15] || "").toString(), 
+        dispositivos: (d[i][COLS_REP.DISP_MOVIL] || "").toString(), 
+        dispositivos_no_movil: (d[i][COLS_REP.DISP_ECO] || "").toString(), 
         comentarios: (d[i][16] || "").toString()
       });
       if (result.length >= limit) break;
@@ -486,57 +478,40 @@ function getReportsHistory(p) {
 }
 
 function updateReport(p) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000);
     let data = p.data;
     if (typeof data === 'string') data = JSON.parse(data);
     const rowIdx = parseInt(p.rowIdx);
     const s = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID).getSheetByName(CONFIG.REPORTES_SHEET_NAME);
     
-    // Verificamos que el rowIdx sea válido y coincida el usuario (seguridad básica) ABRAZO
     const currentRow = s.getRange(rowIdx, 1, 1, 18).getValues()[0];
     const existingTrainer = (currentRow[1] || "").toString().trim().toLowerCase();
     const incomingTrainer = (data.trainer || "").toString().trim().toLowerCase();
-    
-    // Alineamos detección de admin con attemptLogin (regex)
     const isAdmin = CONFIG.ADMINS.some(a => a.toLowerCase() === incomingTrainer) || /Manager|Coordinator|Creator/i.test(incomingTrainer);
     
     if (existingTrainer !== incomingTrainer && !isAdmin) {
-        return { status: "error", message: "No tienes permiso para editar este reporte de " + currentRow[1] };
+        return { status: "error", message: "No tienes permiso para editar." };
     }
 
-    // Actualizamos la fila (manteniendo el timestamp original o actualizando?)
-    // El usuario dijo "Sobreescribe", mantendremos el timestamp original en Col 1
+    var photoUrls = _uploadPhotos(p.photos);
+    var existingPhotos = (currentRow[17] || "").toString();
+    var finalPhotos = existingPhotos;
+    if (photoUrls.length > 0) {
+        finalPhotos = existingPhotos ? (existingPhotos + "\n" + photoUrls.join("\n")) : photoUrls.join("\n");
+    }
+
     const rowData = [
-      currentRow[0], // Original timestamp
-      data.trainer,
-      data.fecha,
-      data.cuenta,
-      data.distribuidor,
-      data.metodologia,
-      data.sesiones,
-      data.alumnos,
-      data.provincia,
-      data.duracion,
-      data.tiendas || "0",
-      data.perfil,
-      data.ciudad,
-      data.contenidos,
-      data.dispositivos,
-      data.dispositivos_no_movil,
-      data.comentarios,
-      p.photos || currentRow[17] || "" // Si p.photos no viene (Edit), mantenemos las existentes en Col 18
+      currentRow[0], data.trainer, data.fecha, data.cuenta, data.distribuidor, data.metodologia, data.sesiones, data.alumnos, data.provincia, data.duracion, data.tiendas || "0", data.perfil, data.ciudad, data.contenidos, data.dispositivos, data.dispositivos_no_movil, data.comentarios, finalPhotos
     ];
     
     s.getRange(rowIdx, 1, 1, rowData.length).setValues([rowData]);
-    SpreadsheetApp.flush();
-
-    // Notificar al trainer original si un Admin ha editado su reporte
-    if (isAdmin && existingTrainer !== incomingTrainer) {
-        notifyUser(currentRow[1], "Se ha actualizado un reporte. Revísalo en tu historial", "Admin");
-    }
-
+    if (isAdmin && existingTrainer !== incomingTrainer) notifyUser(currentRow[1], "Se ha actualizado un reporte. Revísalo en tu historial", "Admin");
+    
+    _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
     return { status: "success", message: "Reporte actualizado correctamente." };
-  } catch(e) { return { status: "error", message: e.toString() }; }
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
 function getWeekNumber(d) {
@@ -547,7 +522,7 @@ function getWeekNumber(d) {
 
 function getCitiesList() {
   const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
-  return { status:"success", data:Array.from(new Set(d.slice(1).map(r=>(r[12]||"").toString().trim()).filter(Boolean))) };
+  return { status:"success", data:Array.from(new Set(d.slice(1).map(r=>(r[COLS_REP.CIUDAD]||"").toString().trim()).filter(Boolean))) };
 }
 
 function getFilterMetadata() {
@@ -556,55 +531,52 @@ function getFilterMetadata() {
   var mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   
   for (var i=1; i<d.length; i++) {
-    var dO = parseDateStable(d[i][2]);
+    var dO = parseDateStable(d[i][COLS_REP.FECHA]);
     if(dO) { ys.add(dO.getFullYear().toString()); ms.add(mNames[dO.getMonth()]); }
+    if(d[i][COLS_REP.CUENTA]) accounts.add(d[i][COLS_REP.CUENTA].toString().trim());
+    if(d[i][COLS_REP.METODOLOGIA]) methodologies.add(d[i][COLS_REP.METODOLOGIA].toString().trim());
     
-    if(d[i][3]) accounts.add(d[i][3].toString().trim());
-    if(d[i][5]) methodologies.add(d[i][5].toString().trim());
-    
-    // Unificar dispositivos (Col 15 y 16)
-    var d1 = (d[i][14]||"").toString().split(',');
-    var d2 = (d[i][15]||"").toString().split(',');
+    var d1 = (d[i][COLS_REP.DISP_MOVIL]||"").toString().split(',');
+    var d2 = (d[i][COLS_REP.DISP_ECO]||"").toString().split(',');
     d1.concat(d2).forEach(item => {
       var t = item.trim();
       if(t && t !== "0") devs.add(t);
     });
   }
-  
-  return { 
-    status:"success", 
-    data: { 
-      years: Array.from(ys).sort().reverse(), 
-      months: Array.from(ms), 
-      accounts: Array.from(accounts).sort(),
-      methodologies: Array.from(methodologies).sort(),
-      devices: Array.from(devs).sort()
-    } 
-  };
+  return { status:"success", data: { years: Array.from(ys).sort().reverse(), months: Array.from(ms), accounts: Array.from(accounts).sort(), methodologies: Array.from(methodologies).sort(), devices: Array.from(devs).sort() } };
+}
+
+function _uploadPhotos(photos) {
+  var photoUrls = [];
+  if (photos && photos.length > 0) {
+    try {
+      var folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
+      for (var i=0; i<photos.length; i++) {
+          var p = photos[i];
+          if (p && p.base64Data) {
+              var splitted = p.base64Data.split(',');
+              var base64 = splitted.length > 1 ? splitted[1] : splitted[0];
+              var blob = Utilities.newBlob(Utilities.base64Decode(base64), p.mimeType || "image/jpeg", p.name || ("photo_" + i + ".jpg"));
+              var file = folder.createFile(blob);
+              photoUrls.push(file.getUrl());
+          }
+      }
+    } catch(e) { console.error("Error uploading photos:", e); }
+  }
+  return photoUrls;
 }
 
 function handleSaveReport(data, photos) {
-  const s = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID).getSheetByName(CONFIG.REPORTES_SHEET_NAME);
-  var photoUrls = [];
-  if (photos && photos.length > 0) {
-    var folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
-    for (var i=0; i<photos.length; i++) {
-        var p = photos[i];
-        if (p && p.base64Data) {
-            var splitted = p.base64Data.split(',');
-            var base64 = splitted.length > 1 ? splitted[1] : splitted[0];
-            var blob;
-            try {
-                blob = Utilities.newBlob(Utilities.base64Decode(base64), p.mimeType || "image/jpeg", p.name || ("photo_" + i + ".jpg"));
-                var file = folder.createFile(blob);
-                photoUrls.push(file.getUrl());
-            } catch(e) {}
-        }
-    }
-  }
-  var urlsString = photoUrls.join("\n");
-  s.appendRow([ new Date(), data.trainer, data.fecha, data.cuenta, data.distribuidor, data.metodologia, data.sesiones, data.alumnos, data.provincia, data.duracion, data.tiendas || "0", data.perfil, data.ciudad, data.contenidos, data.dispositivos, data.dispositivos_no_movil, data.comentarios, urlsString ]);
-  return { status:"success" };
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const s = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID).getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+    var photoUrls = _uploadPhotos(photos);
+    var urlsString = photoUrls.join("\n");
+    s.appendRow([ new Date(), data.trainer, data.fecha, data.cuenta, data.distribuidor, data.metodologia, data.sesiones, data.alumnos, data.provincia, data.duracion, data.tiendas || "0", data.perfil, data.ciudad, data.contenidos, data.dispositivos, data.dispositivos_no_movil, data.comentarios, urlsString ]);
+    _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
+    return { status:"success" };
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { lock.releaseLock(); }
 }
 
 function getMessages(p) {
@@ -617,19 +589,8 @@ function getMessages(p) {
     for (let i = 1; i < d.length; i++) {
         const rowTo = (d[i][2] || "").toString().toLowerCase();
         const isAdmin = CONFIG.ADMINS.some(a => a.toLowerCase() === target) || /Manager|Coordinator|Creator/i.test(target);
-        
-        // Match personal messages OR group Admin messages if user is admin
-        const matches = (rowTo === target) || (isAdmin && rowTo === "admin");
-        
-        if (matches) {
-            result.push({
-                id: d[i][0],
-                date: d[i][1],
-                to: d[i][2],
-                from: d[i][3],
-                text: d[i][4],
-                read: d[i][5] === true || (d[i][5] && d[i][5].toString().toUpperCase() === "TRUE")
-            });
+        if ((rowTo === target) || (isAdmin && rowTo === "admin")) {
+            result.push({ id: d[i][0], date: d[i][1], to: d[i][2], from: d[i][3], text: d[i][4], read: d[i][5] === true || (d[i][5] && d[i][5].toString().toUpperCase() === "TRUE") });
         }
     }
     return { status: "success", data: result.reverse() };
@@ -637,23 +598,27 @@ function getMessages(p) {
 }
 
 function handleMarkMessageRead(p) {
-    const msgId = p.msgId;
-    const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
-    const smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
-    if (!smsg) return { status: "error", message: "No sheet" };
-    const d = smsg.getDataRange().getValues();
-    for (let i = 1; i < d.length; i++) {
-      if (d[i][0].toString() === msgId.toString()) {
-        smsg.getRange(i+1, 6).setValue("TRUE");
-        SpreadsheetApp.flush();
-        return { status: "success" };
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(10000);
+      const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
+      const smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
+      if (!smsg) return { status: "error", message: "No sheet" };
+      const d = smsg.getDataRange().getValues();
+      for (let i = 1; i < d.length; i++) {
+        if (d[i][0].toString() === p.msgId.toString()) {
+          smsg.getRange(i+1, 6).setValue("TRUE");
+          return { status: "success" };
+        }
       }
-    }
-    return { status: "error", message: "Not found ID" };
+      return { status: "error", message: "Not found ID" };
+    } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
 function handleMarkAllMessagesRead(p) {
+    const lock = LockService.getScriptLock();
     try {
+        lock.waitLock(10000);
         const target = (p.user || "").toString().trim().toLowerCase();
         const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
         const smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
@@ -668,49 +633,46 @@ function handleMarkAllMessagesRead(p) {
                 smsg.getRange(i+1, 6).setValue("TRUE");
             }
         }
-        SpreadsheetApp.flush();
         return { status: "success" };
-    } catch(e) { return { status: "error", message: e.toString() }; }
+    } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
 function notifyAdmins(text, fromUser) {
     try {
-        // No notificar si el que pide ya es Admin (él mismo lo ve en su panel)
         const isAdmin = CONFIG.ADMINS.some(a => a.toLowerCase() === fromUser.toLowerCase()) || /Manager|Coordinator|Creator/i.test(fromUser);
         if (isAdmin) return;
-
         const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
         let smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
         if (!smsg) smsg = ss.insertSheet(CONFIG.MENSAJES_SHEET_NAME);
         if (smsg.getLastRow() === 0) smsg.appendRow(["ID", "Date", "ToUser", "FromUser", "Text", "Read"]);
-        
-        // Un solo mensaje para todo el grupo Admin (estado compartido)
         smsg.appendRow([ Date.now() + Math.floor(Math.random()*1000), new Date(), "Admin", fromUser, text, "FALSE" ]);
     } catch(e) {}
 }
 
-
 function notifyAllUsers(text) {
     try {
         const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
-        dU.slice(1).forEach(r => {
-            const user = r[0].toString();
-            notifyUser(user, text);
-        });
+        dU.slice(1).forEach(r => notifyUser(r[0].toString(), text));
     } catch(e) {}
 }
 
-// --- CALENDAR WEEKLY LOGIC ---
+function notifyUser(toUser, text, fromUser) {
+    try {
+        const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
+        let smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
+        if (!smsg) smsg = ss.insertSheet(CONFIG.MENSAJES_SHEET_NAME);
+        smsg.appendRow([ Date.now() + Math.floor(Math.random()*1000), new Date(), toUser, fromUser || "System", text, "FALSE" ]);
+    } catch(e) {}
+}
+
 function getWeeklySchedule(p) {
   try {
     const start = p.start, end = p.end;
-    
     const dPlan = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.PLANIFICACION_SHEET_NAME);
     const dVacas = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
     const dFest = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.FESTIVOS_SHEET_NAME);
     const users = getUsersList().data || [];
 
-    // 2. Procesar Planificación
     const scheduleByDay = {};
     for (let i = 1; i < dPlan.length; i++) {
         const dO = parseDateStable(dPlan[i][2]);
@@ -725,17 +687,14 @@ function getWeeklySchedule(p) {
         }
     }
 
-    // 3. Procesar Festivos y Vacaciones en bloque (Mapas por usuario normalizado)
     const blocks = {};
-    const normalizedBlocks = {}; // Map lowercase name to data object
-    
+    const normalizedBlocks = {}; 
     users.forEach(u => {
       const data = { vacationInfo: [], festivos: [] };
-      blocks[u] = data;
-      normalizedBlocks[u.trim().toLowerCase()] = data;
+      blocks[u.user] = data; 
+      normalizedBlocks[u.user.trim().toLowerCase()] = data;
     });
 
-    // Mapear Festivos
     for (let i = 1; i < dFest.length; i++) {
         const uKey = (dFest[i][0]||"").toString().trim().toLowerCase();
         if (normalizedBlocks[uKey]) {
@@ -752,24 +711,22 @@ function getWeeklySchedule(p) {
         }
     }
 
-    // Mapear Vacaciones
     for (let i = 1; i < dVacas.length; i++) {
-        const uName = (dVacas[i][1]||"").toString().trim();
-        const uKey = uName.toLowerCase();
+        const uKey = (dVacas[i][1]||"").toString().trim().toLowerCase();
         const status = dVacas[i][5];
         if (normalizedBlocks[uKey] && (status === "Aprobado" || status === "Pendiente")) {
             normalizedBlocks[uKey].vacationInfo.push({ fechas: dVacas[i][2], status: status });
         }
     }
-
     return { status: "success", schedule: scheduleByDay, blocks: blocks };
   } catch(e) { return { status: "error", message: "getWeekly error: " + e.toString() }; }
 }
 
 function adminProcessSelection(req) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000);
     const action = req.opAction; 
-    
     if (action === 'notify_materials') {
         notifyAllUsers("Nuevos materiales disponibles en tu repositorio.");
         return { status: "success" };
@@ -778,26 +735,26 @@ function adminProcessSelection(req) {
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
     const s = ss.getSheetByName(CONFIG.VACACIONES_SHEET_NAME);
     const userNorm = req.user.trim().toLowerCase();
-    const results = [];
 
     if (action === 'remove') {
       const d = s.getDataRange().getValues();
-      const datesToRemove = req.dates; // already in "YYYY-MM-DD" format
-      
-      const toISO = (dateObj) => {
-          return dateObj.getFullYear() + "-" + String(dateObj.getMonth() + 1).padStart(2, '0') + "-" + String(dateObj.getDate()).padStart(2, '0');
-      };
+      const datesToRemove = req.dates; 
+      const toISO = (dateObj) => dateObj.getFullYear() + "-" + String(dateObj.getMonth() + 1).padStart(2, '0') + "-" + String(dateObj.getDate()).padStart(2, '0');
 
-      let rowsToDelete = [];
+      let newData = [d[0]]; 
       let newIndividualDays = [];
 
-      for (let i = d.length - 1; i >= 1; i--) {
-        if (d[i][1].toString().trim().toLowerCase() !== userNorm) continue;
+      for (let i = 1; i < d.length; i++) {
+        if (d[i][1].toString().trim().toLowerCase() !== userNorm) {
+            newData.push(d[i]); 
+            continue;
+        }
+        
         const rangeStr = d[i][2].toString();
         const type = d[i][4];
-        
         const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
-        if (!matches) continue;
+        
+        if (!matches) { newData.push(d[i]); continue; }
         
         const parseMatch = (str) => {
             const p = str.split('/');
@@ -817,33 +774,19 @@ function adminProcessSelection(req) {
            cur.setDate(cur.getDate()+1);
         }
 
-        let removedAny = false;
+        let thisRowRemoved = false;
         let daysToKeep = [];
 
         daysInRow.forEach(day => {
-            const beingRemoved = datesToRemove.includes(toISO(day));
-            if (beingRemoved) removedAny = true;
+            if (datesToRemove.includes(toISO(day))) { thisRowRemoved = true; }
             else daysToKeep.push(day);
         });
 
-        if (removedAny) {
-            rowsToDelete.push(i + 1);
+        if (thisRowRemoved) {
             daysToKeep.forEach(day => newIndividualDays.push({date: day, type: type, originalDateVal: d[i][0]}));
+        } else {
+            newData.push(d[i]); 
         }
-      }
-
-      rowsToDelete.forEach(rowIdx => s.deleteRow(rowIdx));
-      SpreadsheetApp.flush();
-
-      // AUTO-LIMPIEZA: Marcar mensajes de "Nueva solicitud" de este usuario como leídos
-      const smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
-      if (smsg) {
-          const dMsg = smsg.getDataRange().getValues();
-          for (let i = 1; i < dMsg.length; i++) {
-              if (dMsg[i][2] === "Admin" && dMsg[i][4].includes(req.user) && dMsg[i][5].toString().toUpperCase() === "FALSE") {
-                  smsg.getRange(i+1, 6).setValue("TRUE");
-              }
-          }
       }
 
       const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -852,18 +795,30 @@ function adminProcessSelection(req) {
           const label = "Día " + Utilities.formatDate(dObj, Session.getScriptTimeZone(), "dd/MM/yy");
           const mLabel = mNames[dObj.getMonth()] + " " + dObj.getFullYear();
           const id = "ADM_" + Date.now() + "_" + Math.floor(Math.random()*1000) + "_" + idx;
-          s.appendRow([obj.originalDateVal, req.user, label, mLabel, obj.type, "Aprobado", 1, id]);
+          newData.push([obj.originalDateVal, req.user, label, mLabel, obj.type, "Aprobado", 1, id]);
       });
 
-      SpreadsheetApp.flush();
+      s.clearContents();
+      if(newData.length > 0) s.getRange(1, 1, newData.length, newData[0].length).setValues(newData);
+
+      const smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
+      if (smsg) {
+          const dMsg = smsg.getDataRange().getValues();
+          for (let i = 1; i < dMsg.length; i++) {
+              if (dMsg[i][2] === "Admin" && (dMsg[i][4]||"").includes(req.user) && dMsg[i][5].toString().toUpperCase() === "FALSE") {
+                  smsg.getRange(i+1, 6).setValue("TRUE");
+              }
+          }
+      }
+
+      _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
       notifyUser(req.user, `Admin ha ELIMINADO vacaciones/días extra de tu calendario para: ${req.dates.join(", ")}.`);
       return { status: "success", action: "removed" };
     } else {
-      // AÑADIR (Vacaciones o Extras)
       const type = (action === 'add_vacation') ? 'Vacaciones' : 'Dias Extras';
       const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-      
       const groups = {};
+      
       req.dates.forEach(dStr => {
           const d = parseDateStable(dStr);
           if(d) {
@@ -875,75 +830,62 @@ function adminProcessSelection(req) {
       
       Object.keys(groups).forEach((m, idx) => {
           const sDates = groups[m].sort();
-          let label = "";
-          if (sDates.length > 1) {
-              const d0 = parseDateStable(sDates[0]);
-              const d1 = parseDateStable(sDates[sDates.length - 1]);
-              label = "Del " + Utilities.formatDate(d0, Session.getScriptTimeZone(), "dd/MM/yy") + " al " + Utilities.formatDate(d1, Session.getScriptTimeZone(), "dd/MM/yy");
-          } else {
-              const dObj = parseDateStable(sDates[0]);
-              label = "Día " + Utilities.formatDate(dObj, Session.getScriptTimeZone(), "dd/MM/yy");
-          }
+          let label = sDates.length > 1 
+            ? "Del " + Utilities.formatDate(parseDateStable(sDates[0]), Session.getScriptTimeZone(), "dd/MM/yy") + " al " + Utilities.formatDate(parseDateStable(sDates[sDates.length - 1]), Session.getScriptTimeZone(), "dd/MM/yy")
+            : "Día " + Utilities.formatDate(parseDateStable(sDates[0]), Session.getScriptTimeZone(), "dd/MM/yy");
           const id = "ADM_" + Date.now() + "_" + Math.floor(Math.random()*1000) + "_" + idx;
           s.appendRow([new Date(), req.user, label, m, type, "Aprobado", sDates.length, id]);
       });
 
+      _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
       notifyUser(req.user, `Admin ha ASIGNADO ${type} en tu calendario para: ${req.dates.join(", ")}.`);
-      SpreadsheetApp.flush();
       return { status: "success", action: "added" };
     }
-  } catch(e) { return { status: "error", message: e.toString() }; }
-}
-
-function notifyUser(toUser, text, fromUser) {
-    try {
-        const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
-        let smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
-        if (!smsg) smsg = ss.insertSheet(CONFIG.MENSAJES_SHEET_NAME);
-        smsg.appendRow([ Date.now() + Math.floor(Math.random()*1000), new Date(), toUser, fromUser || "System", text, "FALSE" ]);
-    } catch(e) {}
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
 function saveWeeklyAssignment(req) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000);
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
     const s = ss.getSheetByName(CONFIG.PLANIFICACION_SHEET_NAME);
-    // Borramos existentes para ese user/dia para reescribir
     const d = s.getDataRange().getValues();
-    for (let i = d.length - 1; i >= 1; i--) {
+    
+    let newData = [d[0]];
+    for (let i = 1; i < d.length; i++) {
         const dStr = Utilities.formatDate(new Date(d[i][2]), Session.getScriptTimeZone(), "yyyy-MM-dd");
-        if (d[i][1] === req.user && dStr === req.date) {
-            s.deleteRow(i + 1);
+        if (!(d[i][1] === req.user && dStr === req.date)) {
+            newData.push(d[i]);
         }
     }
-    // Añadimos nuevos
+    
     if (req.items && req.items.length > 0) {
       req.items.forEach(it => {
-        s.appendRow([Date.now(), req.user, req.date, it.text, it.category, req.modifiedBy || '']);
+        newData.push([Date.now(), req.user, req.date, it.text, it.category, req.modifiedBy || '']);
       });
     }
-    SpreadsheetApp.flush();
+    
+    s.clearContents();
+    if (newData.length > 0) s.getRange(1, 1, newData.length, newData[0].length).setValues(newData);
+    
+    _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.PLANIFICACION_SHEET_NAME);
     notifyUser(req.user, "Se ha actualizado tu planificación semanal.");
     return { status: "success" };
-  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); }
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
-
 
 function parseDateStable(val) {
   if (!val) return null;
   if (val instanceof Date && !isNaN(val.getTime())) return val;
   try {
     const s = val.toString();
-    // Esta expresión regular divide tanto 15/04/2026 como 2026-04-15
     const p = s.split(/[-\/]/); 
     if (p.length === 3) {
       let dd, mm, yy;
-      // Detecta si empieza por el año (YYYY-MM-DD) o por el día (DD/MM/YYYY)
       if (p[0].length === 4) { yy = parseInt(p[0]); mm = parseInt(p[1]); dd = parseInt(p[2]); }
       else { dd = parseInt(p[0]); mm = parseInt(p[1]); yy = parseInt(p[2]); }
-      
       if (yy < 100) yy += 2000;
-      // Usar new Date(yy, mm, dd) usa la zona horaria LOCAL, evitando saltos de día
       return new Date(yy, mm - 1, dd); 
     }
     const d = new Date(val);

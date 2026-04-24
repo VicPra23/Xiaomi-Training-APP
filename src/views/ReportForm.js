@@ -166,9 +166,9 @@ function renderReport(container) {
                     <textarea name="comentarios" class="form-control" rows="4" placeholder="Algún detalle relevante de la sesión..." style="resize:none; border-radius: 16px;">${editData ? (editData.comentarios || '') : ''}</textarea>
                 </div>
 
-                <div id="photoSection" style="background: var(--bg-main); padding: 2.5rem; border-radius: 32px; border: 2px dashed var(--border-main); margin-bottom: 4rem; ${isEdit ? 'opacity: 0.5; pointer-events: none;' : ''}">
+                <div id="photoSection" style="background: var(--bg-main); padding: 2.5rem; border-radius: 32px; border: 2px dashed var(--border-main); margin-bottom: 4rem;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-                         <label class="form-label" style="margin:0; display:flex; align-items:center; gap:10px; font-size: 1rem;"><i data-lucide="camera" style="color: var(--xiaomi-orange);"></i> Fotografías de Evidencia ${isEdit ? '<small style="font-weight:400; color:var(--text-muted);">(No editable)</small>' : ''}</label>
+                         <label class="form-label" style="margin:0; display:flex; align-items:center; gap:10px; font-size: 1rem;"><i data-lucide="camera" style="color: var(--xiaomi-orange);"></i> Añadir Fotografías de Evidencia ${isEdit ? '<small style="font-weight:400; color:var(--text-muted);">(Se añadirán a las actuales)</small>' : ''}</label>
                          <span id="photoCounter" class="badge" style="background:var(--xiaomi-orange); color:white; font-weight:700; border-radius: 10px; padding: 5px 12px;">0</span>
                     </div>
                     <div style="text-align:center; padding: 1rem; border: 1px dashed var(--border-main); border-radius: 16px; background: var(--bg-card); cursor: pointer;" onclick="document.getElementById('fotosInput').click()">
@@ -244,8 +244,8 @@ function renderReport(container) {
         if(tsDist) { tsDist.destroy(); tsDist = null; }
         if(distribuidores[val]) {
             dw.style.display = 'block'; ds.innerHTML = '<option value="">Selecciona tienda...</option>';
+            ds.innerHTML += `<option value="+">+ Añadir nueva tienda (Manual)</option>`;
             distribuidores[val].forEach(d => ds.innerHTML += `<option value="${d}">${d}</option>`);
-            ds.innerHTML += `<option value="+">+ Añadir nueva tienda</option>`;
             tsDist = new TomSelect("#distribuidor", {
                 onItemAdd: (v) => {
                     const me = document.getElementById('manualEntry');
@@ -328,12 +328,11 @@ function renderReport(container) {
         
         try {
             const action = isEdit ? 'updateReport' : 'saveReport';
-            const payload = isEdit ? { data, rowIdx: editData.rowIdx } : { data, photos };
+            const payload = isEdit ? { data, rowIdx: editData.rowIdx, photos } : { data, photos };
             console.log("Submitting report:", { action, payload });
             
-            // Si es edición, preferimos JSONP para poder ver errores del servidor (CORS bypass)
-            // Save sigue por POST porque lleva fotos (body pesado)
-            const res = isEdit ? await sendJSONP(action, payload) : await sendPost(action, payload);
+            // Si hay fotos, usamos POST siempre para evitar límites de URL de JSONP
+            const res = (isEdit && !photos.length) ? await sendJSONP(action, payload) : await sendPost(action, payload);
             console.log("Server response:", res);
             
             if(res.status === 'success') { 

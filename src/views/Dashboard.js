@@ -219,11 +219,11 @@ function renderDashboard(container) {
                     <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead style="background: #f8fafc;">
                             <tr>
-                                <th style="padding: 12px; text-align: left; color: var(--text-muted);">Fecha</th>
-                                <th style="padding: 12px; text-align: left; color: var(--text-muted);">Cuenta</th>
+                                <th style="padding: 12px; text-align: left; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('fecha')">Fecha <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
+                                <th style="padding: 12px; text-align: left; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('cuenta')">Cuenta <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
                                 <th style="padding: 12px; text-align: left; color: var(--text-muted);">Metodología</th>
-                                <th style="padding: 12px; text-align: center; color: var(--text-muted);">Alumnos</th>
-                                <th style="padding: 12px; text-align: center; color: var(--text-muted);">Horas</th>
+                                <th style="padding: 12px; text-align: center; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('alumnos')">Alumnos <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
+                                <th style="padding: 12px; text-align: center; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('duracion')">Horas <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
                                 <th style="padding: 12px; text-align: right; color: var(--text-muted);">Acciones</th>
                             </tr>
                         </thead>
@@ -515,6 +515,16 @@ function renderDashboard(container) {
         const device = document.getElementById('histFilterDevice')?.value || "Todos";
         const method = document.getElementById('histFilterMethod')?.value || "Todos";
         const q = document.getElementById('historySearch')?.value || "";
+        
+        const parseDuration = (val) => {
+            if (!val) return 0;
+            const s = val.toString();
+            if (s.includes('T')) {
+                const parts = s.split('T')[1].split(':');
+                return parseFloat(parts[0]) + (parseFloat(parts[1])/60);
+            }
+            return parseFloat(s) || 0;
+        };
 
         const loader = document.getElementById('historyLoading');
         if(loader) loader.style.visibility = 'visible';
@@ -543,8 +553,8 @@ function renderDashboard(container) {
                         <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${new Date(r.fecha).toLocaleDateString()}</td>
                         <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
                         <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
-                        <td data-label="Alumnos" style="padding: 12px; text-align: center;">${(r.alumnos && r.alumnos.toString().includes('T')) ? '-' : (r.alumnos || '0')}</td>
-                        <td data-label="Horas" style="padding: 12px; text-align: center;">${(r.duracion && r.duracion.toString().includes('T')) ? '-' : (r.duracion || '0')}h</td>
+                        <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
+                        <td data-label="Horas" style="padding: 12px; text-align: center;">${parseDuration(r.duracion).toFixed(1)}h</td>
                         <td data-label="Acciones" style="padding: 12px; text-align: right; white-space: nowrap;">
                             <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
                             <button onclick="handleHistoryAction('duplicate', ${idx})" class="btn-outline btn-compact" style="border-color: #0ea5e9; color: #0ea5e9;" title="Duplicar"><i data-lucide="copy" style="width:14px;"></i></button>
@@ -591,6 +601,38 @@ function renderDashboard(container) {
     };
 
     window.dashboardLoadHistory = loadHistory;
+
+    window.sortHistory = (field) => {
+        if(!window.dashboardHistoryData) return;
+        const dir = window._sortDir === 'asc' ? 'desc' : 'asc';
+        window._sortDir = dir;
+        window.dashboardHistoryData.sort((a, b) => {
+            let vA = a[field], vB = b[field];
+            if(field === 'fecha') { vA = new Date(vA); vB = new Date(vB); }
+            if(field === 'duracion') { vA = parseDuration(vA); vB = parseDuration(vB); }
+            if(field === 'alumnos') { vA = parseFloat(vA) || 0; vB = parseFloat(vB) || 0; }
+            if(vA < vB) return dir === 'asc' ? -1 : 1;
+            if(vA > vB) return dir === 'asc' ? 1 : -1;
+            return 0;
+        });
+        // Re-render sin fetch
+        const body = document.getElementById('historyBody');
+        body.innerHTML = window.dashboardHistoryData.map((r, idx) => `
+            <tr style="border-bottom: 1px solid var(--border-main);">
+                <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${new Date(r.fecha).toLocaleDateString()}</td>
+                <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
+                <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
+                <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
+                <td data-label="Horas" style="padding: 12px; text-align: center;">${parseDuration(r.duracion).toFixed(1)}h</td>
+                <td data-label="Acciones" style="padding: 12px; text-align: right; white-space: nowrap;">
+                    <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
+                    <button onclick="handleHistoryAction('duplicate', ${idx})" class="btn-outline btn-compact" style="border-color: #0ea5e9; color: #0ea5e9;" title="Duplicar"><i data-lucide="copy" style="width:14px;"></i></button>
+                    <button onclick="handleHistoryAction('edit', ${idx})" class="btn-outline btn-compact" title="Editar"><i data-lucide="edit-2" style="width:14px;"></i></button>
+                </td>
+            </tr>
+        `).join('');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
 
     window.handleHistoryAction = (action, index) => {
         const report = window.dashboardHistoryData[index];
