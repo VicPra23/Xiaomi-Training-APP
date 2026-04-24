@@ -23,18 +23,18 @@ function _getColMap(sheet) {
   const map = {};
   headers.forEach((h, i) => {
     const clean = h.toString().trim().toUpperCase();
-    if (clean === "FECHA") map.FECHA = i; // Coincidencia exacta primero
-    else if (clean.includes("FECHA") && map.FECHA === undefined) map.FECHA = i; // Fallback
+    if (clean === "FECHA") map.FECHA = i;
+    else if (clean.includes("FECHA") && map.FECHA === undefined) map.FECHA = i;
     else if (clean.includes("CUENTA")) map.CUENTA = i;
     else if (clean.includes("DISTRIBUIDOR")) map.DISTRIBUIDOR = i;
     else if (clean.includes("METODOLOG")) map.METODOLOGIA = i;
     else if (clean.includes("SESION")) map.SESIONES = i;
-    else if (clean.includes("ALUMNO")) map.ALUMNOS = i;
+    else if (clean.includes("PERFIL")) map.PERFIL = i; // Perfil tiene prioridad sobre la palabra "Alumno"
+    else if (clean === "ALUMNOS" || clean.includes("Nº ALUM") || clean.includes("CANT. ALUM")) map.ALUMNOS = i;
     else if (clean.includes("HORA") || clean.includes("DURAC")) map.HORAS = i;
     else if (clean.includes("TIENDA")) map.TIENDAS = i;
     else if (clean.includes("CIUDAD") || clean.includes("POBLAC") || clean.includes("MUNICIPIO")) map.CIUDAD = i;
     else if (clean.includes("PROVINCIA")) map.PROVINCIA = i;
-    else if (clean.includes("PERFIL")) map.PERFIL = i;
     else if (clean.includes("CONTENIDO")) map.CONTENIDOS = i;
     else if (clean.includes("DISPOSITIVO") && !clean.includes("NO")) map.DISP_MOVIL = i;
     else if (clean.includes("ECOSISTEMA") || clean.includes("NO M")) map.DISP_ECO = i;
@@ -473,6 +473,8 @@ function getReportsHistory(p) {
         }
     }
 
+    const displayDates = sRef.getRange(1, colMap.FECHA + 1, sRef.getLastRow(), 1).getDisplayValues();
+
     for (let i = d.length - 1; i >= 1; i--) {
       const rowTrainer = (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim();
       if (target && rowTrainer !== target) continue;
@@ -500,12 +502,7 @@ function getReportsHistory(p) {
         id: (d[i][colMap.FOTOS] || d[i][17] || "").toString() || ("R_" + dO.getTime() + "_" + i),
         timestamp: d[i][0], 
         trainer: (d[i][colMap.TRAINER] || d[i][1] || "").toString(), 
-        fecha: (function(val) {
-          const tz = ss.getSpreadsheetTimeZone();
-          if (val instanceof Date) return Utilities.formatDate(val, tz, "yyyy-MM-dd");
-          const dO2 = parseDateStable(val);
-          return dO2 ? Utilities.formatDate(dO2, tz, "yyyy-MM-dd") : (val||"").toString();
-        })(d[i][colMap.FECHA]),
+        fecha: displayDates[i] ? displayDates[i][0] : "", 
         cuenta: (d[i][colMap.CUENTA] || "").toString(), 
         distribuidor: (d[i][colMap.DISTRIBUIDOR] || d[i][4] || "").toString(), 
         metodologia: (d[i][colMap.METODOLOGIA] || "").toString(),
@@ -650,7 +647,8 @@ function _uploadPhotos(photos) {
           if (p && p.base64Data) {
               try {
                 var splitted = p.base64Data.split(',');
-                var base64 = splitted.length > 1 ? splitted[1] : splitted[0];
+                // El replace(/\s/g, '') arregla los saltos de línea de iOS/Android que rompen el decodificador
+                var base64 = (splitted.length > 1 ? splitted[1] : splitted[0]).replace(/\s/g, ''); 
                 var blob = Utilities.newBlob(Utilities.base64Decode(base64), p.mimeType || "image/jpeg", p.name || ("photo_" + i + ".jpg"));
                 var file = folder.createFile(blob);
                 photoUrls.push(file.getUrl());

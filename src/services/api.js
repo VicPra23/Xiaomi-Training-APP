@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxiAc4w82GL0c1OrDjABygByFg8FfycrXaWRDAHeVln_5FpUsNB55LOMQF-yd6r2CPdDA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycb0AmP--ziJLKtOE0W_C8ekc37gE73CYKBjVicVpDTCNA5VQflbJ6Yn5mls7snzP3r5XQ/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -49,21 +49,23 @@ function sendJSONP(action, params = {}, useCache = false) {
 
 async function sendPost(action, data = {}) {
     const payload = JSON.stringify({ action, ...data });
-    console.log(`[API] sending POST for action: ${action}`);
+    console.log(`[API] Sending POST: ${action}`);
+    
     try {
         const res = await fetch(API_URL, { 
             method: 'POST', 
-            body: payload, 
-            mode: 'no-cors' 
+            body: payload,
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
         
-        console.log(`[API] POST sent successfully (opaque response)`);
-        // Importante: Al recibir un POST exitoso, invalidamos la caché porque los datos pueden haber cambiado
+        const result = await res.json(); 
+        console.log(`[API] Result:`, result);
+        
         _metadataCache.clear();
-        return { status: "success" };
+        return result; 
     } catch (e) {
-        console.error(`[API] fetch error, falling back to JSONP:`, e);
-        return sendJSONP(action, { payload_hack: payload });
+        console.error(`[API] POST failure:`, e);
+        return { status: "error", message: "Fallo de conexión o archivo demasiado pesado." };
     }
 }
 

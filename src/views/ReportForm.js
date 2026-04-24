@@ -269,7 +269,16 @@ function renderReport(container) {
         try {
             if(editData.metodologia) { met.value = editData.metodologia; met.onchange(); }
             if(editData.cuenta) { cue.value = editData.cuenta; cue.onchange(); }
-            if(editData.perfil) per.value = editData.perfil;
+            if(editData.perfil) {
+                const pVal = editData.perfil.toString().trim();
+                // Buscar coincidencia exacta o fallback
+                for(let opt of per.options) {
+                    if(opt.value.trim().toLowerCase() === pVal.toLowerCase()) {
+                        per.value = opt.value;
+                        break;
+                    }
+                }
+            }
             if(editData.contenidos) con.value = editData.contenidos;
             if(editData.provincia) document.getElementById('provincia').value = editData.provincia;
             
@@ -281,12 +290,22 @@ function renderReport(container) {
 
             if(editData.fecha) {
                 try {
-                    // Evitar el error de resta de día: extraer componentes locales
                     let dStr = "";
-                    if (typeof editData.fecha === 'string' && editData.fecha.includes('-')) {
-                        dStr = editData.fecha.split('T')[0]; // Ya es YYYY-MM-DD
-                    } else {
-                        const d = new Date(editData.fecha);
+                    let f = editData.fecha;
+                    if (typeof f === 'string') {
+                        if (f.includes('/')) {
+                            // Convertir "DD/MM/YYYY" a "YYYY-MM-DD"
+                            const p = f.split('/'); 
+                            if(p.length === 3) {
+                                let y = p[2].length === 2 ? "20" + p[2] : p[2];
+                                dStr = `${y}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+                            }
+                        } else if (f.includes('-')) {
+                            dStr = f.split('T')[0];
+                        }
+                    }
+                    if(!dStr && f) {
+                        const d = new Date(f);
                         if(!isNaN(d.getTime())) {
                             dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
                         }
@@ -341,8 +360,11 @@ function renderReport(container) {
     }
     window.removePhoto = (i) => { additiveFiles.splice(i, 1); updatePhotoList(); };
 
-    async function _compressImage(file) {
+    async function _compressImage(file, index, total) {
         return new Promise((resolve) => {
+            const btn = document.getElementById('btnSubmit');
+            if(btn) btn.innerHTML = `<span class="spinner"></span> (${index}/${total}) Comprimiendo...`;
+            
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = (e) => {
@@ -352,7 +374,7 @@ function renderReport(container) {
                     const canvas = document.createElement('canvas');
                     let width = img.width;
                     let height = img.height;
-                    const MAX_SIZE = 1200;
+                    const MAX_SIZE = 1000;
                     if (width > height) {
                         if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
                     } else {
@@ -362,7 +384,7 @@ function renderReport(container) {
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.7)); // 70% calidad
+                    resolve(canvas.toDataURL('image/jpeg', 0.6));
                 };
             };
         });
@@ -371,20 +393,24 @@ function renderReport(container) {
     const form = document.getElementById('activityForm');
     form.onsubmit = async (e) => {
         e.preventDefault();
-        const btn = document.getElementById('btnSubmit'); btn.disabled = true; btn.innerText = isEdit ? "Actualizando..." : "Enviando...";
+        const btn = document.getElementById('btnSubmit'); btn.disabled = true;
         let data = Object.fromEntries(new FormData(form).entries());
         data.trainer = (role === 'Admin') ? document.getElementById('trainer').value : currentUser;
         data.dispositivos = tsM.getValue().join(', '); data.dispositivos_no_movil = tsNM.getValue().join(', ');
         if(data.distribuidor === "+") data.distribuidor = document.getElementById('distribuidor_custom').value || "Manual";
         
-        const photos = await Promise.all(additiveFiles.map(f => _compressImage(f).then(base64 => ({name: f.name, mimeType: "image/jpeg", base64Data: base64}))));
+        const photos = [];
+        for (let i = 0; i < additiveFiles.length; i++) {
+            const base64 = await _compressImage(additiveFiles[i], i + 1, additiveFiles.length);
+            photos.push({ name: additiveFiles[i].name, mimeType: "image/jpeg", base64Data: base64 });
+        }
+        btn.innerHTML = '<span class="spinner"></span> Enviando...';
         
         try {
             const action = isEdit ? 'updateReport' : 'saveReport';
             const payload = isEdit ? { data, rowIdx: editData.rowIdx, photos } : { data, photos };
             console.log("Submitting report:", { action, payload });
             
-            // Usamos siempre POST para actualizaciones para garantizar integridad de datos
             const res = await sendPost(action, payload);
             console.log("Server response:", res);
             
