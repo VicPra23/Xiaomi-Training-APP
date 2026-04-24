@@ -208,6 +208,7 @@ function renderReport(container) {
     }
 
     const tsCiudad = new TomSelect("#ciudad", { create: true, placeholder: "Escribe..." });
+    if(editData && editData.ciudad) tsCiudad.setValue(editData.ciudad);
     const tsM = new TomSelect("#dispositivos", { plugins: ['remove_button'], create: true, placeholder: "Móviles..." });
     dispositivosMobiles.forEach(d => tsM.addOption({value:d, text:d}));
     const tsNM = new TomSelect("#dispositivos_no_movil", { plugins: ['remove_button'], create: true, placeholder: "Ecosistema..." });
@@ -275,11 +276,29 @@ function renderReport(container) {
             if(editData.sesiones) document.getElementById('sesiones').value = parseFloat(editData.sesiones) || 0;
             if(editData.alumnos) document.getElementById('alumnos').value = parseFloat(editData.alumnos) || 0;
             if(editData.tiendas) document.getElementById('tiendas').value = parseFloat(editData.tiendas) || 0;
-            if(editData.ciudad) document.getElementById('ciudad').value = editData.ciudad;
             
-            // Defensivo: Si duracion tiene una T (ISO), lo ignoramos. Si tiene texto (Ej: "2h"), extraemos el número.
-            if(editData.duracion && !editData.duracion.toString().includes('T')) {
-                document.getElementById('duracion').value = parseFloat(editData.duracion) || 0;
+            // Ciudad se cargará después de inicializar TomSelect
+
+            if(editData.fecha) {
+                try {
+                    const d = new Date(editData.fecha);
+                    if(!isNaN(d.getTime())) {
+                        document.getElementById('fecha').value = d.toISOString().split('T')[0];
+                    }
+                } catch(e) { console.error("Error parsing date for edit:", e); }
+            }
+            
+            // Extraer horas de forma robusta (maneja números y strings ISO de GAS)
+            if(editData.duracion !== undefined && editData.duracion !== null) {
+                const durStr = editData.duracion.toString();
+                if (durStr.includes('T')) {
+                    const parts = durStr.split('T')[1].split(':');
+                    const hh = parseFloat(parts[0]) || 0;
+                    const mm = parseFloat(parts[1]) || 0;
+                    document.getElementById('duracion').value = (hh + (mm/60)).toFixed(1);
+                } else {
+                    document.getElementById('duracion').value = parseFloat(editData.duracion) || 0;
+                }
             }
 
             if(editData.dispositivos && tsM) {
@@ -331,8 +350,8 @@ function renderReport(container) {
             const payload = isEdit ? { data, rowIdx: editData.rowIdx, photos } : { data, photos };
             console.log("Submitting report:", { action, payload });
             
-            // Si hay fotos, usamos POST siempre para evitar límites de URL de JSONP
-            const res = (isEdit && !photos.length) ? await sendJSONP(action, payload) : await sendPost(action, payload);
+            // Usamos siempre POST para actualizaciones para garantizar integridad de datos
+            const res = await sendPost(action, payload);
             console.log("Server response:", res);
             
             if(res.status === 'success') { 

@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbz1iQrO7L4-GI15cFGHyGSOsTht5QIzfde0MQISDnlLx8qqQdb0oZbqfVvpw_enL5OmPA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxrGpoXsXAGWo4O8oObZfl6cQCoKqyIfc33DEJ45lX727nKOI9fD0TsB43dhQmTPQHJnA/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -32,9 +32,9 @@ function sendJSONP(action, params = {}, useCache = false) {
 
         let fullUrl = API_URL + "?action=" + action + "&callback=" + callbackName + "&_cache=" + Date.now();
         for (let key in params) {
-            const val = params[key];
-            const finalVal = (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
-            fullUrl += "&" + key + "=" + encodeURIComponent(finalVal);
+            let val = params[key];
+            if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+            fullUrl += "&" + key + "=" + encodeURIComponent(val);
         }
         
         script.src = fullUrl;

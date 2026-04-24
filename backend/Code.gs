@@ -17,18 +17,76 @@ const CONFIG = {
   ADMINS: ["Training Manager", "Training Coordinator", "Training Creator"]
 };
 
-// 🛠️ MEJORA: Eliminación de "Magic Numbers"
-const COLS_REP = { FECHA: 2, CUENTA: 3, METODOLOGIA: 5, SESIONES: 6, ALUMNOS: 7, HORAS: 9, TIENDAS: 10, CIUDAD: 12, DISP_MOVIL: 14, DISP_ECO: 15 };
+// CONFIGURACIÓN DE COLUMNAS DINÁMICAS (V5.5)
+function _getColMap(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const map = {};
+  headers.forEach((h, i) => {
+    const clean = h.toString().trim().toUpperCase();
+    if (clean.includes("FECHA")) map.FECHA = i;
+    else if (clean.includes("CUENTA")) map.CUENTA = i;
+    else if (clean.includes("DISTRIBUIDOR")) map.DISTRIBUIDOR = i;
+    else if (clean.includes("METODOLOG")) map.METODOLOGIA = i;
+    else if (clean.includes("SESION")) map.SESIONES = i;
+    else if (clean.includes("ALUMNO")) map.ALUMNOS = i;
+    else if (clean.includes("HORA") || clean.includes("DURAC")) map.HORAS = i;
+    else if (clean.includes("TIENDA")) map.TIENDAS = i;
+    else if (clean.includes("CIUDAD") || clean.includes("POBLAC") || clean.includes("MUNICIPIO")) map.CIUDAD = i;
+    else if (clean.includes("PROVINCIA")) map.PROVINCIA = i;
+    else if (clean.includes("PERFIL")) map.PERFIL = i;
+    else if (clean.includes("CONTENIDO")) map.CONTENIDOS = i;
+    else if (clean.includes("DISPOSITIVO") && !clean.includes("NO")) map.DISP_MOVIL = i;
+    else if (clean.includes("ECOSISTEMA") || clean.includes("NO M")) map.DISP_ECO = i;
+    else if (clean.includes("COMENTARIO")) map.COMENTARIOS = i;
+    else if (clean.includes("FOTO") || clean.includes("URL")) map.FOTOS = i;
+    else if (clean.includes("TRAINER") || clean.includes("USUARIO")) map.TRAINER = i;
+  });
+  return map;
+}
+
 const CACHE_EXPIRATION = 300; // 5 minutos en segundos
 
-// 🛠️ FIX 2: CACHÉ REAL DE APPS SCRIPT
-function _getValuesCached(ssId, sheetName) {
+// MEJORA SENIOR: Super-calculadora de duraciones (V5.6)
+function _parseDur(val) {
+  if (val === undefined || val === null || val === "") return 0;
+  
+  // 1. Si Google Sheets lo envía como un objeto Date nativo (formato Duración)
+  if (val instanceof Date) {
+    const baseDate = new Date(1899, 11, 30);
+    let diff = (val.getTime() - baseDate.getTime()) / (1000 * 60 * 60);
+    if (diff > 100000) return Math.abs(val.getHours() + (val.getMinutes() / 60) + (val.getSeconds() / 3600));
+    return Math.abs(diff);
+  }
+
+  let s = val.toString().trim().replace(',', '.');
+
+  // 2. Si viene en formato hora "HH:MM" o "T14:30" (común en móviles)
+  if (s.includes(':')) {
+    let timePart = s.includes('T') ? s.split('T')[1] : s;
+    let parts = timePart.split(':');
+    let hh = parseFloat(parts[0]) || 0;
+    let mm = parseFloat(parts[1]) || 0;
+    let ss = parseFloat(parts[2]) || 0;
+    return Math.abs(hh + (mm / 60) + (ss / 3600));
+  }
+  
+  // 3. Si viene como número o texto decimal ("2.5")
+  const num = parseFloat(s.replace(/[^0-9.-]/g, '')) || 0;
+  return Math.abs(num);
+}
+
+// 🛠️ FIX 2: CACHÉ REAL DE APPS SCRIPT CON SOPORTE PARA REFRESH FORZADO
+function _getValuesCached(ssId, sheetName, forceRefresh = false) {
   const cache = CacheService.getScriptCache();
   const key = ssId + "_" + sheetName;
-  const cachedData = cache.get(key);
   
-  if (cachedData) {
-    try { return JSON.parse(cachedData); } catch(e) { cache.remove(key); }
+  if (!forceRefresh) {
+    const cachedData = cache.get(key);
+    if (cachedData) {
+      try { return JSON.parse(cachedData); } catch(e) { cache.remove(key); }
+    }
+  } else {
+    cache.remove(key);
   }
   
   try {
@@ -36,7 +94,6 @@ function _getValuesCached(ssId, sheetName) {
     const s = ss.getSheetByName(sheetName);
     if (!s) return [];
     const d = s.getDataRange().getValues();
-    // Cache limit is 100KB per key, for very large sheets we might need to split it, but usually this is fine.
     cache.put(key, JSON.stringify(d), CACHE_EXPIRATION);
     return d;
   } catch(e) { return []; }
@@ -270,7 +327,8 @@ function handleRequestVacation(req) {
 }
 
 function formatDateS(iso) { 
-    const p = iso.split("-").map(Number);
+    if (!iso) return "";
+    const p = iso.toString().split("-").map(Number);
     return Utilities.formatDate(new Date(p[0], p[1]-1, p[2]), Session.getScriptTimeZone(), "dd/MM/yy"); 
 }
 
@@ -288,9 +346,14 @@ function attemptLogin(u, p) {
 }
 
 function getDashboardStats(p) {
+  const force = p.refresh === 'true' || p.refresh === true;
   const now = new Date();
-  const todayMonth = now.getMonth();
-  const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
+  const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME, force);
+  
+  // Mapeo dinámico
+  const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
+  const sRef = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+  const colMap = _getColMap(sRef);
   
   const target = (p.targetUser || "Total").toString().trim();
   const targetWeeksStr = (p.weeks || p.week || "").toString().trim();
@@ -303,78 +366,66 @@ function getDashboardStats(p) {
     const matches = targetWeeksStr.match(/\d+/g);
     if (matches) selectedWeeks = matches.map(Number);
   }
-  
   if (selectedWeeks.length === 0 && targetMonth === "Todos") selectedWeeks = [getWeekNumber(now)];
 
   const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-
   let tS=0, tA=0, tH=0, count=0; 
   let mS={}; 
   let monthlyWS = {}; 
-  
   let statsByAccount = {}; 
   let statsByTrainer = {};
   let availableWeeks = new Set();
 
   for (var i=1; i<d.length; i++) {
-    var dO = parseDateStable(d[i][COLS_REP.FECHA]); if (!dO) continue;
+    // PROTECCIÓN: Saltar si la fila está vacía (evita datos fantasma tras borrados manuales)
+    if (!d[i][0] || !d[i][colMap.TRAINER] || !d[i][colMap.FECHA]) continue;
+
+    var dO = parseDateStable(d[i][colMap.FECHA]); if (!dO) continue;
     var rowYear = dO.getFullYear();
     var rowMonth = dO.getMonth();
     var rowWeek = getWeekNumber(dO);
 
     if (targetYear !== "Todos" && rowYear.toString() !== targetYear) continue;
     if (targetMonth !== "Todos" && mNames[rowMonth] !== targetMonth) continue;
+    
     if (targetDevice !== "todos") {
-        const mobiles = (d[i][COLS_REP.DISP_MOVIL]||"").toString().toLowerCase();
-        const eco = (d[i][COLS_REP.DISP_ECO]||"").toString().toLowerCase();
+        const mobiles = (d[i][colMap.DISP_MOVIL]||"").toString().toLowerCase();
+        const eco = (d[i][colMap.DISP_ECO]||"").toString().toLowerCase();
         if (mobiles.indexOf(targetDevice) === -1 && eco.indexOf(targetDevice) === -1) continue;
     }
 
-    if (targetMonth === "Todos" || mNames[rowMonth] === targetMonth) {
-        availableWeeks.add(rowWeek);
-    }
+    if (targetMonth === "Todos" || mNames[rowMonth] === targetMonth) availableWeeks.add(rowWeek);
 
-    const matchesUser = (target === "Total" || (d[i][1]||"").toString().trim() === target);
-    
-    var ses=parseFloat(d[i][COLS_REP.SESIONES])||0, alu=parseFloat(d[i][COLS_REP.ALUMNOS])||0, hor=parseFloat(d[i][COLS_REP.HORAS])||0;
-    var trainer = (d[i][1]||"Desconocido").toString().trim();
-    var cuenta = (d[i][COLS_REP.CUENTA]||"Otros").toString().trim();
+    const matchesUser = (target === "Total" || (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim() === target);
+    var ses=parseFloat(d[i][colMap.SESIONES])||0, alu=parseFloat(d[i][colMap.ALUMNOS])||0, hor=_parseDur(d[i][colMap.HORAS]);
+    var trainer = (d[i][colMap.TRAINER]||d[i][1]||"Desconocido").toString().trim();
+    var cuenta = (d[i][colMap.CUENTA]||"Otros").toString().trim();
 
     if (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek)) {
       if (matchesUser) {
         tS+=ses; tA+=alu; tH+=hor; count++;
-        var met=(d[i][COLS_REP.METODOLOGIA]||"Otros").toString().trim(); mS[met]=(mS[met]||0)+hor;
-        
+        var met=(d[i][colMap.METODOLOGIA]||"Otros").toString().trim(); mS[met]=(mS[met]||0)+hor;
         if(!statsByAccount[cuenta]) statsByAccount[cuenta] = { sesiones:0, alumnos:0 };
-        statsByAccount[cuenta].sesiones += ses;
-        statsByAccount[cuenta].alumnos += alu;
-        
+        statsByAccount[cuenta].sesiones += ses; statsByAccount[cuenta].alumnos += alu;
         if(!statsByTrainer[trainer]) statsByTrainer[trainer] = { sesiones:0, alumnos:0 };
-        statsByTrainer[trainer].sesiones += ses;
-        statsByTrainer[trainer].alumnos += alu;
+        statsByTrainer[trainer].sesiones += ses; statsByTrainer[trainer].alumnos += alu;
       }
     }
 
     if (matchesUser && (targetMonth === "Todos" || rowMonth === mNames.indexOf(targetMonth))) {
       if(!monthlyWS[rowWeek]) monthlyWS[rowWeek] = { sesiones:0, alumnos:0 };
-      monthlyWS[rowWeek].sesiones += ses;
-      monthlyWS[rowWeek].alumnos += alu;
+      monthlyWS[rowWeek].sesiones += ses; monthlyWS[rowWeek].alumnos += alu;
     }
   }
   
   var sW = Object.keys(monthlyWS).sort((a,b)=>a-b);
-  
   return { 
-    status:"success", 
-    totalSesiones:tS, 
-    totalAlumnos:tA, 
-    totalHoras:tH.toFixed(1), 
+    status:"success", totalSesiones:tS, totalAlumnos:tA, totalHoras:tH.toFixed(1), 
     currentWeekData:{count:count, week: selectedWeeks.join(',')}, 
     chartLabels:sW.length > 0 ? sW.map(w=>"Sem "+w) : ["Sin Datos"], 
     chartSesiones:sW.length > 0 ? sW.map(w=>monthlyWS[w].sesiones) : [0], 
     chartAlumnos:sW.length > 0 ? sW.map(w=>monthlyWS[w].alumnos) : [0], 
-    pieLabels:Object.keys(mS), 
-    pieData:Object.values(mS),
+    pieLabels:Object.keys(mS), pieData:Object.values(mS),
     adminStats: { byAccount: statsByAccount, byTrainer: statsByTrainer },
     availableWeeks: Array.from(availableWeeks).sort((a,b) => a-b)
   };
@@ -382,6 +433,7 @@ function getDashboardStats(p) {
 
 function getReportsHistory(p) {
   try {
+    const force = p.refresh === 'true' || p.refresh === true;
     const target = (p.targetUser || "").toString().trim();
     const limit = parseInt(p.limit) || 20;
     const weekFilter = p.week ? parseInt(p.week) : null;
@@ -391,81 +443,83 @@ function getReportsHistory(p) {
     const methodologyFilter = (p.methodology || "").toString().trim();
     const query = (p.q || "").toString().trim().toLowerCase();
     
-    const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
+    const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME, force);
+    const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
+    const sRef = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+    const colMap = _getColMap(sRef);
+
     const result = [];
     const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
     const availableFilters = { weeks: new Set(), months: new Set(), accounts: new Set(), methods: new Set(), devices: new Set() };
 
     for (var j=1; j<d.length; j++) {
-        const rowTrainer = (d[j][1]||"").toString().trim();
+        const rowTrainer = (d[j][colMap.TRAINER]||d[j][1]||"").toString().trim();
         if (!target || rowTrainer === target) {
-            const dO = parseDateStable(d[j][COLS_REP.FECHA]);
+            const dO = parseDateStable(d[j][colMap.FECHA]);
             if (dO) {
                 const rowMonth = mNames[dO.getMonth()];
                 const rowWeek = getWeekNumber(dO);
-
-                availableFilters.accounts.add((d[j][COLS_REP.CUENTA]||"Otros").toString().trim());
-                availableFilters.methods.add((d[j][COLS_REP.METODOLOGIA]||"Otros").toString().trim());
-                
+                availableFilters.accounts.add((d[j][colMap.CUENTA]||"Otros").toString().trim());
+                availableFilters.methods.add((d[j][colMap.METODOLOGIA]||"Otros").toString().trim());
                 if (monthFilter === "Todos" || rowMonth === monthFilter) availableFilters.weeks.add(rowWeek);
                 if (weekFilter === null || rowWeek == weekFilter) availableFilters.months.add(rowMonth);
-
-                const devs = ((d[j][COLS_REP.DISP_MOVIL]||"") + ", " + (d[j][COLS_REP.DISP_ECO]||"")).split(",");
+                const devs = ((d[j][colMap.DISP_MOVIL]||"") + ", " + (d[j][colMap.DISP_ECO]||"")).split(",");
                 devs.forEach(dev => {
                     const clean = dev.trim();
-                    if(clean && clean !== "-" && clean !== "undefined") availableFilters.devices.add(clean);
+                    if(clean && clean !== "-" && clean !== "0") availableFilters.devices.add(clean);
                 });
             }
         }
     }
 
     for (let i = d.length - 1; i >= 1; i--) {
-      if (target && (d[i][1]||"").toString().trim() !== target) continue;
-      const dO = parseDateStable(d[i][COLS_REP.FECHA]);
+      const rowTrainer = (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim();
+      if (target && rowTrainer !== target) continue;
+      const dO = parseDateStable(d[i][colMap.FECHA]);
       if (!dO) continue;
       
       if (weekFilter && weekFilter !== "Todos" && getWeekNumber(dO) != weekFilter) continue;
       if (monthFilter && monthFilter !== "Todos" && mNames[dO.getMonth()] !== monthFilter) continue;
-      if (accountFilter && accountFilter !== "Todos" && (d[i][COLS_REP.CUENTA]||"").toString().trim() !== accountFilter) continue;
-      if (methodologyFilter && methodologyFilter !== "Todos" && (d[i][COLS_REP.METODOLOGIA]||"").toString().trim() !== methodologyFilter) continue;
+      if (accountFilter && accountFilter !== "Todos" && (d[i][colMap.CUENTA]||"").toString().trim() !== accountFilter) continue;
+      if (methodologyFilter && methodologyFilter !== "Todos" && (d[i][colMap.METODOLOGIA]||"").toString().trim() !== methodologyFilter) continue;
+      
       if (deviceFilter && deviceFilter !== "todos") {
-        const mobiles = (d[i][COLS_REP.DISP_MOVIL]||"").toString().toLowerCase();
-        const eco = (d[i][COLS_REP.DISP_ECO]||"").toString().toLowerCase();
+        const mobiles = (d[i][colMap.DISP_MOVIL]||"").toString().toLowerCase();
+        const eco = (d[i][colMap.DISP_ECO]||"").toString().toLowerCase();
         if (mobiles.indexOf(deviceFilter) === -1 && eco.indexOf(deviceFilter) === -1) continue;
       }
 
       if (query) {
-        const rowStr = [Utilities.formatDate(dO, Session.getScriptTimeZone(), "dd/MM/yyyy"), d[i][COLS_REP.CUENTA], d[i][COLS_REP.TIENDAS], d[i][COLS_REP.DISP_MOVIL], d[i][COLS_REP.DISP_ECO], d[i][16]].join(" ").toLowerCase();
+        const rowStr = [Utilities.formatDate(dO, Session.getScriptTimeZone(), "dd/MM/yyyy"), d[i][colMap.CUENTA], d[i][colMap.TIENDAS], d[i][colMap.DISP_MOVIL], d[i][colMap.DISP_ECO]].join(" ").toLowerCase();
         if (rowStr.indexOf(query) === -1) continue;
       }
       
       result.push({
         rowIdx: i + 1,
-        id: (d[i][17] || "").toString() || ("R_" + dO.getTime() + "_" + i),
+        id: (d[i][colMap.FOTOS] || d[i][17] || "").toString() || ("R_" + dO.getTime() + "_" + i),
         timestamp: d[i][0], 
-        trainer: (d[i][1] || "").toString(), 
-        fecha: d[i][COLS_REP.FECHA], 
-        cuenta: (d[i][COLS_REP.CUENTA] || "").toString(), 
-        distribuidor: (d[i][4] || "").toString(), 
-        metodologia: (d[i][COLS_REP.METODOLOGIA] || "").toString(),
-        sesiones: d[i][COLS_REP.SESIONES], 
-        alumnos: d[i][COLS_REP.ALUMNOS], 
-        provincia: (d[i][8] || "").toString(), 
-        duracion: d[i][COLS_REP.HORAS], 
-        tiendas: d[i][COLS_REP.TIENDAS], 
-        perfil: (d[i][11] || "").toString(), 
-        ciudad: (d[i][COLS_REP.CIUDAD] || "").toString(), 
-        contenidos: (d[i][13] || "").toString(), 
-        dispositivos: (d[i][COLS_REP.DISP_MOVIL] || "").toString(), 
-        dispositivos_no_movil: (d[i][COLS_REP.DISP_ECO] || "").toString(), 
-        comentarios: (d[i][16] || "").toString()
+        trainer: (d[i][colMap.TRAINER] || d[i][1] || "").toString(), 
+        fecha: d[i][colMap.FECHA], 
+        cuenta: (d[i][colMap.CUENTA] || "").toString(), 
+        distribuidor: (d[i][colMap.DISTRIBUIDOR] || d[i][4] || "").toString(), 
+        metodologia: (d[i][colMap.METODOLOGIA] || "").toString(),
+        sesiones: d[i][colMap.SESIONES], 
+        alumnos: d[i][colMap.ALUMNOS], 
+        provincia: (d[i][colMap.PROVINCIA] || d[i][8] || "").toString(), 
+        duracion: d[i][colMap.HORAS], 
+        tiendas: d[i][colMap.TIENDAS], 
+        perfil: (d[i][colMap.PERFIL] || "").toString(), 
+        ciudad: (d[i][colMap.CIUDAD] || "").toString(), 
+        contenidos: (d[i][colMap.CONTENIDOS] || "").toString(), 
+        dispositivos: (d[i][colMap.DISP_MOVIL] || "").toString(), 
+        dispositivos_no_movil: (d[i][colMap.DISP_ECO] || "").toString(), 
+        comentarios: (d[i][colMap.COMENTARIOS] || "").toString()
       });
       if (result.length >= limit) break;
     }
     
     return { 
-      status: "success", 
-      data: result,
+      status: "success", data: result,
       availableFilters: {
           weeks: Array.from(availableFilters.weeks).sort((a,b) => b-a),
           months: Array.from(availableFilters.months).sort((a,b) => mNames.indexOf(a) - mNames.indexOf(b)),
@@ -484,10 +538,12 @@ function updateReport(p) {
     let data = p.data;
     if (typeof data === 'string') data = JSON.parse(data);
     const rowIdx = parseInt(p.rowIdx);
-    const s = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID).getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+    const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
+    const s = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+    const colMap = _getColMap(s);
     
-    const currentRow = s.getRange(rowIdx, 1, 1, 18).getValues()[0];
-    const existingTrainer = (currentRow[1] || "").toString().trim().toLowerCase();
+    const currentRow = s.getRange(rowIdx, 1, 1, s.getLastColumn()).getValues()[0];
+    const existingTrainer = (currentRow[colMap.TRAINER] || currentRow[1] || "").toString().trim().toLowerCase();
     const incomingTrainer = (data.trainer || "").toString().trim().toLowerCase();
     const isAdmin = CONFIG.ADMINS.some(a => a.toLowerCase() === incomingTrainer) || /Manager|Coordinator|Creator/i.test(incomingTrainer);
     
@@ -496,21 +552,45 @@ function updateReport(p) {
     }
 
     var photoUrls = _uploadPhotos(p.photos);
-    var existingPhotos = (currentRow[17] || "").toString();
-    var finalPhotos = existingPhotos;
+    const existingPhotos = (currentRow[colMap.FOTOS] || currentRow[17] || "").toString();
+    let finalPhotos = existingPhotos;
     if (photoUrls.length > 0) {
         finalPhotos = existingPhotos ? (existingPhotos + "\n" + photoUrls.join("\n")) : photoUrls.join("\n");
     }
 
-    const rowData = [
-      currentRow[0], data.trainer, data.fecha, data.cuenta, data.distribuidor, data.metodologia, data.sesiones, data.alumnos, data.provincia, data.duracion, data.tiendas || "0", data.perfil, data.ciudad, data.contenidos, data.dispositivos, data.dispositivos_no_movil, data.comentarios, finalPhotos
-    ];
+    // Limpiar y convertir a número
+    const cleanNum = (v) => {
+        if (v === undefined || v === null || v === "") return 0;
+        const s = v.toString().replace(',', '.').replace(/[^0-9.]/g, '');
+        return parseFloat(s) || 0;
+    };
+
+    const rowData = [...currentRow];
+    
+    if (colMap.TRAINER !== undefined) rowData[colMap.TRAINER] = data.trainer;
+    if (colMap.FECHA !== undefined) rowData[colMap.FECHA] = data.fecha;
+    if (colMap.CUENTA !== undefined) rowData[colMap.CUENTA] = data.cuenta;
+    if (colMap.DISTRIBUIDOR !== undefined) rowData[colMap.DISTRIBUIDOR] = data.distribuidor;
+    if (colMap.METODOLOGIA !== undefined) rowData[colMap.METODOLOGIA] = data.metodologia;
+    if (colMap.SESIONES !== undefined) rowData[colMap.SESIONES] = cleanNum(data.sesiones);
+    if (colMap.ALUMNOS !== undefined) rowData[colMap.ALUMNOS] = cleanNum(data.alumnos);
+    if (colMap.PROVINCIA !== undefined) rowData[colMap.PROVINCIA] = data.provincia;
+    if (colMap.HORAS !== undefined) rowData[colMap.HORAS] = cleanNum(data.duracion);
+    if (colMap.TIENDAS !== undefined) rowData[colMap.TIENDAS] = cleanNum(data.tiendas);
+    if (colMap.PERFIL !== undefined) rowData[colMap.PERFIL] = data.perfil;
+    if (colMap.CIUDAD !== undefined) rowData[colMap.CIUDAD] = data.ciudad;
+    if (colMap.CONTENIDOS !== undefined) rowData[colMap.CONTENIDOS] = data.contenidos;
+    if (colMap.DISP_MOVIL !== undefined) rowData[colMap.DISP_MOVIL] = data.dispositivos;
+    if (colMap.DISP_ECO !== undefined) rowData[colMap.DISP_ECO] = data.dispositivos_no_movil;
+    if (colMap.COMENTARIOS !== undefined) rowData[colMap.COMENTARIOS] = data.comentarios;
+    if (colMap.FOTOS !== undefined) rowData[colMap.FOTOS] = finalPhotos;
     
     s.getRange(rowIdx, 1, 1, rowData.length).setValues([rowData]);
     if (isAdmin && existingTrainer !== incomingTrainer) notifyUser(currentRow[1], "Se ha actualizado un reporte. Revísalo en tu historial", "Admin");
     
     _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
-    return { status: "success", message: "Reporte actualizado correctamente." };
+    const savedHours = cleanNum(data.duracion);
+    return { status: "success", message: "Fila #" + rowIdx + " actualizada correctamente a " + savedHours + "h." };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
@@ -521,26 +601,34 @@ function getWeekNumber(d) {
 }
 
 function getCitiesList() {
+  const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
+  const s = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+  const colMap = _getColMap(s);
   const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
-  return { status:"success", data:Array.from(new Set(d.slice(1).map(r=>(r[COLS_REP.CIUDAD]||"").toString().trim()).filter(Boolean))) };
+  return { status:"success", data:Array.from(new Set(d.slice(1).map(r=>(r[colMap.CIUDAD]||"").toString().trim()).filter(Boolean))) };
 }
 
 function getFilterMetadata() {
+  const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
+  const s = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+  const colMap = _getColMap(s);
   const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
+  
   var ys = new Set(), ms = new Set(), devs = new Set(), accounts = new Set(), methodologies = new Set();
   var mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   
   for (var i=1; i<d.length; i++) {
-    var dO = parseDateStable(d[i][COLS_REP.FECHA]);
+    if (!d[i][0] || !d[i][colMap.FECHA]) continue;
+    var dO = parseDateStable(d[i][colMap.FECHA]);
     if(dO) { ys.add(dO.getFullYear().toString()); ms.add(mNames[dO.getMonth()]); }
-    if(d[i][COLS_REP.CUENTA]) accounts.add(d[i][COLS_REP.CUENTA].toString().trim());
-    if(d[i][COLS_REP.METODOLOGIA]) methodologies.add(d[i][COLS_REP.METODOLOGIA].toString().trim());
+    if(d[i][colMap.CUENTA]) accounts.add(d[i][colMap.CUENTA].toString().trim());
+    if(d[i][colMap.METODOLOGIA]) methodologies.add(d[i][colMap.METODOLOGIA].toString().trim());
     
-    var d1 = (d[i][COLS_REP.DISP_MOVIL]||"").toString().split(',');
-    var d2 = (d[i][COLS_REP.DISP_ECO]||"").toString().split(',');
+    var d1 = (d[i][colMap.DISP_MOVIL]||"").toString().split(',');
+    var d2 = (d[i][colMap.DISP_ECO]||"").toString().split(',');
     d1.concat(d2).forEach(item => {
       var t = item.trim();
-      if(t && t !== "0") devs.add(t);
+      if(t && t !== "0" && t !== "-") devs.add(t);
     });
   }
   return { status:"success", data: { years: Array.from(ys).sort().reverse(), months: Array.from(ms), accounts: Array.from(accounts).sort(), methodologies: Array.from(methodologies).sort(), devices: Array.from(devs).sort() } };
@@ -571,9 +659,44 @@ function handleSaveReport(data, photos) {
   try {
     lock.waitLock(10000);
     const s = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID).getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+    const colMap = _getColMap(s);
+    
+    // Limpiar y convertir a número de forma segura
+    const cleanNum = (v) => {
+        if (v === undefined || v === null || v === "") return 0;
+        const s = v.toString().replace(',', '.').replace(/[^0-9.]/g, '');
+        return parseFloat(s) || 0;
+    };
+
     var photoUrls = _uploadPhotos(photos);
     var urlsString = photoUrls.join("\n");
-    s.appendRow([ new Date(), data.trainer, data.fecha, data.cuenta, data.distribuidor, data.metodologia, data.sesiones, data.alumnos, data.provincia, data.duracion, data.tiendas || "0", data.perfil, data.ciudad, data.contenidos, data.dispositivos, data.dispositivos_no_movil, data.comentarios, urlsString ]);
+    
+    // Obtenemos el número real de columnas de la hoja
+    const totalCols = s.getLastColumn() || 18;
+    const rowData = new Array(totalCols).fill(""); 
+    
+    // Asignación segura basada en el colMap
+    rowData[0] = new Date(); // Asumimos que la Col A (índice 0) es Timestamp
+    
+    if (colMap.TRAINER !== undefined) rowData[colMap.TRAINER] = data.trainer;
+    if (colMap.FECHA !== undefined) rowData[colMap.FECHA] = data.fecha;
+    if (colMap.CUENTA !== undefined) rowData[colMap.CUENTA] = data.cuenta;
+    if (colMap.DISTRIBUIDOR !== undefined) rowData[colMap.DISTRIBUIDOR] = data.distribuidor;
+    if (colMap.METODOLOGIA !== undefined) rowData[colMap.METODOLOGIA] = data.metodologia;
+    if (colMap.SESIONES !== undefined) rowData[colMap.SESIONES] = cleanNum(data.sesiones);
+    if (colMap.ALUMNOS !== undefined) rowData[colMap.ALUMNOS] = cleanNum(data.alumnos);
+    if (colMap.PROVINCIA !== undefined) rowData[colMap.PROVINCIA] = data.provincia;
+    if (colMap.HORAS !== undefined) rowData[colMap.HORAS] = cleanNum(data.duracion);
+    if (colMap.TIENDAS !== undefined) rowData[colMap.TIENDAS] = cleanNum(data.tiendas);
+    if (colMap.PERFIL !== undefined) rowData[colMap.PERFIL] = data.perfil;
+    if (colMap.CIUDAD !== undefined) rowData[colMap.CIUDAD] = data.ciudad;
+    if (colMap.CONTENIDOS !== undefined) rowData[colMap.CONTENIDOS] = data.contenidos;
+    if (colMap.DISP_MOVIL !== undefined) rowData[colMap.DISP_MOVIL] = data.dispositivos;
+    if (colMap.DISP_ECO !== undefined) rowData[colMap.DISP_ECO] = data.dispositivos_no_movil;
+    if (colMap.COMENTARIOS !== undefined) rowData[colMap.COMENTARIOS] = data.comentarios;
+    if (colMap.FOTOS !== undefined) rowData[colMap.FOTOS] = urlsString;
+    
+    s.appendRow(rowData);
     _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
     return { status:"success" };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { lock.releaseLock(); }
@@ -639,13 +762,14 @@ function handleMarkAllMessagesRead(p) {
 
 function notifyAdmins(text, fromUser) {
     try {
-        const isAdmin = CONFIG.ADMINS.some(a => a.toLowerCase() === fromUser.toLowerCase()) || /Manager|Coordinator|Creator/i.test(fromUser);
+        const safeUser = (fromUser || "").toString();
+        const isAdmin = CONFIG.ADMINS.some(a => a.toLowerCase() === safeUser.toLowerCase()) || /Manager|Coordinator|Creator/i.test(safeUser);
         if (isAdmin) return;
         const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
         let smsg = ss.getSheetByName(CONFIG.MENSAJES_SHEET_NAME);
         if (!smsg) smsg = ss.insertSheet(CONFIG.MENSAJES_SHEET_NAME);
         if (smsg.getLastRow() === 0) smsg.appendRow(["ID", "Date", "ToUser", "FromUser", "Text", "Read"]);
-        smsg.appendRow([ Date.now() + Math.floor(Math.random()*1000), new Date(), "Admin", fromUser, text, "FALSE" ]);
+        smsg.appendRow([ Date.now() + Math.floor(Math.random()*1000), new Date(), "Admin", safeUser, text, "FALSE" ]);
     } catch(e) {}
 }
 
@@ -692,7 +816,7 @@ function getWeeklySchedule(p) {
     users.forEach(u => {
       const data = { vacationInfo: [], festivos: [] };
       blocks[u.user] = data; 
-      normalizedBlocks[u.user.trim().toLowerCase()] = data;
+      normalizedBlocks[(u.user || "").toString().trim().toLowerCase()] = data;
     });
 
     for (let i = 1; i < dFest.length; i++) {
@@ -805,7 +929,7 @@ function adminProcessSelection(req) {
       if (smsg) {
           const dMsg = smsg.getDataRange().getValues();
           for (let i = 1; i < dMsg.length; i++) {
-              if (dMsg[i][2] === "Admin" && (dMsg[i][4]||"").includes(req.user) && dMsg[i][5].toString().toUpperCase() === "FALSE") {
+              if (dMsg[i][2] === "Admin" && (dMsg[i][4]||"").toString().includes(req.user) && dMsg[i][5].toString().toUpperCase() === "FALSE") {
                   smsg.getRange(i+1, 6).setValue("TRUE");
               }
           }
@@ -891,4 +1015,10 @@ function parseDateStable(val) {
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d;
   } catch(e) { return null; }
+}
+
+// --- AUTO-LIMPIEZA AL EDITAR EL EXCEL MANUALMENTE ---
+function onManualSheetChange(e) {
+  // Limpia la caché de los reportes automáticamente si alguien borra o edita una fila a mano
+  CacheService.getScriptCache().remove(CONFIG.REPORTES_SS_ID + "_" + CONFIG.REPORTES_SHEET_NAME);
 }

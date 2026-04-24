@@ -409,7 +409,7 @@ function renderDashboard(container) {
         });
     };
 
-    const loadStats = () => {
+    const loadStats = (force = false) => {
         const dTarget = document.getElementById('dashboardTarget');
         const dWeek = document.getElementById('dashboardWeek');
         const dMonth = document.getElementById('dashboardMonth');
@@ -425,7 +425,7 @@ function renderDashboard(container) {
         const statsLoading = document.getElementById('stat_count');
         if (statsLoading) statsLoading.innerText = "...";
 
-        const params = { targetUser: target, week: week, month: month, year: year, device: device };
+        const params = { targetUser: target, week: week, month: month, year: year, device: device, refresh: force };
         
         sendJSONP('getDashboardStats', params).then(res => {
             if (res.status === 'success') {
@@ -506,7 +506,7 @@ function renderDashboard(container) {
         isUpdatingFilters = false;
     };
 
-    const loadHistory = () => {
+    const loadHistory = (force = false) => {
         // Al cargar historial, respetamos si el admin seleccionó un trainer específico ABRAZO
         const target = isAdmin ? (document.getElementById('histFilterTrainer')?.value || 'Total') : currentUser;
         const week = document.getElementById('histFilterWeek')?.value || "";
@@ -538,7 +538,7 @@ function renderDashboard(container) {
             device: device,
             methodology: method,
             q: q,
-            _nocache: Date.now() 
+            refresh: force
         }).then(res => {
             if(res.status === 'success' && res.availableFilters) {
                 updateHistoryFilters(res.availableFilters);
@@ -604,12 +604,24 @@ function renderDashboard(container) {
 
     window.sortHistory = (field) => {
         if(!window.dashboardHistoryData) return;
+        
+        // Helper interno redundante para asegurar disponibilidad en sort
+        const pD = (val) => {
+            if (!val) return 0;
+            const s = val.toString();
+            if (s.includes('T')) {
+                const parts = s.split('T')[1].split(':');
+                return parseFloat(parts[0]) + (parseFloat(parts[1])/60);
+            }
+            return parseFloat(s) || 0;
+        };
+
         const dir = window._sortDir === 'asc' ? 'desc' : 'asc';
         window._sortDir = dir;
         window.dashboardHistoryData.sort((a, b) => {
             let vA = a[field], vB = b[field];
             if(field === 'fecha') { vA = new Date(vA); vB = new Date(vB); }
-            if(field === 'duracion') { vA = parseDuration(vA); vB = parseDuration(vB); }
+            if(field === 'duracion') { vA = pD(vA); vB = pD(vB); }
             if(field === 'alumnos') { vA = parseFloat(vA) || 0; vB = parseFloat(vB) || 0; }
             if(vA < vB) return dir === 'asc' ? -1 : 1;
             if(vA > vB) return dir === 'asc' ? 1 : -1;
@@ -623,7 +635,7 @@ function renderDashboard(container) {
                 <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
                 <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
                 <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
-                <td data-label="Horas" style="padding: 12px; text-align: center;">${parseDuration(r.duracion).toFixed(1)}h</td>
+                <td data-label="Horas" style="padding: 12px; text-align: center;">${pD(r.duracion).toFixed(1)}h</td>
                 <td data-label="Acciones" style="padding: 12px; text-align: right; white-space: nowrap;">
                     <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
                     <button onclick="handleHistoryAction('duplicate', ${idx})" class="btn-outline btn-compact" style="border-color: #0ea5e9; color: #0ea5e9;" title="Duplicar"><i data-lucide="copy" style="width:14px;"></i></button>
@@ -637,6 +649,17 @@ function renderDashboard(container) {
     window.handleHistoryAction = (action, index) => {
         const report = window.dashboardHistoryData[index];
         if(!report) return;
+
+        const pD = (val) => {
+            if (!val) return 0;
+            const s = val.toString();
+            if (s.includes('T')) {
+                const parts = s.split('T')[1].split(':');
+                return parseFloat(parts[0]) + (parseFloat(parts[1])/60);
+            }
+            return parseFloat(s) || 0;
+        };
+
         if(action === 'view') {
             const modal = document.getElementById('modalReport');
             const content = document.getElementById('modalContent');
@@ -653,7 +676,7 @@ function renderDashboard(container) {
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; background:var(--bg-main); padding: 15px; border-radius:12px; margin-bottom:15px; text-align:center;">
                         <div><span style="display:block; font-size:1.25rem; font-weight:800; color:var(--xiaomi-orange);">${report.sesiones}</span><span style="font-size:0.6rem; text-transform:uppercase; color:var(--text-muted);">Sesiones</span></div>
                         <div><span style="display:block; font-size:1.25rem; font-weight:800; color:var(--xiaomi-orange);">${report.alumnos}</span><span style="font-size:0.6rem; text-transform:uppercase; color:var(--text-muted);">Alumnos</span></div>
-                        <div><span style="display:block; font-size:1.25rem; font-weight:800; color:var(--xiaomi-orange);">${report.duracion}h</span><span style="font-size:0.6rem; text-transform:uppercase; color:var(--text-muted);">Duración</span></div>
+                        <div><span style="display:block; font-size:1.25rem; font-weight:800; color:var(--xiaomi-orange);">${pD(report.duracion).toFixed(1)}h</span><span style="font-size:0.6rem; text-transform:uppercase; color:var(--text-muted);">Duración</span></div>
                     </div>
                     <hr style="border: 0; border-top: 1px solid var(--border-main); margin: 15px 0;">
                     <p style="margin-bottom:8px;"><strong>Contenidos:</strong> ${report.contenidos}</p>
@@ -679,6 +702,12 @@ function renderDashboard(container) {
             if(el) el.value = 'Todos';
         });
         loadHistory();
+    };
+
+    const btnRefreshHistory = document.getElementById('btnRefreshHistory');
+    if(btnRefreshHistory) btnRefreshHistory.onclick = () => { 
+        loadStats(true);
+        loadHistory(true); 
     };
 
     const btnFilterHistory = document.getElementById('btnFilterHistory');
