@@ -213,7 +213,7 @@ function renderReport(container, editData = null) {
                 </div>
 
                 <div class="form-group" id="distWrapper" style="display: none;">
-                    <label class="form-label" for="distribuidor">Tienda / Centro</label>
+                    <label class="form-label" for="distribuidor">Distribuidor / Tienda / Plataforma</label>
                     <select id="distribuidor" name="distribuidor" class="form-control"></select>
                 </div>
 
@@ -420,8 +420,13 @@ function renderReport(container, editData = null) {
                 dropdownParent: 'body'
             });
 
-            if(editData && editData.distribuidor && (distribuidores[val].includes(editData.distribuidor) || editData.distribuidor.startsWith('+'))) {
-                tsTienda.setValue(editData.distribuidor.replace('+ ', ''));
+            if(editData && editData.distribuidor) {
+                const cleanVal = editData.distribuidor.replace(/^\+ /, '');
+                // Si no está en la lista (custom store), lo añadimos como opción primero para que TomSelect lo reconozca
+                if (!distribuidores[val].includes(cleanVal)) {
+                    tsTienda.addOption({ value: cleanVal, text: cleanVal });
+                }
+                tsTienda.setValue(cleanVal);
             }
         } else {
             dw.style.display = 'none';
@@ -623,10 +628,17 @@ function renderReport(container, editData = null) {
             btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Enviando reporte...';
         }
 
+        // Formateo exacto de las fotos para el backend V5.0
+        const formattedPhotos = photosArray.map((photoObj, index) => ({
+            base64Data: photoObj.base64Data, // Extraemos solo el texto base64
+            name: photoObj.name || `foto_${index}.jpg`,
+            mimeType: photoObj.mimeType || 'image/jpeg'
+        }));
+
         try {
             const res = editData && editData.mode === 'edit'
-                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: photosArray })
-                : await api.saveReport(data, photosArray);
+                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: formattedPhotos })
+                : await api.saveReport(data, formattedPhotos);
 
             if(res.status === 'success') {
                 showToast("¡Éxito!", editData ? "Reporte actualizado." : "Reporte enviado correctamente.");

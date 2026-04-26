@@ -691,7 +691,11 @@ function renderDashboard(container) {
         window._sortDir = dir;
         window.dashboardHistoryData.sort((a, b) => {
             let vA = a[field], vB = b[field];
-            if(field === 'fecha') { vA = parseISO(vA).getTime(); vB = parseISO(vB).getTime(); }
+            if(field === 'fecha') { 
+                const dA = a[field] && a[field].toString().includes('T') ? new Date(a[field]) : new Date((a[field] || "").toString() + 'T12:00:00');
+                const dB = b[field] && b[field].toString().includes('T') ? new Date(b[field]) : new Date((b[field] || "").toString() + 'T12:00:00');
+                vA = dA.getTime(); vB = dB.getTime(); 
+            }
             if(field === 'duracion') { vA = pD(vA); vB = pD(vB); }
             if(field === 'alumnos') { vA = parseFloat(vA) || 0; vB = parseFloat(vB) || 0; }
             if(vA < vB) return dir === 'asc' ? -1 : 1;
@@ -702,7 +706,7 @@ function renderDashboard(container) {
         const body = document.getElementById('historyBody');
         body.innerHTML = window.dashboardHistoryData.map((r, idx) => `
             <tr style="border-bottom: 1px solid var(--border-main);">
-                <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${parseISO(r.fecha).toLocaleDateString()}</td>
+                <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${formatDateSafe(r.fecha)}</td>
                 <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
                 <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
                 <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
@@ -758,12 +762,16 @@ function renderDashboard(container) {
                     <hr style="border: 0; border-top: 1px solid var(--border-main); margin: 15px 0;">
                     <div style="margin-top:10px;">
                         <strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; display:block; margin-bottom:12px;">FOTOS:</strong>
-                        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                            ${report.photoLinks ? report.photoLinks.split(/[\n,]+/).filter(url => url.trim().startsWith('http')).map((url, i) => `
-                                <a href="${url.trim()}" target="_blank" class="btn-outline" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; width:130px; height:45px; border-radius:12px; font-size:0.85rem; font-weight:700; text-decoration:none; color:var(--xiaomi-orange); border-color:var(--border-main); background:var(--bg-card); padding:0; box-sizing:border-box;">
-                                    <i data-lucide="image" style="width:16px;"></i> Foto ${i+1}
-                                </a>
-                            `).join('') : '<span style="color:var(--text-muted); font-style:italic; font-size:0.8rem;">No hay fotos adjuntas</span>'}
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                            ${report.photoLinks ? report.photoLinks.split(/[\n,]+/).filter(url => url.trim().startsWith('http')).map((url, i) => {
+                                const p = url.trim();
+                                const idMatch = p.match(/id=([^&]+)/) || p.match(/\/d\/([^/]+)/);
+                                const thumb = idMatch ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w200` : p;
+                                return `
+                                    <a href="${p}" target="_blank" style="display:block; width:85px; height:85px; border-radius:12px; background:url(${thumb}) center/cover; border:2px solid var(--border-main); cursor:pointer; transition: all 0.2s ease; box-shadow: var(--shadow-sm);" onmouseover="this.style.transform='scale(1.08)'; this.style.borderColor='var(--xiaomi-orange)'" onmouseout="this.style.transform='scale(1)'; this.style.borderColor='var(--border-main)'" title="Ver en grande (Google Drive)">
+                                    </a>
+                                `;
+                            }).join('') : '<span style="color:var(--text-muted); font-style:italic; font-size:0.8rem;">No hay fotos adjuntas</span>'}
                         </div>
                     </div>
                 </div>
@@ -781,6 +789,7 @@ function renderDashboard(container) {
                 if(res.status === 'success') {
                     showToast("Eliminado", "Reporte borrado correctamente");
                     loadHistory(true);
+                    loadStats(true);
                 } else {
                     showToast("Error", res.message);
                     if(btn) btn.disabled = false;

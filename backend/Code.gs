@@ -138,6 +138,7 @@ function doPost(e) {
     let res = { status: "error", message: "Accion no encontrada" };
     if (req.action === "saveReport")      res = handleSaveReport(req.data, req.photos);
     if (req.action === "updateReport")    res = updateReport(req);
+    if (req.action === "deleteReport")    res = deleteReport(req);
     if (req.action === "requestVacation") res = handleRequestVacation(req);
     if (req.action === "updateRequest")   res = updateRequestStatus(req.id, req.status);
     if (req.action === "modifyExtra")     res = modifyExtraDays(req.user, req.delta);
@@ -515,9 +516,12 @@ function getReportsHistory(p) {
         if (rowStr.indexOf(query) === -1) continue;
       }
       
+      const rowTimestamp = d[i][0] instanceof Date ? d[i][0].getTime() : 0;
+      const uniqueId = "RID_" + rowTimestamp + "_" + i;
+
       result.push({
         rowIdx: i + 1,
-        id: (d[i][colMap.FOTOS] || d[i][17] || "").toString() || ("R_" + dO.getTime() + "_" + i),
+        id: uniqueId,
         timestamp: d[i][0], 
         trainer: (d[i][colMap.TRAINER] || d[i][1] || "").toString(), 
         fecha: (() => {
@@ -637,11 +641,11 @@ function deleteReport(p) {
     const colMap = _getColMap(s); // CORRECCIÓN: Le pasamos la hoja 's', no el array de cabeceras
     const d = s.getDataRange().getValues();
     
-    let targetRow = -1;
     for (let i = d.length - 1; i >= 1; i--) {
-      // Buscamos por la columna de fotos (ID único)
-      const rowId = (d[i][colMap.FOTOS] || d[i][17] || "").toString();
-      if (rowId === id) {
+      const rowTimestamp = d[i][0] instanceof Date ? d[i][0].getTime() : 0;
+      const currentUniqueId = "RID_" + rowTimestamp + "_" + i;
+      
+      if (currentUniqueId === id) {
         targetRow = i + 1;
         break;
       }
