@@ -13,7 +13,7 @@ const CONFIG = {
   DIAS_EXTRAS_SHEET_NAME: "DIAS EXTRAS",
   MENSAJES_SHEET_NAME: "MENSAJES",
   PLANIFICACION_SHEET_NAME: "PLANIFICACION",
-  VERSION: "V4.9",
+  VERSION: "V5.0",
   ADMINS: ["Training Manager", "Training Coordinator", "Training Creator"]
 };
 
@@ -32,7 +32,7 @@ function _getColMap(sheet) {
     else if (clean.includes("PERFIL")) map.PERFIL = i; // Perfil tiene prioridad sobre la palabra "Alumno"
     else if (clean === "ALUMNOS" || clean.includes("Nº ALUM") || clean.includes("CANT. ALUM")) map.ALUMNOS = i;
     else if (clean.includes("HORA") || clean.includes("DURAC")) map.HORAS = i;
-    else if (clean.includes("TIENDA")) map.TIENDAS = i;
+    else if (clean.includes("TIENDA") && !clean.includes("DISTRIBUIDOR")) map.TIENDAS = i;
     else if (clean.includes("CIUDAD") || clean.includes("POBLAC") || clean.includes("MUNICIPIO")) map.CIUDAD = i;
     else if (clean.includes("PROVINCIA")) map.PROVINCIA = i;
     else if (clean.includes("CONTENIDO")) map.CONTENIDOS = i;
@@ -123,6 +123,7 @@ function doGet(e) {
     if (action === "getMessages")       res = getMessages(p);
     if (action === "getWeekly")         res = getWeeklySchedule(p);
     if (action === "updateReport")      res = updateReport(p);
+    if (action === "deleteReport")      res = deleteReport(p);
   } catch(err) { res = { status: "error", message: "Backend Error: " + err.toString() }; }
   if (p.callback) {
     return ContentService.createTextOutput(p.callback + "(" + JSON.stringify(res) + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -164,7 +165,8 @@ function getAdminData() {
     const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
     const consumedMap = {}; 
     for(let i=1; i<dV.length; i++) {
-        const u = (dV[i][1]||"").toString().toLowerCase();
+        if (!dV[i][1]) continue; 
+        const u = dV[i][1].toString().toLowerCase();
         if(dV[i][5] !== 'Rechazado') {
             if(!consumedMap[u]) consumedMap[u] = {base:0, extra:0};
             if(dV[i][4] === 'Vacaciones') consumedMap[u].base += parseFloat(dV[i][6]) || 0;
@@ -285,7 +287,10 @@ function getVacationData(user) {
       userSede = (dF[i][2] || "Genérica").toString();
       for (let col = 3; col < dF[i].length; col++) {
         const dO = parseDateStable(dF[i][col]);
-        if (dO) festivos.push(Utilities.formatDate(dO, Session.getScriptTimeZone(), "yyyy-MM-dd"));
+        if (dO) {
+          const dStr = dO.getFullYear() + "-" + ("0" + (dO.getMonth() + 1)).slice(-2) + "-" + ("0" + dO.getDate()).slice(-2);
+          festivos.push(dStr);
+        }
       }
       break;
     }
@@ -298,10 +303,12 @@ function getVacationData(user) {
   let uB = 0, uE = 0, history = [];
   const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
   for (let i = 1; i < dV.length; i++) {
-    if (dV[i][1].toString().toLowerCase() === user.toLowerCase()) {
+    if (!dV[i][1]) continue;
+    const rowUser = dV[i][1].toString().toLowerCase();
+    if (rowUser === user.toLowerCase()) {
       const status = dV[i][5], count = parseFloat(dV[i][6]) || 0, type = dV[i][4];
       if (status !== "Rechazado") { if (type === "Vacaciones") uB += count; else uE += count; }
-      history.push({ id: dV[i][7], date: dV[i][0], fechas: dV[i][2], month: dV[i][3], type: type, status: status, count: count });
+      history.push({ id: dV[i][7], user: rowUser, date: dV[i][0], fechas: dV[i][2], month: dV[i][3], type: type, status: status, count: count });
     }
   }
   return { status: "success", stats: { baseTotal: baseTotal, extraTotal: extra, usedBase: uB, usedExtra: uE, sede: userSede }, festivos: festivos, history: history };
@@ -401,7 +408,9 @@ function getDashboardStats(p) {
 
     if (targetMonth === "Todos" || mNames[rowMonth] === targetMonth) availableWeeks.add(rowWeek);
 
-    const matchesUser = (target === "Total" || (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim() === target);
+    const rowTrainer = (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim().toLowerCase();
+    const targetLower = target.toLowerCase();
+    const matchesUser = (target === "Total" || rowTrainer === targetLower);
     var ses=parseFloat(d[i][colMap.SESIONES])||0, alu=parseFloat(d[i][colMap.ALUMNOS])||0, hor=_parseDur(d[i][colMap.HORAS]);
     var trainer = (d[i][colMap.TRAINER]||d[i][1]||"Desconocido").toString().trim();
     var cuenta = (d[i][colMap.CUENTA]||"Otros").toString().trim();
@@ -457,9 +466,13 @@ function getReportsHistory(p) {
     const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
     const availableFilters = { weeks: new Set(), months: new Set(), accounts: new Set(), methods: new Set(), devices: new Set() };
 
+    const targetLower = target.toLowerCase();
+
     for (var j=1; j<d.length; j++) {
-        const rowTrainer = (d[j][colMap.TRAINER]||d[j][1]||"").toString().trim();
-        if (!target || rowTrainer === target) {
+        const rowTrainer = (d[j][colMap.TRAINER]||d[j][1]||"").toString().trim().toLowerCase();
+        const matchesUser = (target === "Total" || !target || rowTrainer === targetLower);
+        
+        if (matchesUser) {
             const dO = parseDateStable(d[j][colMap.FECHA]);
             if (dO) {
                 const rowMonth = mNames[dO.getMonth()];
@@ -477,11 +490,12 @@ function getReportsHistory(p) {
         }
     }
 
-    const displayDates = sRef.getRange(1, colMap.FECHA + 1, sRef.getLastRow(), 1).getDisplayValues();
-
+  
     for (let i = d.length - 1; i >= 1; i--) {
-      const rowTrainer = (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim();
-      if (target && rowTrainer !== target) continue;
+      const rowTrainer = (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim().toLowerCase();
+      const matchesUser = (target === "Total" || !target || rowTrainer === targetLower);
+      
+      if (!matchesUser) continue;
       const dO = parseDateStable(d[i][colMap.FECHA]);
       if (!dO) continue;
       
@@ -506,7 +520,13 @@ function getReportsHistory(p) {
         id: (d[i][colMap.FOTOS] || d[i][17] || "").toString() || ("R_" + dO.getTime() + "_" + i),
         timestamp: d[i][0], 
         trainer: (d[i][colMap.TRAINER] || d[i][1] || "").toString(), 
-        fecha: displayDates[i] ? displayDates[i][0] : "", 
+        fecha: (() => {
+          let val = d[i][colMap.FECHA];
+          if (!val) return "";
+          let dO2 = (val instanceof Date) ? val : parseDateStable(val);
+          if (!dO2) return val.toString();
+          return dO2.getFullYear() + "-" + ("0" + (dO2.getMonth() + 1)).slice(-2) + "-" + ("0" + dO2.getDate()).slice(-2);
+        })(),
         cuenta: (d[i][colMap.CUENTA] || "").toString(), 
         distribuidor: (d[i][colMap.DISTRIBUIDOR] || d[i][4] || "").toString(), 
         metodologia: (d[i][colMap.METODOLOGIA] || "").toString(),
@@ -520,7 +540,8 @@ function getReportsHistory(p) {
         contenidos: (d[i][colMap.CONTENIDOS] || "").toString(), 
         dispositivos: (d[i][colMap.DISP_MOVIL] || "").toString(), 
         dispositivos_no_movil: (d[i][colMap.DISP_ECO] || "").toString(), 
-        comentarios: (d[i][colMap.COMENTARIOS] || "").toString()
+        comentarios: (d[i][colMap.COMENTARIOS] || "").toString(),
+        photoLinks: (d[i][colMap.FOTOS] || "").toString()
       });
       if (result.length >= limit) break;
     }
@@ -545,6 +566,9 @@ function updateReport(p) {
     let data = p.data;
     if (typeof data === 'string') data = JSON.parse(data);
     const rowIdx = parseInt(p.rowIdx);
+    if (!rowIdx || rowIdx < 1) {
+        return { status: "error", message: "Error: No se ha recibido un índice de fila válido para actualizar (rowIdx=" + p.rowIdx + ")" };
+    }
     const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
     const s = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
     const colMap = _getColMap(s);
@@ -558,11 +582,13 @@ function updateReport(p) {
         return { status: "error", message: "No tienes permiso para editar." };
     }
 
-    var photoUrls = _uploadPhotos(p.photos);
-    const existingPhotos = (currentRow[colMap.FOTOS] || currentRow[17] || "").toString();
-    let finalPhotos = existingPhotos;
-    if (photoUrls.length > 0) {
-        finalPhotos = existingPhotos ? (existingPhotos + "\n" + photoUrls.join("\n")) : photoUrls.join("\n");
+    var newPhotoUrls = _uploadPhotos(p.photos);
+    // IMPORTANTE: Respetar la selección de fotos del frontend (permite borrar fotos antiguas)
+    const keptPhotos = (data.existingPhotos || "").toString().trim();
+    
+    let finalPhotos = keptPhotos;
+    if (newPhotoUrls.length > 0) {
+        finalPhotos = keptPhotos ? (keptPhotos + "\n" + newPhotoUrls.join("\n")) : newPhotoUrls.join("\n");
     }
 
     // Limpiar y convertir a número
@@ -596,8 +622,36 @@ function updateReport(p) {
     if (isAdmin && existingTrainer !== incomingTrainer) notifyUser(currentRow[1], "Se ha actualizado un reporte. Revísalo en tu historial", "Admin");
     
     _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
-    const savedHours = cleanNum(data.duracion);
-    return { status: "success", message: "Fila #" + rowIdx + " actualizada correctamente a " + savedHours + "h." };
+    return { status: "success", message: "Reporte editado correctamente" };
+  } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
+}
+
+function deleteReport(p) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const id = p.id;
+    if (!id) throw new Error("ID de reporte no proporcionado.");
+    
+    const s = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID).getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+    const colMap = _getColMap(s); // CORRECCIÓN: Le pasamos la hoja 's', no el array de cabeceras
+    const d = s.getDataRange().getValues();
+    
+    let targetRow = -1;
+    for (let i = d.length - 1; i >= 1; i--) {
+      // Buscamos por la columna de fotos (ID único)
+      const rowId = (d[i][colMap.FOTOS] || d[i][17] || "").toString();
+      if (rowId === id) {
+        targetRow = i + 1;
+        break;
+      }
+    }
+    
+    if (targetRow === -1) throw new Error("No se encontró el reporte.");
+    
+    s.deleteRow(targetRow);
+    _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
+    return { status: "success", message: "Reporte eliminado" };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
@@ -682,7 +736,7 @@ function handleSaveReport(data, photos) {
     var urlsString = photoUrls.join("\n");
     
     // Obtenemos el número real de columnas de la hoja
-    const totalCols = s.getLastColumn() || 18;
+    const totalCols = Math.max(s.getLastColumn(), 20); // Asegura al menos 20 huecos de memoria
     const rowData = new Array(totalCols).fill(""); 
     
     // Asignación segura basada en el colMap
@@ -811,7 +865,7 @@ function getWeeklySchedule(p) {
     for (let i = 1; i < dPlan.length; i++) {
         const dO = parseDateStable(dPlan[i][2]);
         if (!dO) continue;
-        const dStr = Utilities.formatDate(dO, Session.getScriptTimeZone(), "yyyy-MM-dd");
+        const dStr = dO.getFullYear() + "-" + ("0" + (dO.getMonth() + 1)).slice(-2) + "-" + ("0" + dO.getDate()).slice(-2);
         if (dStr >= start && dStr <= end) {
             if (!scheduleByDay[dStr]) scheduleByDay[dStr] = {};
             const u = (dPlan[i][1]||"").toString();
@@ -835,7 +889,7 @@ function getWeeklySchedule(p) {
             for (let col = 3; col < dFest[i].length; col++) {
                 const dO = parseDateStable(dFest[i][col]);
                 if (dO) {
-                    const fStr = Utilities.formatDate(dO, Session.getScriptTimeZone(), "yyyy-MM-dd");
+                    const fStr = dO.getFullYear() + "-" + ("0" + (dO.getMonth() + 1)).slice(-2) + "-" + ("0" + dO.getDate()).slice(-2);
                     if (fStr >= start && fStr <= end) {
                         normalizedBlocks[uKey].festivos.push(fStr);
                         normalizedBlocks[uKey][fStr] = "FESTIVO";
@@ -988,7 +1042,10 @@ function saveWeeklyAssignment(req) {
     
     let newData = [d[0]];
     for (let i = 1; i < d.length; i++) {
-        const dStr = Utilities.formatDate(new Date(d[i][2]), Session.getScriptTimeZone(), "yyyy-MM-dd");
+        const pDate = parseDateStable(d[i][2]);
+        if (!pDate) continue;
+        
+        const dStr = pDate.getFullYear() + "-" + ("0" + (pDate.getMonth() + 1)).slice(-2) + "-" + ("0" + pDate.getDate()).slice(-2);
         if (!(d[i][1] === req.user && dStr === req.date)) {
             newData.push(d[i]);
         }
@@ -1011,19 +1068,43 @@ function saveWeeklyAssignment(req) {
 
 function parseDateStable(val) {
   if (!val) return null;
-  if (val instanceof Date && !isNaN(val.getTime())) return val;
+  
+  // 1. Si es un objeto Date nativo de Google Sheets (lectura fresca)
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    // Hack senior: sumamos 6 horas al UTC para evitar que el desfase 
+    // de medianoche local tire la fecha al día anterior.
+    const d = new Date(val.getTime() + (6 * 60 * 60 * 1000));
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0, 0);
+  }
+  
   try {
-    const s = val.toString();
+    const s = val.toString().trim();
+    
+    // 2. EL FIX DEL BUG DE LA CACHÉ: 
+    // Si viene congelado de la caché en formato UTC (ej: "2026-04-30T22:00:00.000Z")
+    if (s.includes('T') && s.endsWith('Z')) {
+        const d = new Date(s);
+        // Le sumamos 6 horas virtuales para que pase de las 22:00 a las 04:00 del día correcto
+        d.setTime(d.getTime() + (6 * 60 * 60 * 1000));
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0, 0);
+    }
+    
+    // 3. String puro (ej: "15/04/2026" o "2026-04-15") escrito a mano
     const p = s.split(/[-\/]/); 
-    if (p.length === 3) {
+    if (p.length === 3 && !s.includes('T')) {
       let dd, mm, yy;
+      // Detectamos el orden según si el año va primero o último
       if (p[0].length === 4) { yy = parseInt(p[0]); mm = parseInt(p[1]); dd = parseInt(p[2]); }
       else { dd = parseInt(p[0]); mm = parseInt(p[1]); yy = parseInt(p[2]); }
       if (yy < 100) yy += 2000;
-      return new Date(yy, mm - 1, dd); 
+      // Fijamos a mediodía para tener margen por ambos lados
+      return new Date(yy, mm - 1, dd, 12, 0, 0, 0); 
     }
+    
+    // 4. Fallback genérico
     const d = new Date(val);
-    return isNaN(d.getTime()) ? null : d;
+    if (!isNaN(d.getTime())) { d.setHours(12, 0, 0, 0); return d; }
+    return null;
   } catch(e) { return null; }
 }
 

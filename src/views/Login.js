@@ -36,7 +36,7 @@ function renderLogin(container) {
     var userSelect = document.getElementById('username');
 
     // Mantenemos el endpoint original getUsersList
-    sendJSONP('getUsersList').then(function(res) {
+    api.getUsersList().then(function(res) {
         if (res.status === 'success') {
             userSelect.innerHTML = '<option value="" disabled selected>Selecciona tu cuenta</option>';
             res.data.forEach(function(u) {
@@ -66,7 +66,7 @@ function renderLogin(container) {
         errorMsg.style.display = 'none';
         
         // Mantenemos el nombre del endpoint al array original: login
-        sendJSONP('login', { user: user, pass: pass }).then(function(res) {
+        api.login(user, pass).then(function(res) {
             btnSubmit.disabled = false;
             btnSubmit.innerText = 'Entrar a mi espacio';
             if (res.status === 'success') {

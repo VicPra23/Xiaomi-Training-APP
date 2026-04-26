@@ -135,7 +135,7 @@ function renderVacations(container) {
                             <div id="userSelectorContainer"></div>
                         </div>
                         <div class="legend">
-                            <div class="legend-item"><div class="legend-box lb-a"></div> Ace</div>
+                            <div class="legend-item"><div class="legend-box lb-a"></div> Vac</div>
                             <div class="legend-item"><div class="legend-box lb-p"></div> Sol</div>
                             <div class="legend-item"><div class="legend-box lb-e"></div> Ext</div>
                             <div class="legend-item"><div class="legend-box lb-s"></div> Sel</div>
@@ -195,8 +195,8 @@ function renderVacations(container) {
     async function loadData() {
         try {
             const [uRes, aRes] = await Promise.all([
-                sendJSONP('getVacationData', { user: targetUser }),
-                isAdmin ? sendJSONP('getAdminData') : Promise.resolve({ status: 'skip' })
+                api.getVacationData(targetUser),
+                isAdmin ? api.getAdminData() : Promise.resolve({ status: 'skip' })
             ]);
 
             if (uRes.status === 'success') {
@@ -204,20 +204,50 @@ function renderVacations(container) {
                 const sedeTitle = document.getElementById('vSedeTitle');
                 if (sedeTitle) sedeTitle.innerText = "Calendario de";
                 
-                const hist = uRes.history || [];
-                const uB_A = hist.filter(h => h.status === 'Aprobado' && h.type === 'Vacaciones').reduce((s, h) => s + (parseFloat(h.count)||0), 0);
-                const uE_A = hist.filter(h => h.status === 'Aprobado' && h.type !== 'Vacaciones').reduce((s, h) => s + (parseFloat(h.count)||0), 0);
-                const pB = hist.filter(h => h.status === 'Pendiente' && h.type === 'Vacaciones').reduce((s, h) => s + (parseFloat(h.count)||0), 0);
-                const pE = hist.filter(h => h.status === 'Pendiente' && h.type !== 'Vacaciones').reduce((s, h) => s + (parseFloat(h.count)||0), 0);
+                const hist = (uRes.history || []).filter(h => h.user.toLowerCase() === targetUser.toLowerCase());
+                
+                // MEJORA CRÍTICA: Cálculo basado en DÍAS ÚNICOS para evitar duplicidades (Filtro Fin de Semana Aplicado)
+                const getUniqueDaysCount = (items, targetStatus, targetType) => {
+                    const uniqueDates = new Set();
+                    items.filter(h => h.status === targetStatus && (targetType === 'Vacaciones' ? h.type === 'Vacaciones' : h.type !== 'Vacaciones'))
+                         .forEach(h => {
+                             const matches = h.fechas.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
+                             if (matches) {
+                                 const parseLocal = (s) => {
+                                     const p = s.split("/");
+                                     let y = parseInt(p[2]); if (y < 100) y += 2000;
+                                     return new Date(y, parseInt(p[1]) - 1, parseInt(p[0]));
+                                 };
+                                 const start = parseLocal(matches[0]);
+                                 const end = matches.length > 1 ? parseLocal(matches[matches.length - 1]) : start;
+                                 let cur = new Date(start);
+                                 while(cur <= end) {
+                                     const iso = cur.getFullYear() + "-" + String(cur.getMonth()+1).padStart(2,'0') + "-" + String(cur.getDate()).padStart(2,'0');
+                                     
+                                     // FIX APLICADO: Ignorar sábados (6), domingos (0) y festivos al contar el rango
+                                     if (cur.getDay() !== 0 && cur.getDay() !== 6 && !holidayDates.includes(iso)) {
+                                         uniqueDates.add(iso);
+                                     }
+                                     cur.setDate(cur.getDate() + 1);
+                                 }
+                             }
+                         });
+                    return uniqueDates.size;
+                };
+
+                const uB_A = getUniqueDaysCount(hist, 'Aprobado', 'Vacaciones');
+                const uE_A = getUniqueDaysCount(hist, 'Aprobado', 'Extra');
+                const pB = getUniqueDaysCount(hist, 'Pendiente', 'Vacaciones');
+                const pE = getUniqueDaysCount(hist, 'Pendiente', 'Extra');
 
                 vacationStats = { 
                     baseTotal: (uRes.stats && uRes.stats.baseTotal) || 23, 
                     extraTotal: (uRes.stats && uRes.stats.extraTotal) || 0, 
                     usedBase: uB_A, 
-                    usedExtra: uE_A, 
+                    usedExtra: uE_A,
                     pendingBase: pB, 
-                    pendingExtra: pE, 
-                    history: hist 
+                    pendingExtra: pE,
+                    history: hist
                 };
                 updateStatsUI();
                 renderHistory(hist);
@@ -339,9 +369,12 @@ function renderVacations(container) {
         const isWknd = cell.classList.contains('day-wknd');
         const isHoli = cell.classList.contains('day-holiday');
         
-        // Si NO es Admin, bloqueamos pasado, findes, festivos y ocupados
+        // Bloqueo estricto de fines de semana y festivos para TODOS (evitar errores de bulto)
+        if (isWknd || isHoli) return;
+
+        // Si NO es Admin, bloqueamos pasado y ocupados
         if (!isAdmin) {
-            if (isPast || isWknd || isHoli || cell.classList.contains('day-blocked')) return;
+            if (isPast || cell.classList.contains('day-blocked')) return;
         }
         // Si es Admin, permitimos pulsar todo (para poder limpiar/corregir cualquier error)
 

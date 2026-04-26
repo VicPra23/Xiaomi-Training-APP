@@ -1,13 +1,23 @@
 const calendarCache = {};
 
 function renderCalendar(container) {
+    // Función auxiliar para crear fechas sin problemas de zona horaria (Local Midnight)
+    function createLocalDate(year, month, day) {
+        return new Date(year, month, day, 0, 0, 0, 0);
+    }
+
+    // Función para parsear ISO YYYY-MM-DD a objeto Date local sin saltos
+    function parseISOLocal(s) {
+        const p = s.split('-');
+        return createLocalDate(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
+    }
+
     const today = new Date();
-    // Iniciar en el lunes de la semana actual
-    let currentMonday = new Date(today);
+    // Iniciar en el lunes de la semana actual (Lógica estable)
+    let currentMonday = createLocalDate(today.getFullYear(), today.getMonth(), today.getDate());
     const day = currentMonday.getDay();
     const diff = (day === 0 ? -6 : 1 - day); 
     currentMonday.setDate(currentMonday.getDate() + diff);
-    currentMonday.setHours(0,0,0,0);
 
     const session = getSessionData();
     const currentUser = session ? session.user : '';
@@ -18,8 +28,8 @@ function renderCalendar(container) {
         { id: "mm", label: "MM", color: "#d0021b" },
         { id: "crf", label: "CRF", color: "#2196f3" },
         { id: "mistores", label: "Mi Stores", color: "#ffb800" },
-        { id: "osp", label: "OSP", color: "#673ab7" },
-        { id: "vdf", label: "VDF", color: "#f44336" }, // Changed to Red
+        { id: "osp", label: "OSP", color: "#ff6700" },
+        { id: "vdf", label: "VDF", color: "#f44336" }, 
         { id: "mmy", label: "MMY", color: "#9c27b0" },
         { id: "tme", label: "TME", color: "#00bcd4" },
         { id: "interno", label: "Interno", color: "#ffeb3b" },
@@ -86,16 +96,15 @@ function renderCalendar(container) {
     container.innerHTML = html;
     if (typeof lucide !== 'undefined') lucide.createIcons();
     
-    // Set current month/year in jump menus
     document.getElementById('jumpMonth').value = currentMonday.getMonth();
     document.getElementById('jumpYear').value = currentMonday.getFullYear();
     document.getElementById('jumpBtn').onclick = () => {
         const m = parseInt(document.getElementById('jumpMonth').value);
         const y = parseInt(document.getElementById('jumpYear').value);
-        const d = new Date(y, m, 1);
+        const d = createLocalDate(y, m, 1);
         const day = d.getDay();
         const diff = (day === 0 ? -6 : 1 - day);
-        currentMonday = new Date(d); currentMonday.setDate(currentMonday.getDate() + diff);
+        currentMonday = createLocalDate(y, m, 1); currentMonday.setDate(currentMonday.getDate() + diff);
         loadWeek();
     };
 
@@ -122,8 +131,8 @@ function renderCalendar(container) {
 
         try {
             const [usersRes, scheduleRes] = await Promise.all([
-                sendJSONP('getUsersList'),
-                sendJSONP('getWeekly', { start: startISO, end: endISO })
+                api.getUsersList(),
+                api.getWeekly({ start: startISO, end: endISO })
             ]);
 
             loader.style.display = 'none'; tableCont.style.opacity = '1';
@@ -163,11 +172,16 @@ function renderCalendar(container) {
         const body = document.getElementById('tableBody'); if(!body) return;
         body.innerHTML = '';
 
-        users.forEach(user => {
-            if (user === "Training Manager") return;
+        users.forEach(userObj => {
+            const userId = (typeof userObj === 'object') ? userObj.user : userObj;
+            const displayName = (typeof userObj === 'object' && userObj.name) ? userObj.name : userId;
+            
+            if (userId === "Training Manager" || displayName === "Training Manager") return;
+            
             const tr = document.createElement('tr');
             const tdName = document.createElement('td');
-            tdName.className = 'trainer-col'; tdName.innerText = user;
+            tdName.className = 'trainer-col'; 
+            tdName.innerText = displayName;
             tr.appendChild(tdName);
 
             days.forEach(day => {
@@ -175,12 +189,14 @@ function renderCalendar(container) {
                 td.className = 'day-cell';
                 if (day.isWeekend) td.classList.add('day-wknd');
                 
-                const userBlocks = blocks[user] || {};
+                const userBlocks = blocks[userId] || blocks[userId.toLowerCase()] || {};
                 const vHist = userBlocks.vacationInfo || [];
                 const matchedVaca = vHist.find(h => isInRange(day.iso, h.fechas));
                 const isHoliday = userBlocks[day.iso] === "FESTIVO";
 
-                const dayItems = (schedule[day.iso] && schedule[day.iso][user]) ? schedule[day.iso][user] : [];
+                const dayItems = (schedule[day.iso] && (schedule[day.iso][userId] || schedule[day.iso][userId.toLowerCase()])) 
+                    ? (schedule[day.iso][userId] || schedule[day.iso][userId.toLowerCase()]) 
+                    : [];
 
                 if (matchedVaca) {
                     td.classList.add('day-blocked');
@@ -191,12 +207,12 @@ function renderCalendar(container) {
                     let itemsHtml = `<div class="assignment-tag cat-fest">FESTIVO</div>`;
                     itemsHtml += dayItems.map(it => `<div class="assignment-tag cat-${it.category}">${linkify(it.text)}</div>`).join('');
                     td.innerHTML = itemsHtml;
-                    if (canEditHoliday) td.onclick = (e) => { if (e.target.tagName !== 'A') openEditModal(user, day.iso, dayItems); };
+                    if (canEditHoliday) td.onclick = (e) => { if (e.target.tagName !== 'A') openEditModal(userId, day.iso, dayItems); };
                 } else {
-                    const canEdit = (isAdmin || (user === currentUser && !day.isWeekend));
+                    const canEdit = (isAdmin || (userId === currentUser && !day.isWeekend));
                     if (!canEdit) td.classList.add('day-blocked');
                     td.innerHTML = dayItems.map(it => `<div class="assignment-tag cat-${it.category}">${linkify(it.text)}</div>`).join('') || (canEdit ? '<div style="color:var(--text-muted); opacity:0.6; font-size:0.6rem; text-align:center;">Libre</div>' : '');
-                    if (canEdit) td.onclick = (e) => { if (e.target.tagName !== 'A') openEditModal(user, day.iso, dayItems); };
+                    if (canEdit) td.onclick = (e) => { if (e.target.tagName !== 'A') openEditModal(userId, day.iso, dayItems); };
                 }
                 tr.appendChild(td);
             });
@@ -204,7 +220,7 @@ function renderCalendar(container) {
         });
     }
 
-    function openEditModal(user, date, currentItems) {
+    function openEditModal(userId, date, currentItems) {
         const overlay = document.createElement('div'); overlay.className = 'calendar-overlay';
         const modal = document.createElement('div'); modal.className = 'calendar-edit-modal';
         function createItemRow(it) {
@@ -229,7 +245,7 @@ function renderCalendar(container) {
 
         modal.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h4 style="margin:0; font-size: 1.25rem;">${user}</h4>
+                <h4 style="margin:0; font-size: 1.25rem;">${userId}</h4>
                 <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; display:flex; align-items:center; gap:5px;"><i data-lucide="calendar" style="width:14px;"></i> ${date}</div>
             </div>
             <div id="itemsContainer"></div>
@@ -264,7 +280,7 @@ function renderCalendar(container) {
             });
             document.getElementById('saveModal').innerText = 'Guardando...';
             document.getElementById('saveModal').disabled = true;
-            const res = await sendPost('saveAssignment', { user: user, date: date, items: newItems, modifiedBy: currentUser });
+            const res = await api.saveAssignment({ user: userId, date: date, items: newItems, modifiedBy: currentUser });
             if (res.status === 'success') { 
                 delete calendarCache[toISO(currentMonday) + "_" + toISO(new Date(currentMonday.getTime() + 6*86400000))];
                 close(); loadWeek(); 
@@ -287,14 +303,13 @@ function renderCalendar(container) {
     function isInRange(iso, rangeStr) {
         if(!rangeStr) return false;
         try {
-            const d = new Date(iso); d.setHours(0,0,0,0);
-            const targetTime = d.getTime();
+            const targetTime = parseISOLocal(iso).getTime();
             const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
             if (!matches) return false;
             const parseDate = (str) => {
                 const p = str.split('/');
                 let y = parseInt(p[2]); if (y < 100) y += 2000;
-                return new Date(y, parseInt(p[1]) - 1, parseInt(p[0])).getTime();
+                return createLocalDate(y, parseInt(p[1]) - 1, parseInt(p[0])).getTime();
             };
             const start = parseDate(matches[0]);
             if (matches.length === 1) return targetTime === start;
@@ -314,9 +329,11 @@ function renderCalendar(container) {
     document.getElementById('prevWeek').onclick = () => { currentMonday.setDate(currentMonday.getDate() - 7); loadWeek(); };
     document.getElementById('nextWeek').onclick = () => { currentMonday.setDate(currentMonday.getDate() + 7); loadWeek(); };
     document.getElementById('todayBtn').onclick = () => {
-        const d = new Date(); const day = d.getDay(); const diff = (day === 0 ? -6 : 1 - day);
-        currentMonday = new Date(d); currentMonday.setDate(currentMonday.getDate() + diff);
-        currentMonday.setHours(0,0,0,0); loadWeek();
+        const d = new Date(); 
+        currentMonday = createLocalDate(d.getFullYear(), d.getMonth(), d.getDate());
+        const day = currentMonday.getDay(); const diff = (day === 0 ? -6 : 1 - day);
+        currentMonday.setDate(currentMonday.getDate() + diff);
+        loadWeek();
     };
 }
 window.renderCalendar = renderCalendar;

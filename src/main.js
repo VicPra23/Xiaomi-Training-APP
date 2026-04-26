@@ -113,7 +113,7 @@ function navigateRouter() {
         updateNavBadge();
         if(!hasShownNews) {
             hasShownNews = true;
-            sendJSONP('getMessages', { targetUser: user.user }).then(res => {
+            api.getMessages({ targetUser: user.user }).then(res => {
                 if(res.status === 'success') {
                     const unread = res.data.filter(m => !m.read && m.id && !localReadCache.includes(m.id.toString())).length;
                     if(unread > 0) {
@@ -130,7 +130,7 @@ function navigateRouter() {
         switch (hash) {
             case '#': renderLogin(app); break;
             case '#dashboard': renderDashboard(app); break;
-            case '#report': renderReport(app); break;
+            case '#report': renderReport(app, window.reportEditData); break;
             case '#calendar': renderCalendar(app); break;
             case '#vacations': renderVacations(app); break;
             case '#materials': 
@@ -156,7 +156,7 @@ const saveCache = () => localStorage.setItem('readCache', JSON.stringify(localRe
 async function updateNavBadge() {
     const userData = getSessionData();
     if (!userData) return;
-    const res = await sendJSONP('getMessages', { targetUser: userData.user });
+    const res = await api.getMessages({ targetUser: userData.user });
     if (res.status === 'success') {
         // Filtramos por leído en el servidor O en nuestra caché local
         const unread = res.data.filter(m => !m.read && m.id && !localReadCache.includes(m.id.toString())).length;

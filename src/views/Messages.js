@@ -42,7 +42,7 @@ function renderMessages(container) {
     };
 
     async function loadMessages() {
-        const res = await sendJSONP('getMessages', { targetUser: user });
+        const res = await api.getMessages({ targetUser: user });
         const log = document.getElementById('msgLogContainer'); if(!log) return;
         if (res.status === 'success' && res.data.length > 0) {
             log.innerHTML = res.data.map(m => {

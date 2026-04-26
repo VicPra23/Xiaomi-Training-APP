@@ -7,6 +7,30 @@ function renderDashboard(container) {
         const realName = nickname || currentUser;
         const isAdmin = (role === 'Admin');
 
+        const masterMobiles = ["Redmi 15 Series", "Redmi 15C Series", "Redmi A5", "Redmi A7 Pro", "Redmi Note 15 Series", "Xiaomi 17 series", "Xiaomi 17T Series"];
+        const masterEcosystem = ["Aire Acondicionado", "Audio y Sonido", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series"];
+        const masterDevices = [...masterMobiles, ...masterEcosystem].sort();
+
+        const parseISO = (s) => {
+            if (!s) return new Date();
+            const p = s.split('T')[0].split('-');
+            if (p.length !== 3) return new Date(s);
+            return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
+        };
+
+        // Helper para pintar la fecha perfecta en el HTML sin saltos de zona horaria
+        const formatDateSafe = (dateStr) => {
+            if (!dateStr) return '';
+            if (dateStr.includes('-')) {
+                const p = dateStr.split('T')[0].split('-');
+                if (p.length === 3) {
+                    // Creamos a mediodía para evitar cualquier salto por desfase de horas en el navegador
+                    return new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2]), 12, 0, 0).toLocaleDateString();
+                }
+            }
+            return new Date(dateStr).toLocaleDateString();
+        };
+
         // El redimensionamiento ahora lo gestiona Chart.js automáticamente con ResizeObserver
         // gracias a que el tamaño de los contenedores está definido en CSS (clamp + media queries).
         if (window._dashResizeHandler) window.removeEventListener('resize', window._dashResizeHandler);
@@ -351,7 +375,7 @@ function renderDashboard(container) {
     const populateAllFilters = () => {
         if (!isAdmin) return;
         
-        sendJSONP('getFilterMetadata', {}, true).then(res => {
+        api.getFilterMetadata({}, true).then(res => {
             if (res.status === 'success') {
                 const yS = document.getElementById('dashboardYear');
                 const mS = document.getElementById('dashboardMonth');
@@ -359,11 +383,26 @@ function renderDashboard(container) {
                 
                 if (yS) yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}">${y}</option>`).join('');
                 if (mS) mS.innerHTML = '<option value="Todos">Todos</option>' + res.data.months.map(m => `<option value="${m}">${m}</option>`).join('');
-                if (dS) dS.innerHTML = '<option value="Todos">Todos</option>' + res.data.devices.map(d => `<option value="${d}">${d}</option>`).join('');
+                
+                if (dS) {
+                    const reported = new Set(res.data.devices);
+                    let opts = '<option value="Todos">Todos</option>';
+                    if (isAdmin) {
+                        masterDevices.forEach(d => {
+                            const hasData = reported.has(d);
+                            opts += `<option value="${d}" ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
+                        });
+                    } else {
+                        res.data.devices.sort().forEach(d => {
+                            opts += `<option value="${d}">${d}</option>`;
+                        });
+                    }
+                    dS.innerHTML = opts;
+                }
             }
         });
 
-        sendJSONP('getUsersList', {}, true).then(res => {
+        api.getUsersList({}, true).then(res => {
             if (res.status === 'success') {
                 const s = document.getElementById('dashboardTarget');
                 const ht = document.getElementById('histFilterTrainer');
@@ -371,7 +410,7 @@ function renderDashboard(container) {
                     <option value="Total">Dato Global</option>
                     <option value="${currentUser}">Solo Mío</option>
                     <hr>
-                    ${res.data.map(u => `<option value="${u}">${u}</option>`).join('')}
+                    ${res.data.map(u => `<option value="${u.user || u}">${u.name || u}</option>`).join('')}
                 `;
                 if (s) s.innerHTML = optionsHtml;
                 if (ht) ht.innerHTML = optionsHtml;
@@ -379,7 +418,7 @@ function renderDashboard(container) {
         });
         
         // Historial (No requiere caché estricto pero se mantiene la lógica)
-        sendJSONP('getFilterMetadata').then(res => {
+        api.getFilterMetadata().then(res => {
             if(res.status === 'success') {
                 const hM = document.getElementById('histFilterMonth');
                 const hA = document.getElementById('histFilterAccount');
@@ -387,7 +426,21 @@ function renderDashboard(container) {
                 const hMet = document.getElementById('histFilterMethod');
                 if(hM) res.data.months.forEach(m => hM.innerHTML += `<option value="${m}">${m}</option>`);
                 if(hA) res.data.accounts.forEach(a => hA.innerHTML += `<option value="${a}">${a}</option>`);
-                if(hD) res.data.devices.forEach(d => hD.innerHTML += `<option value="${d}">${d}</option>`);
+                if(hD) {
+                    const reported = new Set(res.data.devices);
+                    let opts = '<option value="Todos">Todas</option>';
+                    if (isAdmin) {
+                        masterDevices.forEach(d => {
+                            const hasData = reported.has(d);
+                            opts += `<option value="${d}" ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
+                        });
+                    } else {
+                        res.data.devices.sort().forEach(d => {
+                            opts += `<option value="${d}">${d}</option>`;
+                        });
+                    }
+                    hD.innerHTML = opts;
+                }
                 if(hMet) res.data.methodologies.forEach(h => hMet.innerHTML += `<option value="${h}">${h}</option>`);
             }
         });
@@ -427,7 +480,7 @@ function renderDashboard(container) {
 
         const params = { targetUser: target, week: week, month: month, year: year, device: device, refresh: force };
         
-        sendJSONP('getDashboardStats', params).then(res => {
+        api.getDashboardStats(params).then(res => {
             if (res.status === 'success') {
                 try {
                     const sCount = document.getElementById('stat_count'); if(sCount) sCount.innerText = res.currentWeekData.count;
@@ -499,8 +552,25 @@ function renderDashboard(container) {
                 const el = document.getElementById(s.id);
                 if (!el) return;
                 const currentVal = el.value;
-                el.innerHTML = `<option value="Todos">${s.label}</option>` + 
-                    s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
+
+                if (s.id === 'histFilterDevice') {
+                    const reported = new Set(s.data);
+                    let opts = `<option value="Todos">${s.label}</option>`;
+                    if (isAdmin) {
+                        masterDevices.forEach(d => {
+                            const hasData = reported.has(d);
+                            opts += `<option value="${d}" ${d.toString() === currentVal ? 'selected' : ''} ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
+                        });
+                    } else {
+                        s.data.sort().forEach(d => {
+                            opts += `<option value="${d}" ${d.toString() === currentVal ? 'selected' : ''}>${d}</option>`;
+                        });
+                    }
+                    el.innerHTML = opts;
+                } else {
+                    el.innerHTML = `<option value="Todos">${s.label}</option>` + 
+                        s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
+                }
             });
         } catch(e) { console.error("Error updating filters:", e); }
         isUpdatingFilters = false;
@@ -529,7 +599,7 @@ function renderDashboard(container) {
         const loader = document.getElementById('historyLoading');
         if(loader) loader.style.visibility = 'visible';
 
-        sendJSONP('getReportsHistory', { 
+        api.getReportsHistory({ 
             targetUser: target === 'Total' ? '' : target, 
             limit: 25, 
             week: (week === "Todos" ? "" : week),
@@ -550,7 +620,7 @@ function renderDashboard(container) {
                 window.dashboardHistoryData = res.data;
                 body.innerHTML = res.data.map((r, idx) => `
                     <tr style="border-bottom: 1px solid var(--border-main);">
-                        <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${new Date(r.fecha).toLocaleDateString()}</td>
+                        <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${formatDateSafe(r.fecha)}</td>
                         <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
                         <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
                         <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
@@ -559,6 +629,7 @@ function renderDashboard(container) {
                             <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
                             <button onclick="handleHistoryAction('duplicate', ${idx})" class="btn-outline btn-compact" style="border-color: #0ea5e9; color: #0ea5e9;" title="Duplicar"><i data-lucide="copy" style="width:14px;"></i></button>
                             <button onclick="handleHistoryAction('edit', ${idx})" class="btn-outline btn-compact" title="Editar"><i data-lucide="edit-2" style="width:14px;"></i></button>
+                            <button onclick="handleHistoryAction('delete', ${idx})" class="btn-outline danger btn-compact" style="border-color: #ef4444; color: #ef4444;" title="Eliminar"><i data-lucide="trash-2" style="width:14px;"></i></button>
                         </td>
                     </tr>
                 `).join('');
@@ -620,7 +691,7 @@ function renderDashboard(container) {
         window._sortDir = dir;
         window.dashboardHistoryData.sort((a, b) => {
             let vA = a[field], vB = b[field];
-            if(field === 'fecha') { vA = new Date(vA); vB = new Date(vB); }
+            if(field === 'fecha') { vA = parseISO(vA).getTime(); vB = parseISO(vB).getTime(); }
             if(field === 'duracion') { vA = pD(vA); vB = pD(vB); }
             if(field === 'alumnos') { vA = parseFloat(vA) || 0; vB = parseFloat(vB) || 0; }
             if(vA < vB) return dir === 'asc' ? -1 : 1;
@@ -631,7 +702,7 @@ function renderDashboard(container) {
         const body = document.getElementById('historyBody');
         body.innerHTML = window.dashboardHistoryData.map((r, idx) => `
             <tr style="border-bottom: 1px solid var(--border-main);">
-                <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${new Date(r.fecha).toLocaleDateString()}</td>
+                <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${parseISO(r.fecha).toLocaleDateString()}</td>
                 <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
                 <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
                 <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
@@ -640,6 +711,7 @@ function renderDashboard(container) {
                     <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
                     <button onclick="handleHistoryAction('duplicate', ${idx})" class="btn-outline btn-compact" style="border-color: #0ea5e9; color: #0ea5e9;" title="Duplicar"><i data-lucide="copy" style="width:14px;"></i></button>
                     <button onclick="handleHistoryAction('edit', ${idx})" class="btn-outline btn-compact" title="Editar"><i data-lucide="edit-2" style="width:14px;"></i></button>
+                    <button onclick="handleHistoryAction('delete', ${idx})" class="btn-outline danger btn-compact" style="border-color: #ef4444; color: #ef4444;" title="Eliminar"><i data-lucide="trash-2" style="width:14px;"></i></button>
                 </td>
             </tr>
         `).join('');
@@ -666,7 +738,7 @@ function renderDashboard(container) {
             content.innerHTML = `
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-bottom: 1px solid var(--border-main); padding-bottom: 15px; margin-bottom: 15px;">
                     <div><strong style="color:var(--text-muted); font-size:0.75rem; display:block; text-transform:uppercase;">Trainer</strong> <span style="font-weight:700;">${report.trainer}</span></div>
-                    <div><strong style="color:var(--text-muted); font-size:0.75rem; display:block; text-transform:uppercase;">Fecha</strong> <span style="font-weight:700;">${new Date(report.fecha).toLocaleDateString()}</span></div>
+                    <div><strong style="color:var(--text-muted); font-size:0.75rem; display:block; text-transform:uppercase;">Fecha</strong> <span style="font-weight:700;">${formatDateSafe(report.fecha)}</span></div>
                 </div>
                 <div style="line-height: 1.8;">
                     <div style="margin-bottom:12px;"><strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase;">Metodología:</strong> <span style="font-weight:600;">${report.metodologia}</span></div>
@@ -682,13 +754,41 @@ function renderDashboard(container) {
                     <p style="margin-bottom:8px;"><strong>Contenidos:</strong> ${report.contenidos}</p>
                     <p style="margin-bottom:8px;"><strong>Móviles:</strong> ${report.dispositivos || '-'}</p>
                     <p style="margin-bottom:8px;"><strong>Ecosistema:</strong> ${report.dispositivos_no_movil || '-'}</p>
-                    <p><strong>Comentarios:</strong><br><span style="color: var(--text-medium); font-style: italic;">${report.comentarios || 'Sin comentarios'}</span></p>
+                    <p style="margin-bottom:15px;"><strong>Comentarios:</strong><br><span style="color: var(--text-medium); font-style: italic;">${report.comentarios || 'Sin comentarios'}</span></p>
+                    <hr style="border: 0; border-top: 1px solid var(--border-main); margin: 15px 0;">
+                    <div style="margin-top:10px;">
+                        <strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; display:block; margin-bottom:12px;">FOTOS:</strong>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                            ${report.photoLinks ? report.photoLinks.split(/[\n,]+/).filter(url => url.trim().startsWith('http')).map((url, i) => `
+                                <a href="${url.trim()}" target="_blank" class="btn-outline" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; width:130px; height:45px; border-radius:12px; font-size:0.85rem; font-weight:700; text-decoration:none; color:var(--xiaomi-orange); border-color:var(--border-main); background:var(--bg-card); padding:0; box-sizing:border-box;">
+                                    <i data-lucide="image" style="width:16px;"></i> Foto ${i+1}
+                                </a>
+                            `).join('') : '<span style="color:var(--text-muted); font-style:italic; font-size:0.8rem;">No hay fotos adjuntas</span>'}
+                        </div>
+                    </div>
                 </div>
             `;
             modal.style.display = 'flex';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         } else if(action === 'duplicate' || action === 'edit') {
             window.reportEditData = { ...report, mode: action };
             window.location.hash = '#report';
+        } else if(action === 'delete') {
+            if(!confirm("¿Seguro que quieres eliminar este reporte permanentemente?")) return;
+            const btn = document.activeElement;
+            if(btn) btn.disabled = true;
+            api.deleteReport(report.id).then(res => {
+                if(res.status === 'success') {
+                    showToast("Eliminado", "Reporte borrado correctamente");
+                    loadHistory(true);
+                } else {
+                    showToast("Error", res.message);
+                    if(btn) btn.disabled = false;
+                }
+            }).catch(e => {
+                showToast("Error", "Fallo de conexión");
+                if(btn) btn.disabled = false;
+            });
         }
     };
 

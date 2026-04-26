@@ -1,192 +1,369 @@
-function renderReport(container) {
-    const provincias = ["Álava","Albacete","Alicante","Almería","Asturias","Ávila","Badajoz","Barcelona","Burgos","Cáceres","Cádiz","Cantabria","Castellón","Ciudad Real","Córdoba","A Coruña","Cuenca","Girona","Granada","Guadalajara","Gipuzkoa","Huelva","Huesca","Illes Balears","Jaén","León","Lleida","Lugo","Madrid","Málaga","Murcia","Navarra","Ourense","Palencia","Las Palmas","Pontevedra","La Rioja","Salamanca","Segovia","Sevilla","Soria","Tarragona","Santa Cruz de Tenerife","Teruel","Toledo","Valencia","Valladolid","Bizkaia","Zamora","Zaragoza","Ceuta","Melilla"];
-    
-    const dispositivosMobiles = ["Xiaomi 17 series", "Redmi Note 15 Series", "Redmi 15 Series", "Redmi 15C", "Redmi A5", "Redmi A7 Pro"];
-    const dispositivosNoMobiles = ["Xiaomi Watch 5 series", "Xiaomi Watch S4 series", "Redmi Watch 5 Series", "Xiaomi Band 10 series", "Xiaomi Band 9 series", "Xiaomi Buds 5 series", "Xiaomi Openwear Stereo Pro", "Redmi Buds 8 series", "Xiaomi Pad 8 series", "Redmi Pad 2 Pro series", "Redmi Pad 2", "Scooters 6 series", "TV A series", "TV S series", "Vaccuum G40 series", "Robot Vacums"];
+function renderReport(container, editData = null) {
+    const session = getSessionData();
+    const currentUser = session ? session.user : '';
+    const role = session ? session.role : '';
+    let isLoadingEdit = !!editData;
 
     const distribuidores = {
-        "Orange": ["ONDALIBRE","KIWITEL","ISP","ONE STORE","ECOPLANA","IS CELL","FREE TELECOM","OK CLUB","MUNDOCOM","ANEVINIP","TELMASUR","PROMOVIL","CLM","OSHOP","Tiendas Propias","ISGF Murcia","FOUNDEVER Sevilla","KONECTA Sevilla","OEST Oviedo","MARKTEL Valencia","Jazzplat Guadalajara","ISGF Alicante","TLP Salamanca","TRANSCOM León","MAJOREL Salamanca","TLP Medellín","Jazzplat Colombia","Konecta Lima"],
-        "MásMovil": ["Stream","Konecta Córdoba","Servinform","Konecta Sevilla","Marktel Madrid Negocios","Serviform Valladolid","Servinform Madrid Negocios","Nekxus Peru","Nekxus COLOMBIA"],
-        "Vodafone": ["KONECTA Sevilla","KONECTA Valladolid","MAJOREL Zaragoza","TP Ponferrada","KONECTA Sevilla (PIBO)","KONECTA Valladolid (Cartera)","VPLAT Madrid","VPLAT Valladolid","Red chain","Bonatel","Pablo Sánchez XXI","Climent","Eulogio (grupo teleoperator)","Grupo Móvil","Servitel XXI","Ondas System SL","New Concept / vivacom","Mederos","TDC SENSITIA"],
-        "Euskaltel": ["IBERMATICA Donostia","LANALDEN Bilbao","LANALDEN Derio","XUPERA","KONECTA A Coruña","GSC","Eulen","OSP","V3"],
-        "Telefónica": ["Flagship","Interno","Telyco","Telyman","Complutel"],
-        "Alcampo": ["Alcampo Castellón", "Alcampo Gijón", "Alcampo Langreo", "Alcampo Motril", "Alcampo Orihuela", "Alcampo Toledo", "Alcampo Vaguada", "DIAGONAL MAR", "FINESTRELLES", "MATARÓ", "Multiple Store", "Múltiple store", "PARQUE SUR", "REUS", "SANT ADRIA", "Sant boi", "Tortosa", "VILANOVA"],
-        "Carrefour": ["Online", "Abrera", "Actur", "Águilas", "Alboraya", "Albacete", "Alcalá de Henares", "Alcalá de Guadaíra", "Alcázar", "Alcobendas", "Alcorcón", "Algeciras", "Alfafar", "Alfonso Molina", "Almería", "Alzira", "Alameda", "Amposta", "Andújar", "Añaza", "Antequera", "Aranda", "Arcos", "Arenas", "Astillero", "Atalayas", "Augusta", "Avda. Mediterráneo", "Azabache", "Badajoz", "Baena", "Bahía", "Barberà", "Barakaldo", "Benidorm", "Burgos", "Cáceres", "Cabrera de Mar", "Cádiz", "Calahorra", "Caletillas", "Camas", "Campanar", "Can Dragó", "Carmona", "Cartagena", "Cartaya", "Castellón", "Caudalia", "Ciudad de la Imagen", "Ciudad Real", "Coll d'en Rabassa", "Coristanco", "Cornellà", "Coruña", "Cuenca", "Cullera", "Denia", "Dos Hermanas", "Écija", "El Casar", "El Ejido", "El Hierro", "El Pinar", "El Prat", "El Rinconcillo", "El Saler", "Elche", "Elviña", "Erandio", "Estepona", "Fan Mallorca", "Ferrol", "Figueres", "Finestrat", "Fuengirola", "Fuentes de Ebro", "Gandía", "Gavà", "Getafe", "Gijón", "Girona", "Glòries", "Gran Turia", "Gran Via (Hospitalet)", "Granada Sur", "Guadalajara", "Hortaleza", "Huelva", "Huesca", "Jaca", "Jaén", "Jerez Norte", "Jerez Sur", "L'Eliana", "L'Hospitalet", "La Calzada", "La Gavia", "La Linea", "La Macarena", "La Maquinista", "La Sierra", "Laguna de Duero", "Lalín", "Las Arenas", "Las Rozas", "Leganés", "León", "Lleida", "Logroño", "Lorca", "Los Alfares", "Los Angeles", "Los Gamos", "Los Patios", "Los Prados", "Los Rosales", "Lucena", "Lugo", "Lugones", "Madrid Sur", "Majadahonda", "Málaga Rosaleda", "Manises", "Manresa", "Martorell", "Massalfassar", "Mérida", "Mijas", "Montequinto", "Montigalà", "Móstoles", "Motril", "Murcia Zaraiche", "Nassica", "Navarra", "Oiartzun", "Oleiros", "Olías", "Olot", "Ontinyent", "Ourense", "Palencia", "Palma", "Pamplona", "Parets", "Parquesol", "Parquesur", "Paterna", "Peñacastillo", "Petrer", "Picaña", "Planetocio", "Plaza Imperial", "Plaza Nueva", "Ponferrada", "Pontevedra", "Portopí", "Puerta Alicante", "Puente Genil", "Puertollano", "Pulianas", "Rambla", "Reus", "Rincón de la Victoria", "Rivas", "Roquetas de Mar", "Sa Coma", "Sagunto", "Salamanca", "San Blas", "San Fernando", "San Javier", "San Juan de Alicante", "San Sebastián de los Reyes", "Sant Cugat", "Santa Coloma", "Santa Cruz", "Sanlúcar", "Santander", "Segovia", "Sestao", "Sevilla", "Son Cotoner", "Talavera", "Tarragona", "Telde", "Toledo", "Torrejón", "Torrelavega", "Torremolinos", "Torrent", "Torrevieja", "Tortosa", "Tres Cantos", "Tudela", "Utebo", "Valdebernardo", "Valdepeñas", "Valladolid 2", "Valle Real", "Vallecas", "Vecindario"],
-        "ECI": ["ECI ALBACETE", "ECI ALICANTE", "ECI BADAJOZ", "ECI BILBAO", "ECI CALLAO", "ECI CASTELLANA", "ECI MÁLAGA", "ECI MURCIA", "ECI PAMPLONA", "ECI PRINCESA", "ECI VIGO"],
-        "MediaMarkt": ["Fuenlabrada", "MEDIA ALCALA DE HENARES", "MEDIA ALCORCON", "MEDIA ALFAFAR", "MEDIA BADAJOZ", "MEDIA GETAFE", "MEDIA ISLAZUL MADRID", "MEDIA LEGANES", "MEDIA MADRID CASTELLANA", "MEDIA MADRID PLAZA DEL CA", "MEDIA MADRID VALLECAS", "MEDIA RIVAS", "MEDIA VAGUADA", "MEDIA VALLADOLID"],
-        "MISTORES": ["MI ALMERIA", "MI CEUTA", "MI VIGO", "MI STORE C.C. LA GAVIA", "MI PUERTO VENECIA", "MI VALLADOLID", "MI STORE CC GRAN VÍA ALICANTE", "MI STORE CC ISLAZUL", "MI STORE GRAN VÍA 2", "MI STORE MAQUINISTA", "MI STORE XANADU", "MI STORE CASTELLÓN"]
+        "MediaMarkt": [
+            "Central", "MediaMarkt Barcelona - Francesc Macià", "MediaMarkt Cornellà-El Prat", "MediaMarkt Diagonal Mar", "MediaMarkt Esplugues", 
+            "MediaMarkt Gavà", "MediaMarkt La Maquinista", "MediaMarkt Mataró", "MediaMarkt Badalona", "MediaMarkt Parets del Vallès", 
+            "MediaMarkt Plaza Cataluña", "MediaMarkt Ronda Sant Antoni", "MediaMarkt Sabadell", "MediaMarkt Sant Cugat", 
+            "MediaMarkt Terrassa", "MediaMarkt Vilanova i la Geltrú", "MediaMarkt Girona", "MediaMarkt Parc d'Aro", 
+            "MediaMarkt Porta Lloret", "MediaMarkt Lleida", "MediaMarkt Tarragona", "MediaMarkt Almería", "MediaMarkt Gran Plaza", 
+            "MediaMarkt Bahía de Cádiz", "MediaMarkt Jerez de la Frontera", "MediaMarkt Los Barrios", "MediaMarkt Córdoba", 
+            "MediaMarkt Nevada", "MediaMarkt Granda - Pulianas", "MediaMarkt Huelva", "MediaMarkt Jaén", "MediaMarkt Málaga - La Cañada", 
+            "MediaMarkt Mijas", "MediaMarkt Málaga", "MediaMarkt Plaza Mayor", "MediaMarkt Vélez", "MediaMarkt Alcalá de Guadaíra", 
+            "MediaMarkt Lagoh", "MediaMarkt Los Arcos", "MediaMarkt San Juan de Aznalfarache", "MediaMarkt Badajoz", 
+            "MediaMarkt Albacete", "MediaMarkt Alicante", "MediaMarkt Elche", "MediaMarkt Finestrat", "MediaMarkt La Zenia", 
+            "MediaMarkt Castellón", "MediaMarkt Vinaròs", "MediaMarkt Cartagena", "MediaMarkt Lorca", "MediaMarkt Nueva Condomina", 
+            "MediaMarkt Ronda Sur", "MediaMarkt Alfafar", "MediaMarkt Valencia - Aqua", "MediaMarkt Valencia - Colón", 
+            "MediaMarkt Gandía", "MediaMarkt Massalfassar", "MediaMarkt Valencia - Palacio de Congresos", "MediaMarkt Quart de Poblet", 
+            "MediaMarkt - Toledo", "MediaMarkt Ciudad Real", "MediaMarkt Alcalá de Henares", "MediaMarkt Alcorcón", 
+            "MediaMarkt Benlliure - Goya", "MediaMarkt Castellana", "MediaMarkt Collado Villalba", "MediaMarkt Fuenlabrada", 
+            "MediaMarkt Getafe", "MediaMarkt Isazul", "MediaMarkt Leganés", "MediaMarkt Majadahonda", "MediaMarkt Plaza del Carmen", 
+            "MediaMarkt Plenilunio", "MediaMarkt Rivas Vaciamadrid", "MediaMarkt Torrejón", "MediaMarkt Vaguada", "MediaMarkt Vallecas", 
+            "MediaMarkt Villaverde", "MediaMarkt Talavera", "MediaMarkt Santander", "MediaMarkt Vigo", "MediaMarkt A Coruña", 
+            "MediaMarkt Ferrol", "MediaMarkt Santiago de Compostela", "MediaMarkt Vitoria", "MediaMarkt Siero", "MediaMarkt Bilbondo", 
+            "MediaMarkt Zubiarte", "MediaMarkt Barakaldo", "MediaMarkt Donosti", "MediaMarkt Logroño", "MediaMarkt León", 
+            "MediaMarkt Lugo", "MediaMarkt Pamplona - Cordovilla", "MediaMarkt Vigo 2", "MediaMarkt Salamanca", "MediaMarkt Valladolid", 
+            "MediaMarkt Vistalegre", "MediaMarkt CC Gran Casa", "MediaMarkt Puerto Venecia", "MediaMarkt Burgos", 
+            "MediaMarkt Palma de Mallorca", "MediaMarkt Palma Fan", "MediaMarkt Lanzarote", "MediaMarkt Las Arenas", 
+            "MediaMarkt Alisios", "MediaMarkt Telde", "MediaMarkt Tenerife", "MediaMarkt Tres de Mayo", "MediaMarkt Adeje", "MediaMarkt Melilla"
+        ],
+        "ECI": [
+            "Central", "El Corte Inglés A Coruña", "El Corte Inglés Ademuz", "El Corte Inglés Alcalá de Henares", "El Corte Inglés Alexandre Rosselló", 
+            "El Corte Inglés Alicante", "El Corte Inglés Arabial", "El Corte Inglés Albacete", "El Corte Inglés Avenida de Francia", 
+            "El Corte Inglés Badajoz", "El Corte Inglés Avilés", "El Corte Inglés Bahía Málaga", "El Corte Inglés Bahía de Algeciras", 
+            "El Corte Inglés Bahía de Cádiz", "El Corte Inglés Campo de Las Naciones", "El Corte Inglés Can Dragó", "El Corte Inglés Cartagena", 
+            "El Corte Inglés Castellana", "El Corte Inglés Ciudad de Elche", "El Corte Inglés Conquistadores - Badajoz", "El Corte Inglés Cornellà", 
+            "El Corte Inglés Costa Mijas", "El Corte Inglés Diagonal", "El Corte Inglés El Bercial", "El Corte Inglés Marbella", 
+            "El Corte Inglés El Ejido", "El Corte Inglés Guadalajara", "El Corte Inglés León", "El Corte Inglés Gaia Porto", 
+            "El Corte Inglés Genil", "El Corte Inglés Gijón", "El Corte Inglés Girona", "El Corte Inglés Goya", "El Corte Inglés Gran Vía - Bilbao", 
+            "El Corte Inglés Huelva", "El Corte Inglés Independencia", "El Corte Inglés Jaume III", "El Corte Inglés Jaén", "El Corte Inglés Jerez", 
+            "El Corte Inglés José Mesa y López", "El Corte Inglés Lisboa", "El Corte Inglés Madrid Xanadú", "El Corte Inglés Salamanca", 
+            "El Corte Inglés Murcia", "El Corte Inglés Málaga", "El Corte Inglés Nervión", "El Corte Inglés Nuevo Centro", 
+            "El Corte Inglés Oviedo Salesas", "El Corte Inglés Oviedo Uría", "El Corte Inglés Pamplona", "El Corte Inglés Parque Burgos", 
+            "El Corte Inglés Castellón", "El Corte Inglés Pintor Sorolla-Colón", "El Corte Inglés Plaza del Duque", "El Corte Inglés Plaça de Catalunya", 
+            "El Corte Inglés Pozuelo", "El Corte Inglés Preciados-Callao", "El Corte Inglés Princesa", "El Corte Inglés Puerto Venecia", 
+            "El Corte Inglés Ronda de Córdoba", "El Corte Inglés Ronda de los Tejares - Cordoba", "El Corte Inglés Sabadell", "El Corte Inglés Sagasta", 
+            "El Corte Inglés San José de Valderas", "El Corte Inglés San Juan De Aznalfarache", "El Corte Inglés Sanchinarro", 
+            "El Corte Inglés Santander", "El Corte Inglés Santiago de Compostela", "El Corte Inglés Serrano", "El Corte Inglés Sevilla Este", 
+            "El Corte Inglés Siete Palmas", "El Corte Inglés Talavera de la Reina", "El Corte Inglés Tarragona", "El Corte Inglés Tres de Mayo", 
+            "El Corte Inglés Vigo", "El Corte Inglés Vista Alegre", "El Corte Inglés Vitoria", "El Corte Inglés Zorrilla - Valladolid", 
+            "Supermercado El Corte Inglés A Coruña", "Supermercado El Corte Inglés Boadilla", "Supermercado El Corte Inglés Burgos", 
+            "Supermercado El Corte Inglés El Escorial", "Supermercado El Corte Inglés Reyes Magos", "Supermercado El Corte Inglés Somosaguas", 
+            "Supermercado El Corte Inglés de López Ibor", "Supermercado de El Corte Inglés Francesc Macià", "Supermercado de El Corte Inglés Sotogrande"
+        ],
+        "Carrefour": [
+            "Central", "Aluche", "Hortaleza", "Las Rosas", "Los Ángeles", "Madrid Sur", "La Gavia", "Pinar de Chamartín", 
+            "Conde de Peñalver", "Alcalá de Henares", "Alcobendas", "Alcorcón", "Getafe", "Leganés", "Majadahonda", 
+            "Móstoles", "Pinar de las Rozas", "Rivas-Vaciamadrid", "San Fernando de Henares", "Torrejón de Ardoz", 
+            "Villalba", "Toledo", "Talavera de la Reina", "Ciudad Real", "Puertollano", "Alcázar de San Juan", 
+            "Albacete", "Guadalajara", "Cuenca", "Badajoz (Valdepasillas)", "Badajoz (La Granadilla)", "Mérida", 
+            "Don Benito - Villanueva", "Zafra", "Cáceres", "Plasencia", "San Pablo", "Macarena", "Montequinto", 
+            "Camas", "San Juan de Aznalfarache", "Dos Hermanas", "Écija", "Alameda", "Los Patios", "La Rosaleda", 
+            "Rincón de la Victoria", "Mijas", "Estepona", "Vélez-Málaga", "Torremolinos", "Antequera", "Coín", 
+            "Bahía (San Fernando)", "Jerez Norte", "Jerez Sur", "El Paseo (El Puerto)", "Algeciras", "La Línea", 
+            "Los Barrios", "Sanlúcar", "Granada (Armilla)", "Pulianas", "Motril", "Granada (Nevada)", "La Sierra", 
+            "Zahira", "Lucena", "Baena", "Almería", "Roquetas de Mar", "El Ejido", "Vícar", "Huércal-Overa", "Huelva", 
+            "Cartaya", "La Palma del Condado", "Jaén", "Úbeda", "Andújar", "Atalayas", "Zaraiche", "El Tiro", 
+            "Cartagena", "Paseo Alfonso XIII", "Lorca", "Águilas", "San Javier", "Yecla", "El Saler", "Campanar", 
+            "Arena", "Alfafar", "Paterna (Heron City)", "Paterna (Pista de Ademuz)", "Massalfassar", "Sagunto", 
+            "Alzira", "Gandía", "La Eliana", "Cullera", "Ontinyent", "Xàtiva", "Puerta de Alicante", "Gran Vía", 
+            "San Juan", "Elche", "Torrevieja", "Benidorm (Finestrat)", "Dénia", "Orihuela", "Petrer", 
+            "Valladolid (Parquesol)", "Valladolid (Delicias)", "Laguna de Duero", "León", "Ponferrada", 
+            "Burgos (El Mirador)", "Burgos (Carretera de Logroño)", "Miranda de Ebro", "Salamanca", 
+            "Salamanca (Avenida de los Agustinos)", "Palencia", "Segovia", "Zamora", "Ávila", "Soria", "Santa Pola", 
+            "Alcoy", "Torrevieja (Centro)", "Castellón", "Vila-real", "Vinaròs", "A Coruña (Alfonso Molina)", 
+            "A Coruña (Los Rosales)", "Santiago de Compostela", "Ferrol", "Oleiros", "Coristanco", "Vigo (Travesía)", 
+            "Vigo (Gran Vía)", "Pontevedra", "Lalín", "Lugo", "Ribadeo", "Ourense", "Oviedo (Los Prados)", 
+            "Lugones (Azabache)", "Gijón (La Calzada)", "Gijón (Los Fresnos)", "Avilés (Parque Astur)", "Pola de Siero", 
+            "Santander (Peñacastillo)", "Santander (El Alisal)", "Torrelavega", "Erandio", "Sestao", "Abadiño", 
+            "Oiartzun", "Eibar", "Vitoria (Gorbeia)", "Logroño", "Pamplona", "Tudela", "Augusta", "Actur", 
+            "Puerto Venecia", "Utebo", "Huesca", "Teruel", "Barcelona - Glòries", "L'Hospitalet", "Badalona", 
+            "Santa Coloma", "Barberà del Vallès", "Sant Cugat", "Terrassa", "Sabadell", "Cornellà", "El Prat", 
+            "Gavà", "Cabrera de Mar", "Granollers", "Vic", "Manresa", "Igualada", "Martorell", "Parets del Vallès", 
+            "Sant Fruitós de Bages", "Tarragona", "Reus", "Torredembarra", "Amposta", "Girona", "Figueres", "Olot", 
+            "Lleida", "Añaza (Santa Cruz)", "Meridiano (Santa Cruz)", "Santa María del Mar", "Las Arenas (Las Palmas)", 
+            "La Ballena (Las Palmas)", "Vecindario (Santa Lucía de Tirajana)"
+        ],
+        "Alcampo": [
+            "Central", "Alcobendas", "Alcalá de Henares (La Dehesa)", "Alcorcón", "Colmenar Viejo", "Fuenlabrada (Lorea)", 
+            "Getafe", "Leganés", "Majadahonda", "Torrejón de Ardoz", "Madrid - Vaguada", "Madrid - Vallecas", 
+            "Madrid - Moratalaz", "Madrid - Pío XII", "Madrid - Estrellas", "Madrid - Vista Alegre", 
+            "Zaragoza - Los Enlaces", "Zaragoza - Utebo", "Zaragoza - Picarral", "Zaragoza - Puerto Venecia", 
+            "Huesca", "Teruel", "Sevilla", "Granada", "Motril", "Almería", "Jerez de la Frontera", "Sanlúcar de Barrameda", 
+            "Algeciras", "Linares", "Marbella", "Barcelona - Diagonal Mar", "Sant Adrià de Besòs", "Sant Boi de Llobregat", 
+            "Mataró", "Reus", "Alboraia", "Aldaia", "Castellón", "Alicante", "Orihuela Costa", "Vigo - Coia", 
+            "Vigo - Avenida de Madrid", "A Coruña - Palavea", "Santiago de Compostela", "Ferrol", "Vilagarcía de Arousa", 
+            "Lugo", "Valladolid", "Burgos", "Salamanca", "Zamora", "Gijón", "Santander", "Oiartzun", "Murcia", "Logroño", 
+            "Toledo", "Cuenca", "Valdepeñas", "La Laguna", "Telde", "Marratxí"
+        ],
+        "MISTORES": [
+            "MI ALMERIA", "MI CEUTA", "MI VIGO", "MI STORE C.C. LA GAVIA", "MI PUERTO VENECIA", "MI VALLADOLID", 
+            "MI STORE CC GRAN VÍA ALICANTE", "MI STORE CC ISLAZUL", "MI STORE GRAN VÍA 2", "MI STORE MAQUINISTA", 
+            "MI STORE XANADU", "MI STORE CASTELLÓN"
+        ],
+        "Orange": [
+            "Central", "ONDALIBRE", "KIWITEL", "ISP", "ONE STORE", "ECOPLANA", "IS CELL", "TIENDAS DE LEVANTE", 
+            "FREE TELECOM", "FREE TELECOM (Comerciales)", "OK CLUB", "MUNDOCOM", "MUNDOCOM (COMERCIALES)", 
+            "ANEVINIP", "TELMASUR", "PROMOVIL", "CLM", "OSHOP", "Tiendas Propias", "DESPLIEGUE OT NORTE", 
+            "DESPLIEGUE OT SUR", "DESPLIEGUE OT CENTRO", "DESPLIEGUE OT CATALUÑA", "DESPLIEGUE OT LEVANTE", 
+            "ISGF Murcia", "FOUNDEVER Sevilla", "KONECTA Sevilla", "OEST Oviedo", "MARKTEL Valencia", 
+            "Jazzplat Guadalajara", "ISGF Alicante", "TLP Salamanca", "TRANSCOM León", "MAJOREL Salamanca", 
+            "TELEPERFORMANCE MEDELLÍN", "JAZZPLAT BOGOTÁ", "STREAM MOBILE - Cartes", "ATAKAM - Salamanca", 
+            "ATAKAM - Valladolid", "KONECTA - Sevilla", "BEMORE - Madrid", "SERVINFORM - Torrejón de Ardoz", 
+            "GSS - Badajoz", "KONECTA - Córdoba", "Foundever Sevilla negocios", "Teleperformance Salamanca negocios", 
+            "BOSCH Vigo negocios", "COMVERS Sevilla negocios", "FOUNDEVER Sevilla negocios", "JCP2CALL Málaga negocios", 
+            "KONECTA Sevilla negocios", "TNT Lugo negocios"
+        ],
+        "MásMóvil": [
+            "Central", "Stream Cantabria", "Konecta Córdoba Residencial", "Konecta Córdoba Negocios", 
+            "Servinform Madrid Residencial", "Konecta Sevilla", "Marktel Madrid Negocios", "Serviform Valladolid Negocios", 
+            "Servinform Madrid Negocios", "PERU", "NEKXUS COLOMBIA", "KONECTA LIMA"
+        ],
+        "Vodafone": [
+            "Central", "KONECTA Sevilla", "KONECTA Valladolid", "MAJOREL Zaragoza", "TP Ponferrada", "KONECTA Sevilla (PIBO)", 
+            "KONECTA Valladolid (Cartera)", "MARKTEL Albacete", "VPLAT Madrid", "VPLAT Valladolid", "Red chain", "Bonatel", 
+            "Pablo Sánchez XXI", "Climent", "Eulogio (grupo teleoperator)", "Grupo Móvil", "Servitel XXI", "Ondas System SL", 
+            "New Concept / vivacom", "Mederos", "TDC SENSITIA", "Despliegue de Oferta Central"
+        ],
+        "Euskaltel": [
+            "Central", "IBERMATICA Donostia", "LANALDEN Bilbao", "LANALDEN Derio", "XUPERA Barakaldo", "KONECTA A Coruña", 
+            "GSC A Coruña", "Eulen Gijón", "OSP Oviedo", "V3 Valladolid"
+        ],
+        "Fnac": [
+            "Central", "Fnac Callao", "Fnac Goya", "Fnac Castellana", "Fnac La Gavia", "Fnac Plaza Río", "Fnac Parquesur", 
+            "Fnac Plaza Norte 2", "Fnac Gran Plaza 2", "Fnac Oasiz", "Fnac Connect Universidad Europea", "Fnac Triangle", 
+            "Fnac L'Illa", "Fnac Arenas", "Fnac Glòries", "Fnac La Maquinista", "Fnac Splau", "Fnac Girona", "Fnac San Agustín", 
+            "Fnac Bonaire", "Fnac Salera", "Fnac Alicante", "Fnac Nueva Condomina", "Fnac Sevilla", "Fnac Torre Sevilla", 
+            "Fnac Málaga", "Fnac Marbella", "Fnac Granada", "Fnac Bilbao", "Fnac Donostia", "Fnac La Morea", 
+            "Fnac Connect Pamplona", "Fnac Principado", "Fnac A Coruña", "Fnac Vigo", "Fnac Plaza España", 
+            "Fnac Puerto Venecia", "Fnac Río Shopping", "Fnac Mallorca"
+        ],
+        "Telefónica": [
+            "Central", "Plataformas Colombia", "Plataforma Atento Santander", "Plataforma Atento Barcelona", 
+            "Plataforma Atento Toledo", "Plataforma Eurocen La Coruña", "Plataforma Eurocen Zaragoza", 
+            "Plataforma Eurocen Málaga", "Talleres flagship Aprende", "COMMCENTER", "PHONEMOVIL", 
+            "PHONEMOVIL PYMES", "JOVITEL", "CATPHONE", "JESMON", "BERMA", "MOBILEPHONE", "COMPLUTEL", "Telyco"
+        ]
     };
 
-    let session = getSessionData(), currentUser = session?session.user:'Desconocido', realName = session?session.name:'Desconocido', role = session?session.role:'User';
-    let additiveFiles = [];
-    let isLoadingEdit = false;
-    
-    // RECUPERAR DATOS DE EDICIÓN/DUPLICACIÓN
-    const editData = window.reportEditData || null;
-    const isEdit = editData && editData.mode === 'edit';
-    const isDuplicate = editData && editData.mode === 'duplicate';
+    const dispositivosMobiles = ["Redmi 15 Series", "Redmi 15C Series", "Redmi A5", "Redmi A7 Pro", "Redmi Note 15 Series", "Xiaomi 17 series", "Xiaomi 17T Series"];
+    const dispositivosNoMobiles = ["Aire Acondicionado", "Audio y Sonido", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series"];
 
     const html = `
-        <div class="report-module fade-in">
-            <header class="report-header">
-                <h2 style="font-size: 2.2rem; letter-spacing: -0.03em;"><i data-lucide="${isEdit ? 'edit-2' : (isDuplicate ? 'copy' : 'rocket')}" style="color: var(--xiaomi-orange); width: 32px; vertical-align: middle; margin-right: 12px;"></i> ${isEdit ? 'Actualizar Reporte' : (isDuplicate ? 'Duplicar Reporte' : 'Registro de Impacto')}</h2>
-                <p style="color: var(--text-medium); font-weight: 500; font-size: 1.1rem; margin-top: 10px;">${isEdit ? 'Modifica los datos necesarios y guarda los cambios.' : 'Registra tu actividad diaria y demuestra el potencial de Xiaomi.'}</p>
-            </header>
-            
-            <form id="activityForm" class="glass-card report-form-card">
-                <div id="adminArea" style="display:none; background:var(--xiaomi-orange-light); padding:1.5rem; border-radius: 20px; margin-bottom: 2.5rem; border: 1px solid var(--xiaomi-orange);">
-                    <div class="form-group" style="margin: 0;">
-                        <label class="form-label" style="color: var(--xiaomi-orange); font-weight: 700;">Imputar actividad a:</label>
-                        <select id="trainer" name="trainer" class="form-control"></select>
-                    </div>
+    <div class="report-module fade-in">
+        <header class="section-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-main); padding-bottom: 1.5rem;">
+            <h2 style="font-size: 1.75rem; margin-bottom: 0.5rem;"><i data-lucide="edit-3" style="color: var(--xiaomi-orange); width: 28px; vertical-align: middle; margin-right: 10px;"></i> ${editData ? 'Editar Reporte' : 'Nuevo Reporte de Formación'}</h2>
+            <p style="color:var(--text-medium); font-weight: 500;">Registra los detalles de tu última sesión de entrenamiento.</p>
+        </header>
+
+        <form id="trainingForm" class="glass-card report-form-card">
+            <div id="adminArea" style="display: none; background: var(--xiaomi-orange-light); padding: 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 2rem; border: 1px dashed var(--xiaomi-orange);">
+                <h4 style="margin-top:0; color: var(--xiaomi-orange); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Panel de Administrador</h4>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Reportar como:</label>
+                    <select id="trainer" name="trainer" class="form-control">
+                        <option value="${currentUser}">${currentUser}</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+                <div class="form-group">
+                    <label class="form-label" for="fecha">Fecha de formación</label>
+                    <input type="date" id="fecha" name="fecha" class="form-control" required value="${editData ? editData.fecha : ''}">
                 </div>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; margin-bottom: 1.5rem;">
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label class="form-label">Fecha del Reporte *</label>
-                        <input type="date" id="fecha" name="fecha" class="form-control" required value="${(() => {
-                            if (!editData || !editData.fecha) return '';
-                            try {
-                                const d = new Date(editData.fecha);
-                                if (isNaN(d.getTime())) return '';
-                                const y = d.getFullYear();
-                                const m = String(d.getMonth() + 1).padStart(2, '0');
-                                const day = String(d.getDate()).padStart(2, '0');
-                                return `${y}-${m}-${day}`;
-                            } catch(e) { return ''; }
-                        })()}">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label class="form-label">Metodología *</label>
-                        <select id="metodologia" name="metodologia" class="form-control" required>
-                            <option value="">Selecciona...</option>
-                            <option value="Classroom">Classroom</option>
-                            <option value="Webinar">Webinar</option>
-                            <option value="POS">POS</option>
-                            <option value="Training Materials">Training Materials</option>
-                            <option value="Backoffice">Backoffice</option>
-                            <option value="Commuting">Commuting</option>
-                            <option value="Hospitality">Hospitality</option>
-                        </select>
-                    </div>
+                <div class="form-group">
+                    <label class="form-label" for="metodologia">Metodología</label>
+                    <select id="metodologia" name="metodologia" class="form-control" required>
+                        <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona...</option>
+                        <option value="Backoffice" ${editData && editData.metodologia === 'Backoffice' ? 'selected' : ''}>Backoffice</option>
+                        <option value="Classroom" ${editData && editData.metodologia === 'Classroom' ? 'selected' : ''}>Classroom</option>
+                        <option value="Hospitality" ${editData && editData.metodologia === 'Hospitality' ? 'selected' : ''}>Hospitality</option>
+                        <option value="Live" ${editData && editData.metodologia === 'Live' ? 'selected' : ''}>Live</option>
+                        <option value="POS" ${editData && editData.metodologia === 'POS' ? 'selected' : ''}>POS</option>
+                        <option value="Reunión Interna" ${editData && editData.metodologia === 'Reunión Interna' ? 'selected' : ''}>Reunión Interna</option>
+                        <option value="Training Material" ${editData && editData.metodologia === 'Training Material' ? 'selected' : ''}>Training Material</option>
+                        <option value="Viaje" ${editData && editData.metodologia === 'Viaje' ? 'selected' : ''}>Viaje</option>
+                        <option value="Webinar" ${editData && editData.metodologia === 'Webinar' ? 'selected' : ''}>Webinar</option>
+                    </select>
                 </div>
 
-                <div class="form-group" id="rowCuenta" style="margin-bottom: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-main);">
-                    <div id="wrapperCuenta">
-                        <label id="labelCuenta" class="form-label">Cuenta Principal *</label>
-                        <select id="cuenta" name="cuenta" class="form-control" required>
-                            <option value="">Selecciona la cuenta...</option>
-                            ${Object.keys(distribuidores).map(c=>`<option value="${c}">${c}</option>`).join('')}
-                        </select>
-                    </div>
+                <div class="form-group" id="wrapperCuenta">
+                    <label class="form-label" for="cuenta">Cuenta *</label>
+                    <select id="cuenta" name="cuenta" class="form-control" required>
+                        <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona la cuenta...</option>
+                        <option value="Internal Training" ${editData && editData.cuenta === 'Internal Training' ? 'selected' : ''}>Internal Training</option>
+                        <option value="MediaMarkt" ${editData && editData.cuenta === 'MediaMarkt' ? 'selected' : ''}>MediaMarkt</option>
+                        <option value="ECI" ${editData && editData.cuenta === 'ECI' ? 'selected' : ''}>ECI</option>
+                        <option value="Carrefour" ${editData && editData.cuenta === 'Carrefour' ? 'selected' : ''}>Carrefour</option>
+                        <option value="Alcampo" ${editData && editData.cuenta === 'Alcampo' ? 'selected' : ''}>Alcampo</option>
+                        <option value="Orange" ${editData && editData.cuenta === 'Orange' ? 'selected' : ''}>Orange</option>
+                        <option value="Vodafone" ${editData && editData.cuenta === 'Vodafone' ? 'selected' : ''}>Vodafone</option>
+                        <option value="MásMóvil" ${editData && editData.cuenta === 'MásMóvil' ? 'selected' : ''}>MásMóvil</option>
+                        <option value="Euskaltel" ${editData && editData.cuenta === 'Euskaltel' ? 'selected' : ''}>Euskaltel</option>
+                        <option value="Fnac" ${editData && editData.cuenta === 'Fnac' ? 'selected' : ''}>Fnac</option>
+                        <option value="MISTORES" ${editData && editData.cuenta === 'MISTORES' ? 'selected' : ''}>MISTORES</option>
+                        <option value="Telefónica" ${editData && editData.cuenta === 'Telefónica' ? 'selected' : ''}>Telefónica</option>
+                    </select>
                 </div>
 
-                <div id="distWrapper" style="display:none; margin-bottom:2rem; background: var(--bg-main); padding: 2rem; border-radius: 24px; border: 1px solid var(--border-main);">
-                    <div class="form-group" style="margin: 0;">
-                        <label class="form-label"><i data-lucide="map-pin" style="width:14px; margin-right:5px;"></i> Distribuidor / Tienda / Call Center *</label>
-                        <select id="distribuidor" name="distribuidor" class="form-control"></select>
-                    </div>
-                    <div id="manualEntry" style="display:none; margin-top:1.5rem;">
-                        <input type="text" id="distribuidor_custom" class="form-control" placeholder="Escribe el nombre de la nueva ubicación...">
-                    </div>
+                <div class="form-group" id="distWrapper" style="display: none;">
+                    <label class="form-label" for="distribuidor">Tienda / Centro</label>
+                    <select id="distribuidor" name="distribuidor" class="form-control"></select>
                 </div>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
-                    <div class="form-group" id="wrapperSesiones">
-                        <label class="form-label">Sesiones Realizadas *</label>
-                        <input type="number" id="sesiones" name="sesiones" class="form-control" required min="1" value="${editData ? editData.sesiones : ''}">
-                    </div>
-                    <div class="form-group" id="wrapperAlumnos">
-                        <label class="form-label">Alumnos Formados *</label>
-                        <input type="number" id="alumnos" name="alumnos" class="form-control" required min="1" value="${editData ? editData.alumnos : ''}">
-                    </div>
+                <div class="form-group" id="wrapperCiudad">
+                    <label class="form-label" for="ciudad">Ciudad</label>
+                    <select id="ciudad" name="ciudad" class="form-control" required placeholder="Escribe o selecciona ciudad..."></select>
                 </div>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
-                    <div class="form-group">
-                        <label class="form-label">Duración Total (h) *</label>
-                        <input type="number" id="duracion" name="duracion" class="form-control" step="0.1" required min="0.5" value="${editData ? editData.duracion : ''}">
-                    </div>
-                    <div class="form-group" id="wrapperTiendas">
-                        <label class="form-label">Nº Tiendas *</label>
-                        <input type="number" id="tiendas" name="tiendas" class="form-control" required min="0" value="${editData ? (editData.tiendas || 0) : ''}">
-                    </div>
+                <div class="form-group" id="wrapperProvincia">
+                    <label class="form-label" for="provincia">Provincia</label>
+                    <select id="provincia" name="provincia" class="form-control" required>
+                        <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona provincia...</option>
+                        <option value="PORTUGAL" ${editData && editData.provincia === 'PORTUGAL' ? 'selected' : ''}>PORTUGAL</option>
+                        <optgroup label="España">
+                            <option value="Álava" ${editData && editData.provincia === 'Álava' ? 'selected' : ''}>Álava</option>
+                            <option value="Albacete" ${editData && editData.provincia === 'Albacete' ? 'selected' : ''}>Albacete</option>
+                            <option value="Alicante" ${editData && editData.provincia === 'Alicante' ? 'selected' : ''}>Alicante</option>
+                            <option value="Almería" ${editData && editData.provincia === 'Almería' ? 'selected' : ''}>Almería</option>
+                            <option value="Asturias" ${editData && editData.provincia === 'Asturias' ? 'selected' : ''}>Asturias</option>
+                            <option value="Ávila" ${editData && editData.provincia === 'Ávila' ? 'selected' : ''}>Ávila</option>
+                            <option value="Badajoz" ${editData && editData.provincia === 'Badajoz' ? 'selected' : ''}>Badajoz</option>
+                            <option value="Baleares" ${editData && editData.provincia === 'Baleares' ? 'selected' : ''}>Baleares</option>
+                            <option value="Barcelona" ${editData && editData.provincia === 'Barcelona' ? 'selected' : ''}>Barcelona</option>
+                            <option value="Burgos" ${editData && editData.provincia === 'Burgos' ? 'selected' : ''}>Burgos</option>
+                            <option value="Cáceres" ${editData && editData.provincia === 'Cáceres' ? 'selected' : ''}>Cáceres</option>
+                            <option value="Cádiz" ${editData && editData.provincia === 'Cádiz' ? 'selected' : ''}>Cádiz</option>
+                            <option value="Cantabria" ${editData && editData.provincia === 'Cantabria' ? 'selected' : ''}>Cantabria</option>
+                            <option value="Castellón" ${editData && editData.provincia === 'Castellón' ? 'selected' : ''}>Castellón</option>
+                            <option value="Ceuta" ${editData && editData.provincia === 'Ceuta' ? 'selected' : ''}>Ceuta</option>
+                            <option value="Ciudad Real" ${editData && editData.provincia === 'Ciudad Real' ? 'selected' : ''}>Ciudad Real</option>
+                            <option value="Córdoba" ${editData && editData.provincia === 'Córdoba' ? 'selected' : ''}>Córdoba</option>
+                            <option value="Cuenca" ${editData && editData.provincia === 'Cuenca' ? 'selected' : ''}>Cuenca</option>
+                            <option value="Gerona" ${editData && editData.provincia === 'Gerona' ? 'selected' : ''}>Gerona</option>
+                            <option value="Granada" ${editData && editData.provincia === 'Granada' ? 'selected' : ''}>Granada</option>
+                            <option value="Guadalajara" ${editData && editData.provincia === 'Guadalajara' ? 'selected' : ''}>Guadalajara</option>
+                            <option value="Guipúzcoa" ${editData && editData.provincia === 'Guipúzcoa' ? 'selected' : ''}>Guipúzcoa</option>
+                            <option value="Huelva" ${editData && editData.provincia === 'Huelva' ? 'selected' : ''}>Huelva</option>
+                            <option value="Huesca" ${editData && editData.provincia === 'Huesca' ? 'selected' : ''}>Huesca</option>
+                            <option value="Jaén" ${editData && editData.provincia === 'Jaén' ? 'selected' : ''}>Jaén</option>
+                            <option value="La Coruña" ${editData && editData.provincia === 'La Coruña' ? 'selected' : ''}>La Coruña</option>
+                            <option value="La Rioja" ${editData && editData.provincia === 'La Rioja' ? 'selected' : ''}>La Rioja</option>
+                            <option value="Las Palmas" ${editData && editData.provincia === 'Las Palmas' ? 'selected' : ''}>Las Palmas</option>
+                            <option value="León" ${editData && editData.provincia === 'León' ? 'selected' : ''}>León</option>
+                            <option value="Lérida" ${editData && editData.provincia === 'Lérida' ? 'selected' : ''}>Lérida</option>
+                            <option value="Lugo" ${editData && editData.provincia === 'Lugo' ? 'selected' : ''}>Lugo</option>
+                            <option value="Madrid" ${editData && editData.provincia === 'Madrid' ? 'selected' : ''}>Madrid</option>
+                            <option value="Málaga" ${editData && editData.provincia === 'Málaga' ? 'selected' : ''}>Málaga</option>
+                            <option value="Melilla" ${editData && editData.provincia === 'Melilla' ? 'selected' : ''}>Melilla</option>
+                            <option value="Murcia" ${editData && editData.provincia === 'Murcia' ? 'selected' : ''}>Murcia</option>
+                            <option value="Navarra" ${editData && editData.provincia === 'Navarra' ? 'selected' : ''}>Navarra</option>
+                            <option value="Orense" ${editData && editData.provincia === 'Orense' ? 'selected' : ''}>Orense</option>
+                            <option value="Palencia" ${editData && editData.provincia === 'Palencia' ? 'selected' : ''}>Palencia</option>
+                            <option value="Pontevedra" ${editData && editData.provincia === 'Pontevedra' ? 'selected' : ''}>Pontevedra</option>
+                            <option value="Salamanca" ${editData && editData.provincia === 'Salamanca' ? 'selected' : ''}>Salamanca</option>
+                            <option value="Santa Cruz de Tenerife" ${editData && editData.provincia === 'Santa Cruz de Tenerife' ? 'selected' : ''}>Santa Cruz de Tenerife</option>
+                            <option value="Segovia" ${editData && editData.provincia === 'Segovia' ? 'selected' : ''}>Segovia</option>
+                            <option value="Sevilla" ${editData && editData.provincia === 'Sevilla' ? 'selected' : ''}>Sevilla</option>
+                            <option value="Soria" ${editData && editData.provincia === 'Soria' ? 'selected' : ''}>Soria</option>
+                            <option value="Tarragona" ${editData && editData.provincia === 'Tarragona' ? 'selected' : ''}>Tarragona</option>
+                            <option value="Teruel" ${editData && editData.provincia === 'Teruel' ? 'selected' : ''}>Teruel</option>
+                            <option value="Toledo" ${editData && editData.provincia === 'Toledo' ? 'selected' : ''}>Toledo</option>
+                            <option value="Valencia" ${editData && editData.provincia === 'Valencia' ? 'selected' : ''}>Valencia</option>
+                            <option value="Valladolid" ${editData && editData.provincia === 'Valladolid' ? 'selected' : ''}>Valladolid</option>
+                            <option value="Vizcaya" ${editData && editData.provincia === 'Vizcaya' ? 'selected' : ''}>Vizcaya</option>
+                            <option value="Zamora" ${editData && editData.provincia === 'Zamora' ? 'selected' : ''}>Zamora</option>
+                            <option value="Zaragoza" ${editData && editData.provincia === 'Zaragoza' ? 'selected' : ''}>Zaragoza</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-main); margin: 2rem 0;">
+
+            <div class="form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+                <div class="form-group" id="wrapperContenidos">
+                    <label class="form-label" for="contenidos">Contenidos</label>
+                    <select id="contenidos" name="contenidos" class="form-control" required>
+                        <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona contenido...</option>
+                        <option value="Launch" ${editData && editData.contenidos === 'Launch' ? 'selected' : ''}>Launch</option>
+                        <option value="On boarding" ${editData && editData.contenidos === 'On boarding' ? 'selected' : ''}>On boarding</option>
+                        <option value="Reforce" ${editData && editData.contenidos === 'Reforce' ? 'selected' : ''}>Reforce</option>
+                        <option value="Refresh" ${editData && editData.contenidos === 'Refresh' ? 'selected' : ''}>Refresh</option>
+                    </select>
                 </div>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2.5rem; padding: 2rem; background: var(--bg-main); border-radius: 24px;">
-                    <div class="form-group" id="wrapperPerfil" style="margin:0;">
-                        <label id="labelPerfil" class="form-label">Perfil de Alumno *</label>
-                        <select id="perfil" name="perfil" class="form-control" required>
-                            <option value="" selected disabled>Selecciona...</option>
-                            <option value="Vendedor">Vendedor</option>
-                            <option value="Promotor">Promotor</option>
-                            <option value="Teleoperador">Teleoperador</option>
-                            <option value="Cliente">Cliente</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                        <label class="form-label">Ciudad / Localidad *</label>
-                        <select id="ciudad" name="ciudad" class="form-control" required></select>
-                    </div>
+                <div class="form-group" id="wrapperPerfil">
+                    <label class="form-label" for="perfil">Perfil de asistentes</label>
+                    <select id="perfil" name="perfil" class="form-control" required>
+                        <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona perfil...</option>
+                        <option value="Interno" ${editData && editData.perfil === 'Interno' ? 'selected' : ''}>Interno</option>
+                        <option value="Promotor" ${editData && editData.perfil === 'Promotor' ? 'selected' : ''}>Promotor</option>
+                        <option value="Teleoperador" ${editData && editData.perfil === 'Teleoperador' ? 'selected' : ''}>Teleoperador</option>
+                        <option value="Trainer" ${editData && editData.perfil === 'Trainer' ? 'selected' : ''}>Trainer</option>
+                        <option value="Vendedor" ${editData && editData.perfil === 'Vendedor' ? 'selected' : ''}>Vendedor</option>
+                    </select>
                 </div>
+            </div>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 2.5rem;">
-                   <div class="form-group" id="wrapperContenidos">
-                        <label id="labelContenidos" class="form-label">Tipo de Contenido *</label>
-                        <select id="contenidos" name="contenidos" class="form-control" required>
-                            <option value="" selected disabled>Selecciona...</option>
-                            <option value="On boarding">On boarding</option>
-                            <option value="Launch">Launch</option>
-                            <option value="Refresh">Refresh</option>
-                            <option value="Reforce">Reforce</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Provincia *</label>
-                        <select id="provincia" name="provincia" class="form-control" required>
-                            <option value="">Selecciona...</option>
-                            ${provincias.map(p=>`<option value="${p}">${p}</option>`).join('')}
-                        </select>
-                    </div>
+            <div class="form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                <div class="form-group" id="wrapperSesiones">
+                    <label class="form-label" for="sesiones">Nº Sesiones</label>
+                    <input type="number" id="sesiones" name="sesiones" class="form-control" min="0" required value="${editData ? editData.sesiones : ''}" placeholder="0">
                 </div>
+                <div class="form-group" id="wrapperAlumnos">
+                    <label class="form-label" for="alumnos">Nº Personas</label>
+                    <input type="number" id="alumnos" name="alumnos" class="form-control" min="0" required value="${editData ? editData.alumnos : ''}" placeholder="0">
+                </div>
+                <div class="form-group" id="wrapperTiendas">
+                    <label class="form-label" for="tiendas">Nº de Tiendas</label>
+                    <input type="number" id="tiendas" name="tiendas" class="form-control" min="0" required value="${editData ? editData.tiendas : ''}" placeholder="0">
+                </div>
+                <div class="form-group" id="wrapperHoras">
+                    <label class="form-label" for="duracion">Duración (Horas)</label>
+                    <input type="number" id="duracion" name="duracion" class="form-control" step="0.25" min="0" required value="${editData ? editData.duracion : ''}" placeholder="0.00">
+                </div>
+            </div>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; margin-bottom: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--border-main);">
-                    <div class="form-group">
-                        <label class="form-label"><i data-lucide="smartphone" style="width:14px; margin-right:5px;"></i> Formación en Móviles</label>
-                        <select id="dispositivos" name="dispositivos" multiple class="form-control"></select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label"><i data-lucide="home" style="width:14px; margin-right:5px;"></i> Formación en Ecosistema</label>
-                        <select id="dispositivos_no_movil" name="dispositivos_no_movil" multiple class="form-control"></select>
-                    </div>
+            <div class="form-group" style="margin-top: 1.5rem;">
+                <label class="form-label">Dispositivos Xiaomi</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <select id="dispositivos" name="dispositivos" multiple placeholder="Móviles..."></select>
+                    <select id="dispositivos_no_movil" name="dispositivos_no_movil" multiple placeholder="Ecosistema..."></select>
                 </div>
+            </div>
 
-                <div class="form-group" style="margin-bottom: 3rem;">
-                    <label class="form-label">Observaciones</label>
-                    <textarea name="comentarios" class="form-control" rows="4" placeholder="Algún detalle relevante de la sesión..." style="resize:none; border-radius: 16px;">${editData ? (editData.comentarios || '') : ''}</textarea>
-                </div>
+            <div class="form-group" style="margin-top: 1.5rem;">
+                <label class="form-label" for="comentarios">Comentarios / Observaciones</label>
+                <textarea id="comentarios" name="comentarios" class="form-control" style="min-height: 100px; resize: vertical;" placeholder="Cualquier detalle relevante...">${editData ? editData.comentarios : ''}</textarea>
+            </div>
 
-                <div id="photoSection" style="background: var(--bg-main); padding: 2.5rem; border-radius: 32px; border: 2px dashed var(--border-main); margin-bottom: 4rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-                         <label class="form-label" style="margin:0; display:flex; align-items:center; gap:10px; font-size: 1rem;"><i data-lucide="camera" style="color: var(--xiaomi-orange);"></i> Añadir Fotografías de Evidencia ${isEdit ? '<small style="font-weight:400; color:var(--text-muted);">(Se añadirán a las actuales)</small>' : ''}</label>
-                         <span id="photoCounter" class="badge" style="background:var(--xiaomi-orange); color:white; font-weight:700; border-radius: 10px; padding: 5px 12px;">0</span>
+            <div class="form-group" style="margin-top: 1.5rem;">
+                <label class="form-label" id="photoLabel">Fotos (0/20)</label>
+                <div id="photoContainer" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px;">
+                    <div class="photo-upload-box" id="photoTrigger" style="width: 100px; height: 100px; border: 2px dashed var(--border-main); border-radius: var(--border-radius-md); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease;">
+                        <i data-lucide="camera" style="width: 32px; height: 32px; color: var(--text-muted);"></i>
+                        <span style="font-size: 0.65rem; color: var(--text-muted); margin-top: 8px; font-weight: 700;">Añadir</span>
                     </div>
-                    <div style="text-align:center; padding: 1rem; border: 1px dashed var(--border-main); border-radius: 16px; background: var(--bg-card); cursor: pointer;" onclick="document.getElementById('fotosInput').click()">
-                        <i data-lucide="upload-cloud" style="width:32px; height:32px; color:var(--text-muted); margin-bottom:0.5rem;"></i>
-                        <p style="font-size:0.85rem; color: var(--text-medium); font-weight:500;">Haz clic para seleccionar o arrastra tus imágenes (Máx 20)</p>
-                    </div>
-                    <input type="file" id="fotosInput" class="form-control" accept="image/*" multiple style="display:none;">
-                    <div id="photoList" style="margin-top:2rem; display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:15px;"></div>
                 </div>
+                <input type="file" id="photoInput" style="display: none;" accept="image/*" multiple>
+                <input type="hidden" id="photoData" name="photoData">
+            </div>
 
-                <div style="display: flex; gap: 1.5rem; justify-content: flex-end; padding-top: 2rem; border-top: 1px solid var(--border-main);">
-                    <button type="button" onclick="window.reportEditData=null; navigate('#dashboard')" class="btn-secondary" style="height:52px; padding: 0 2rem; border-radius: 16px;">Cancelar</button>
-                    <button type="submit" id="btnSubmit" class="btn-primary" style="height:52px; padding: 0 3rem; border-radius: 16px; font-weight: 700; font-size: 1.1rem; background: var(--xiaomi-orange);">
-                        <i data-lucide="check" style="width:20px; margin-right: 8px;"></i> ${isEdit ? 'Guardar Cambios' : 'Enviar Reporte'}
-                    </button>
-                </div>
-            </form>
-        </div>
+            <div style="margin-top: 3rem; display: flex; gap: 15px;">
+                ${editData ? '<button type="button" id="btnCancel" class="btn-outline" style="flex:1; height: 55px; font-size: 1.1rem;">Cancelar</button>' : ''}
+                <button type="submit" id="btnSubmit" class="btn-primary" style="flex: 2; height: 55px; font-size: 1.1rem; font-weight: 700;">
+                    <i data-lucide="send" style="width: 20px;"></i> ${editData ? 'Guardar Cambios' : 'Enviar Reporte'}
+                </button>
+            </div>
+        </form>
+    </div>
     `;
 
     container.innerHTML = html;
@@ -195,241 +372,279 @@ function renderReport(container) {
 
     if (role === 'Admin') {
         document.getElementById('adminArea').style.display = 'block';
-        sendJSONP('getUsersList').then(res => {
+        api.getUsersList().then(res => {
             if(res.status === 'success') {
                 const s = document.getElementById('trainer'); 
                 if(s) {
                     s.innerHTML = '';
-                    res.data.forEach(u => s.innerHTML += `<option value="${u}">${u}</option>`);
+                    res.data.forEach(u => s.innerHTML += `<option value="${u.user || u}">${u.name || u}</option>`);
                     s.value = editData ? editData.trainer : currentUser;
                 }
             }
         });
     }
 
-    const tsCiudad = new TomSelect("#ciudad", { create: true, placeholder: "Escribe..." });
-    if(editData && editData.ciudad) tsCiudad.setValue(editData.ciudad);
-    const tsM = new TomSelect("#dispositivos", { plugins: ['remove_button'], create: true, placeholder: "Móviles..." });
+    let tsTienda = null;
+    const tsCue = new TomSelect("#cuenta", { 
+        placeholder: "Busca cuenta...",
+        sortField: { field: "text", direction: "asc" },
+        dropdownParent: 'body'
+    });
+
+    const updateTiendas = (val) => {
+        const dw = document.getElementById('distWrapper'), ds = document.getElementById('distribuidor');
+        if(!dw || !ds) return;
+
+        if (val === "Internal Training") {
+            dw.style.display = 'none';
+            if(tsTienda) { tsTienda.destroy(); tsTienda = null; }
+            ds.innerHTML = "";
+            return;
+        }
+
+        if(tsTienda) { tsTienda.destroy(); tsTienda = null; }
+        
+        if(distribuidores[val]) {
+            dw.style.display = 'block'; 
+            ds.innerHTML = '<option value="">Busca o selecciona tienda...</option>';
+            distribuidores[val].forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d; opt.innerText = d;
+                ds.appendChild(opt);
+            });
+            
+            tsTienda = new TomSelect("#distribuidor", {
+                create: true,
+                placeholder: "Escribe para buscar o añadir...",
+                sortField: { field: "text", direction: "asc" },
+                dropdownParent: 'body'
+            });
+
+            if(editData && editData.distribuidor && (distribuidores[val].includes(editData.distribuidor) || editData.distribuidor.startsWith('+'))) {
+                tsTienda.setValue(editData.distribuidor.replace('+ ', ''));
+            }
+        } else {
+            dw.style.display = 'none';
+        }
+    };
+
+    tsCue.on('change', (val) => updateTiendas(val));
+
+    const tsCiudad = new TomSelect("#ciudad", { 
+        create: true, 
+        placeholder: "Escribe...",
+        dropdownParent: 'body'
+    });
+    const tsM = new TomSelect("#dispositivos", { 
+        plugins: ['remove_button'], 
+        create: true, 
+        placeholder: "Móviles...",
+        dropdownParent: 'body'
+    });
     dispositivosMobiles.forEach(d => tsM.addOption({value:d, text:d}));
-    const tsNM = new TomSelect("#dispositivos_no_movil", { plugins: ['remove_button'], create: true, placeholder: "Ecosistema..." });
+    const tsNM = new TomSelect("#dispositivos_no_movil", { 
+        plugins: ['remove_button'], 
+        create: true, 
+        placeholder: "Ecosistema...",
+        dropdownParent: 'body'
+    });
     dispositivosNoMobiles.forEach(d => tsNM.addOption({value:d, text:d}));
 
-    sendJSONP('getCitiesList').then(res => { 
+    api.getCitiesList().then(res => { 
         if(res.status==='success' && tsCiudad) {
              res.data.forEach(c => tsCiudad.addOption({value:c, text:c}));
              if(editData) tsCiudad.setValue(editData.ciudad);
         }
     });
 
-    const met = document.getElementById('metodologia'), cue = document.getElementById('cuenta'), con = document.getElementById('contenidos'), 
-          per = document.getElementById('perfil'), ses = document.getElementById('sesiones'), alu = document.getElementById('alumnos'), tie = document.getElementById('tiendas');
+    const met = document.getElementById('metodologia'), con = document.getElementById('contenidos'), 
+          per = document.getElementById('perfil');
     
     met.onchange = () => {
-        const triggers = ["Commuting", "Backoffice", "Training Materials"], isBlock = triggers.includes(met.value);
-        cue.disabled = isBlock; cue.required = !isBlock; con.disabled = isBlock; con.required = !isBlock;
-        per.disabled = isBlock; per.required = !isBlock; ses.disabled = isBlock; ses.required = !isBlock;
-        alu.disabled = isBlock; alu.required = !isBlock; tie.disabled = isBlock; tie.required = !isBlock;
-        ['wrapperCuenta', 'wrapperContenidos', 'wrapperPerfil', 'wrapperSesiones', 'wrapperAlumnos', 'wrapperTiendas'].forEach(id => {
+        const triggers = ["Backoffice", "Training Material", "Viaje", "Reunión Interna"], isBlock = triggers.includes(met.value);
+        if(tsCue) tsCue.enable(!isBlock);
+        if(con) { con.disabled = isBlock; con.required = !isBlock; }
+        if(per) { per.disabled = isBlock; per.required = !isBlock; }
+        ['wrapperCuenta', 'wrapperContenidos', 'wrapperPerfil'].forEach(id => {
             const el = document.getElementById(id);
             if(el) el.style.opacity = isBlock ? "0.4" : "1";
         });
         if(isBlock && !isLoadingEdit) { 
-            cue.value = ""; con.value = ""; per.value = ""; ses.value = "0"; alu.value = "0"; tie.value = "0"; 
+            if(tsCue) tsCue.clear();
+            if(con) con.value = ""; if(per) per.value = "";
             document.getElementById('distWrapper').style.display='none'; 
         }
     };
 
-    let tsDist;
-    cue.onchange = (e) => {
-        const val = cue.value, dw = document.getElementById('distWrapper'), ds = document.getElementById('distribuidor');
-        if(tsDist) { tsDist.destroy(); tsDist = null; }
-        if(distribuidores[val]) {
-            dw.style.display = 'block'; ds.innerHTML = '<option value="">Selecciona tienda...</option>';
-            ds.innerHTML += `<option value="+">+ Añadir nueva tienda (Manual)</option>`;
-            distribuidores[val].forEach(d => ds.innerHTML += `<option value="${d}">${d}</option>`);
-            tsDist = new TomSelect("#distribuidor", {
-                onItemAdd: (v) => {
-                    const me = document.getElementById('manualEntry');
-                    if(v === "+") { me.style.display = 'block'; document.getElementById('distribuidor_custom').focus(); } else me.style.display = 'none';
-                },
-                onItemRemove: () => document.getElementById('manualEntry').style.display = 'none'
-            });
-            if(editData && editData.cuenta === val) {
-                const currentDist = editData.distribuidor || "";
-                if(distribuidores[val].includes(currentDist)) tsDist.setValue(currentDist);
-                else if(currentDist) { tsDist.setValue("+"); document.getElementById('distribuidor_custom').value = currentDist; }
-            }
-        } else dw.style.display = 'none';
-    };
-
-    // POBLAR DATOS SI ES EDICIÓN/DUPLICACIÓN
     if(editData) {
-        isLoadingEdit = true;
-        console.log("[DEBUG] Populating editData:", editData);
-        try {
-            if(editData.metodologia) { met.value = editData.metodologia; met.onchange(); }
-            if(editData.cuenta) { cue.value = editData.cuenta; cue.onchange(); }
-            if(editData.perfil) {
-                const pVal = editData.perfil.toString().trim();
-                // Buscar coincidencia exacta o fallback
-                for(let opt of per.options) {
-                    if(opt.value.trim().toLowerCase() === pVal.toLowerCase()) {
-                        per.value = opt.value;
-                        break;
-                    }
-                }
-            }
-            if(editData.contenidos) con.value = editData.contenidos;
-            if(editData.provincia) document.getElementById('provincia').value = editData.provincia;
-            
-            if(editData.sesiones) document.getElementById('sesiones').value = parseFloat(editData.sesiones) || 0;
-            if(editData.alumnos) document.getElementById('alumnos').value = parseFloat(editData.alumnos) || 0;
-            if(editData.tiendas) document.getElementById('tiendas').value = parseFloat(editData.tiendas) || 0;
-            
-            // Ciudad se cargará después de inicializar TomSelect
-
-            if(editData.fecha) {
-                try {
-                    let dStr = "";
-                    let f = editData.fecha;
-                    if (typeof f === 'string') {
-                        if (f.includes('/')) {
-                            // Convertir "DD/MM/YYYY" a "YYYY-MM-DD"
-                            const p = f.split('/'); 
-                            if(p.length === 3) {
-                                let y = p[2].length === 2 ? "20" + p[2] : p[2];
-                                dStr = `${y}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
-                            }
-                        } else if (f.includes('-')) {
-                            dStr = f.split('T')[0];
-                        }
-                    }
-                    if(!dStr && f) {
-                        const d = new Date(f);
-                        if(!isNaN(d.getTime())) {
-                            dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-                        }
-                    }
-                    if(dStr) document.getElementById('fecha').value = dStr;
-                } catch(e) { console.error("Error setting date for edit:", e); }
-            }
-            
-            // Extraer horas de forma robusta (maneja números y strings ISO de GAS)
-            if(editData.duracion !== undefined && editData.duracion !== null) {
-                const durStr = editData.duracion.toString();
-                if (durStr.includes('T')) {
-                    const parts = durStr.split('T')[1].split(':');
-                    const hh = parseFloat(parts[0]) || 0;
-                    const mm = parseFloat(parts[1]) || 0;
-                    document.getElementById('duracion').value = (hh + (mm/60)).toFixed(1);
-                } else {
-                    document.getElementById('duracion').value = parseFloat(editData.duracion) || 0;
-                }
-            }
-
-            if(editData.dispositivos && tsM) {
-                const items = editData.dispositivos.split(/,\s*/).filter(Boolean);
-                items.forEach(it => tsM.addOption({value: it, text: it})); // Asegurar que existan
-                tsM.setValue(items);
-            }
-            if(editData.dispositivos_no_movil && tsNM) {
-                const items = editData.dispositivos_no_movil.split(/,\s*/).filter(Boolean);
-                items.forEach(it => tsNM.addOption({value: it, text: it})); // Asegurar que existan
-                tsNM.setValue(items);
-            }
-            if(editData.comentarios) document.getElementsByName('comentarios')[0].value = editData.comentarios;
-        } catch(e) { console.error("Error populating editData:", e); }
-        isLoadingEdit = false;
+        if(editData.metodologia) met.onchange();
+        if(editData.cuenta) {
+            tsCue.setValue(editData.cuenta);
+            updateTiendas(editData.cuenta);
+        }
+        if(editData.dispositivos) tsM.setValue(editData.dispositivos.split(',').map(s=>s.trim()));
+        if(editData.dispositivos_no_movil) tsNM.setValue(editData.dispositivos_no_movil.split(',').map(s=>s.trim()));
     }
 
-    document.getElementById('fotosInput').onchange = (e) => {
-        const files = Array.from(e.target.files);
-        files.forEach(f => { if(additiveFiles.length < 20) additiveFiles.push(f); });
-        updatePhotoList();
-    };
-
-    function updatePhotoList() {
-        const pl = document.getElementById('photoList');
-        pl.innerHTML = additiveFiles.map((f, i) => `
-            <div class="badge" style="background:var(--xiaomi-orange-light); color:var(--xiaomi-orange); cursor:pointer; display:flex; align-items:center; gap:6px; font-weight:600; padding:4px 10px; border-radius:8px;" onclick="removePhoto(${i})">
-                ${f.name.substring(0,12)}${f.name.length > 12 ? '...' : ''} <i data-lucide="x" style="width:14px;"></i>
-            </div>
-        `).join('');
-        document.getElementById('photoCounter').innerText = `${additiveFiles.length} seleccionados`;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-    window.removePhoto = (i) => { additiveFiles.splice(i, 1); updatePhotoList(); };
-
-    async function _compressImage(file, index, total) {
-        return new Promise((resolve) => {
-            const btn = document.getElementById('btnSubmit');
-            if(btn) btn.innerHTML = `<span class="spinner"></span> (${index}/${total}) Comprimiendo...`;
-            
+    // --- NUEVO COMPRESOR DE IMÁGENES PARA MÓVIL ---
+    function compressImage(file, maxWidth = 1200, quality = 0.7) {
+        return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
-            reader.onload = (e) => {
+            reader.onload = (event) => {
                 const img = new Image();
-                img.src = e.target.result;
+                img.src = event.target.result;
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
                     let width = img.width;
                     let height = img.height;
-                    const MAX_SIZE = 1000;
+
                     if (width > height) {
-                        if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+                        if (width > maxWidth) {
+                            height = Math.round((height *= maxWidth / width));
+                            width = maxWidth;
+                        }
                     } else {
-                        if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                        if (height > maxWidth) {
+                            width = Math.round((width *= maxWidth / height));
+                            height = maxWidth;
+                        }
                     }
+
                     canvas.width = width;
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.6));
+
+                    resolve(canvas.toDataURL('image/jpeg', quality));
                 };
+                img.onerror = error => reject(error);
             };
+            reader.onerror = error => reject(error);
         });
     }
 
-    const form = document.getElementById('activityForm');
+    const photoInput = document.getElementById('photoInput');
+    const photoTrigger = document.getElementById('photoTrigger');
+    const photoContainer = document.getElementById('photoContainer');
+    let photosArray = [];
+    let existingPhotos = [];
+
+    if (editData && editData.photoLinks) {
+        existingPhotos = editData.photoLinks.split(/[\n,]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
+        setTimeout(renderPhotos, 100);
+    }
+
+    if(photoTrigger) photoTrigger.onclick = () => photoInput.click();
+
+    photoInput.onchange = async (e) => {
+        const files = e.target.files;
+        if(photosArray.length + existingPhotos.length + files.length > 20) { 
+            alert("Máximo 20 fotos en total."); 
+            return; 
+        }
+        
+        if(photoTrigger) photoTrigger.innerHTML = '<div class="loader" style="width:20px;height:20px;border-width:2px;border-color:var(--xiaomi-orange) transparent transparent;"></div>';
+        
+        for (let i = 0; i < files.length; i++) {
+            try {
+                const compressedBase64 = await compressImage(files[i]);
+                photosArray.push({
+                    name: files[i].name,
+                    mimeType: files[i].type,
+                    base64Data: compressedBase64
+                });
+                renderPhotos(); 
+            } catch (err) {
+                console.error("Error comprimiendo foto:", err);
+            }
+        }
+        
+        if(photoTrigger) photoTrigger.innerHTML = '<i data-lucide="camera" style="width: 32px; height: 32px; color: var(--text-muted);"></i><span style="font-size: 0.65rem; color: var(--text-muted); margin-top: 8px; font-weight: 700;">Añadir</span>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        
+        photoInput.value = "";
+    };
+
+    function renderPhotos() {
+        const boxes = photoContainer.querySelectorAll('.photo-thumb-v9');
+        boxes.forEach(b => b.remove());
+        
+        const total = photosArray.length + existingPhotos.length;
+        const label = document.getElementById('photoLabel');
+        if(label) label.innerText = `Fotos (${total}/20)`;
+
+        // Viejas (existingPhotos) - Borde azul para distinguir
+        existingPhotos.forEach((p, idx) => {
+            const div = document.createElement('div');
+            div.className = 'photo-thumb-v9 fade-in';
+            const idMatch = p.match(/id=([^&]+)/) || p.match(/\/d\/([^/]+)/);
+            const thumb = idMatch ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w200` : p;
+            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${thumb}) center/cover; position: relative; border: 2px solid #3b82f6; cursor:pointer;`;
+            div.title = "Haz clic para ver en Drive";
+            div.onclick = () => window.open(p, '_blank');
+            div.innerHTML = `<button type="button" style="position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; z-index:10;">×</button>`;
+            div.querySelector('button').onclick = (e) => { e.stopPropagation(); existingPhotos.splice(idx, 1); renderPhotos(); };
+            photoContainer.insertBefore(div, photoTrigger);
+        });
+
+        // Nuevas (photosArray) - Borde naranja
+        photosArray.forEach((p, idx) => {
+            const div = document.createElement('div');
+            div.className = 'photo-thumb-v9 fade-in';
+            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${p.base64Data}) center/cover; position: relative; border: 2px solid var(--xiaomi-orange);`;
+            div.innerHTML = `<button type="button" style="position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; z-index:10;">×</button>`;
+            div.querySelector('button').onclick = (e) => { e.stopPropagation(); photosArray.splice(idx, 1); renderPhotos(); };
+            photoContainer.insertBefore(div, photoTrigger);
+        });
+        
+        if(photoTrigger) photoTrigger.style.display = total >= 20 ? 'none' : 'flex';
+    }
+
+    const form = document.getElementById('trainingForm');
     form.onsubmit = async (e) => {
         e.preventDefault();
-        const btn = document.getElementById('btnSubmit'); btn.disabled = true;
-        let data = Object.fromEntries(new FormData(form).entries());
-        data.trainer = (role === 'Admin') ? document.getElementById('trainer').value : currentUser;
-        data.dispositivos = tsM.getValue().join(', '); data.dispositivos_no_movil = tsNM.getValue().join(', ');
-        if(data.distribuidor === "+") data.distribuidor = document.getElementById('distribuidor_custom').value || "Manual";
+        const btn = document.getElementById('btnSubmit');
+        btn.disabled = true; btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Enviando...';
+
+        const fd = new FormData(form);
+        const data = Object.fromEntries(fd.entries());
+        data.trainer = (role === 'Admin') ? (document.getElementById('trainer').value || currentUser) : currentUser;
+        data.existingPhotos = existingPhotos.join('\n');
+        data.dispositivos = tsM.getValue().join(', ');
+        data.dispositivos_no_movil = tsNM.getValue().join(', ');
         
-        const photos = [];
-        for (let i = 0; i < additiveFiles.length; i++) {
-            const base64 = await _compressImage(additiveFiles[i], i + 1, additiveFiles.length);
-            photos.push({ name: additiveFiles[i].name, mimeType: "image/jpeg", base64Data: base64 });
+        if (data.cuenta === "Internal Training") data.distribuidor = "";
+
+        // Feedback de progreso
+        if (photosArray.length > 0) {
+            btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Preparando ${photosArray.length} fotos...`;
+        } else {
+            btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Enviando reporte...';
         }
-        btn.innerHTML = '<span class="spinner"></span> Enviando...';
-        
+
         try {
-            const action = isEdit ? 'updateReport' : 'saveReport';
-            const payload = isEdit ? { data, rowIdx: editData.rowIdx, photos } : { data, photos };
-            console.log("Submitting report:", { action, payload });
-            
-            const res = await sendPost(action, payload);
-            console.log("Server response:", res);
-            
-            if(res.status === 'success') { 
-                console.log("Server message:", res.message);
-                showToast("Éxito", res.message || (isEdit ? "Reporte actualizado." : "Reporte enviado."), "#dashboard");
-                window.reportEditData = null;
-                setTimeout(() => navigate('#dashboard'), 100); 
+            const res = editData && editData.mode === 'edit'
+                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: photosArray })
+                : await api.saveReport(data, photosArray);
+
+            if(res.status === 'success') {
+                showToast("¡Éxito!", editData ? "Reporte actualizado." : "Reporte enviado correctamente.");
+                navigate('#dashboard');
             } else {
-                console.warn("Report error:", res.message);
-                showToast("Error", res.message || "No se pudo guardar el reporte.", "#report");
+                alert("Error: " + res.message);
+                btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData ? 'Guardar Cambios' : 'Enviar Reporte');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
             }
-        } catch(err) { 
-            console.error("Submission failed:", err);
-            showToast("Error", "Fallo de conexión o del servidor.", "#report"); 
+        } catch(err) {
+            alert("Error de conexión.");
+            btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData ? 'Guardar Cambios' : 'Enviar Reporte');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
-        btn.disabled = false;
-        btn.innerHTML = `<i data-lucide="check" style="width:20px; margin-right: 8px;"></i> ${isEdit ? 'Actualizar Reporte' : 'Enviar Reporte'}`;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
     };
+
+    if(editData && document.getElementById('btnCancel')) {
+        document.getElementById('btnCancel').onclick = () => navigate('#dashboard');
+    }
 }
 window.renderReport = renderReport;

@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbx81WA8tbYMCI7db4DOeVuuxsyCo2Xmwvay9U5OgzG1iO66lepg2qLIlRiPMRMwL346Bw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbykPT2XkZyzWcxDfYxMMnGESGkw_SC4fTpB7cZNOwMkCdvmzLZxW_1dBvW1WSv6bFJ2_g/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -17,14 +17,17 @@ async function sendGet(action, params = {}, useCache = false) {
     
     console.log(`[API] GET: ${action}`);
     try {
-        const res = await fetch(url, { method: 'GET' });
+        const res = await fetch(url, { 
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'omit'
+        });
         if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         const result = await res.json();
         if (useCache) _metadataCache.set(cacheKey, result);
         return result;
     } catch (e) {
         console.error(`[API] GET Error:`, e);
-        // Fallback para errores de red/bloqueo
         throw new Error("Error de red o bloqueo de seguridad (VPN/Adblock).");
     }
 }
@@ -90,7 +93,8 @@ const api = {
     markMessageRead: (msgId) => sendPost("markMessageRead", { msgId }),
     markAllMessagesRead: (user) => sendPost("markAllMessagesRead", { user }),
     saveAssignment: (req) => sendPost("saveAssignment", req),
-    adminProcessSelection: (req) => sendPost("adminProcessSelection", req)
+    adminProcessSelection: (req) => sendPost("adminProcessSelection", req),
+    deleteReport: (id) => sendPost("deleteReport", { id })
 };
 
 // Hacer funciones globales para compatibilidad con main.js
