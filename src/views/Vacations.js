@@ -419,6 +419,7 @@ function renderVacations(container) {
                 cEl.innerText = "Clic inicio... clic fin"; 
                 sEl.innerText = "Selecciona en el calendario"; 
                 btnMain.disabled = true; 
+                btnMain.innerText = 'Enviar Petición';
             }
             return;
         }
@@ -509,6 +510,7 @@ function renderVacations(container) {
                 sEl.innerHTML = `<span style="color:#ef4444; font-weight:bold;">Saldo insuficiente (${limit} disp.)</span>`;
             } else {
                 btnMain.disabled = count === 0;
+                btnMain.innerText = 'Enviar Petición';
                 btnMain.style.opacity = "1";
             }
         }
