@@ -244,6 +244,7 @@ function renderDashboard(container) {
                         <thead style="background: #f8fafc;">
                             <tr>
                                 <th style="padding: 12px; text-align: left; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('fecha')">Fecha <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
+                                ${isAdmin ? `<th style="padding: 12px; text-align: left; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('trainer')">Trainer <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>` : ''}
                                 <th style="padding: 12px; text-align: left; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('cuenta')">Cuenta <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
                                 <th style="padding: 12px; text-align: left; color: var(--text-muted);">Metodología</th>
                                 <th style="padding: 12px; text-align: center; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('alumnos')">Alumnos <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
@@ -621,6 +622,7 @@ function renderDashboard(container) {
                 body.innerHTML = res.data.map((r, idx) => `
                     <tr style="border-bottom: 1px solid var(--border-main);">
                         <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${formatDateSafe(r.fecha)}</td>
+                        ${isAdmin ? `<td data-label="Trainer" style="padding: 12px; font-weight: 600; color: var(--xiaomi-orange);">${r.trainer || '-'}</td>` : ''}
                         <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
                         <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
                         <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
@@ -635,7 +637,7 @@ function renderDashboard(container) {
                 `).join('');
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             } else {
-                body.innerHTML = `<tr><td colspan="6" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">${q ? 'No hay resultados para esa búsqueda.' : 'No se encontraron reportes.'}</td></tr>`;
+                body.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">${q ? 'No hay resultados para esa búsqueda.' : 'No se encontraron reportes.'}</td></tr>`;
             }
         }).finally(() => { 
             const loader = document.getElementById('historyLoading');
@@ -707,6 +709,7 @@ function renderDashboard(container) {
         body.innerHTML = window.dashboardHistoryData.map((r, idx) => `
             <tr style="border-bottom: 1px solid var(--border-main);">
                 <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${formatDateSafe(r.fecha)}</td>
+                ${isAdmin ? `<td data-label="Trainer" style="padding: 12px; font-weight: 600; color: var(--xiaomi-orange);">${r.trainer || '-'}</td>` : ''}
                 <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
                 <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
                 <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
