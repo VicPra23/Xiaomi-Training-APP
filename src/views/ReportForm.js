@@ -151,7 +151,7 @@ function renderReport(container, editData = null) {
     };
 
     const dispositivosMobiles = ["Redmi 15 Series", "Redmi 15C Series", "Redmi A5", "Redmi A7 Pro", "Redmi Note 15 Series", "Xiaomi 17 series", "Xiaomi 17T Series"];
-    const dispositivosNoMobiles = ["Aire Acondicionado", "Audio y Sonido", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series"];
+    const dispositivosNoMobiles = ["Air Fryer Series", "Aire Acondicionado", "Audio y Sonido", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series"];
 
     const html = `
     <div class="report-module fade-in">
@@ -444,14 +444,22 @@ function renderReport(container, editData = null) {
         plugins: ['remove_button'], 
         create: true, 
         placeholder: "Móviles...",
-        dropdownParent: 'body'
+        dropdownParent: 'body',
+        onItemAdd: function() {
+            this.setTextboxValue('');
+            this.refreshOptions();
+        }
     });
     dispositivosMobiles.forEach(d => tsM.addOption({value:d, text:d}));
     const tsNM = new TomSelect("#dispositivos_no_movil", { 
         plugins: ['remove_button'], 
         create: true, 
         placeholder: "Ecosistema...",
-        dropdownParent: 'body'
+        dropdownParent: 'body',
+        onItemAdd: function() {
+            this.setTextboxValue('');
+            this.refreshOptions();
+        }
     });
     dispositivosNoMobiles.forEach(d => tsNM.addOption({value:d, text:d}));
 
