@@ -467,7 +467,7 @@ function renderReport(container, editData = null) {
     
     met.onchange = () => {
         const triggers = ["Backoffice", "Training Material", "Viaje", "Reunión Interna"], isBlock = triggers.includes(met.value);
-        if(tsCue) tsCue.enable(!isBlock);
+        if(tsCue) { isBlock ? tsCue.disable() : tsCue.enable(); }
         if(con) { con.disabled = isBlock; con.required = !isBlock; }
         if(per) { per.disabled = isBlock; per.required = !isBlock; }
         ['wrapperCuenta', 'wrapperContenidos', 'wrapperPerfil'].forEach(id => {
