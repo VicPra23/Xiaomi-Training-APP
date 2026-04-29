@@ -8,7 +8,7 @@ function renderDashboard(container) {
         const isAdmin = (role === 'Admin');
 
         const masterMobiles = ["Redmi 15 Series", "Redmi 15C Series", "Redmi A5", "Redmi A7 Pro", "Redmi Note 15 Series", "Xiaomi 17 series", "Xiaomi 17T Series"];
-        const masterEcosystem = ["Aire Acondicionado", "Audio y Sonido", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series"];
+        const masterEcosystem = ["Air Fryer Series", "Aire Acondicionado", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Redmi Watch 5 Series", "Redmi Watch 6 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Band 10 Series", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series", "Xiaomi Watch 5 Series", "Xiaomi Watch S4 Series", "Xiaomi Watch S5 Series"];
         const masterDevices = [...masterMobiles, ...masterEcosystem].sort();
 
         const parseISO = (s) => {
