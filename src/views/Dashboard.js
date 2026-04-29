@@ -260,8 +260,9 @@ function renderDashboard(container) {
             </div>
         </div>
 
-        <div id="modalReport" class="calendar-overlay" style="display:none; align-items:center; justify-content:center;">
-             <div class="glass-card" style="max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+        <div id="modalReport" class="calendar-overlay">
+             <div class="glass-card" style="max-width: 500px; width: 90%; margin: auto; position: relative;">
+                <button style="position: absolute; top: 15px; right: 15px; background: none; border: none; color: var(--text-muted); cursor: pointer;" onclick="document.getElementById('modalReport').style.display='none'"><i data-lucide="x" style="width: 20px;"></i></button>
                 <h3 id="modalTitle" style="color: var(--xiaomi-orange); margin-bottom: 1rem;">Detalles del Reporte</h3>
                 <div id="modalContent" style="font-size: 0.9rem; line-height: 1.6;"></div>
                 <button class="btn-primary" style="width: 100%; margin-top: 1.5rem;" onclick="document.getElementById('modalReport').style.display='none'">Cerrar</button>

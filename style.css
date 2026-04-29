@@ -716,7 +716,19 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Modal Editor */
 .calendar-edit-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 450px; background: white; padding: 1.5rem; border-radius: 12px; box-shadow: var(--shadow-lg); z-index: 1000; }
-.calendar-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 999; backdrop-filter: blur(2px); }
+.calendar-overlay { 
+    position: fixed; 
+    top: 0; left: 0; right: 0; bottom: 0; 
+    background: rgba(0,0,0,0.4); 
+    z-index: 1000; 
+    backdrop-filter: blur(4px); 
+    display: none; 
+    align-items: center; 
+    justify-content: center; 
+    overflow-y: auto; 
+    padding: 20px;
+    -webkit-overflow-scrolling: touch;
+}
 
 /* Sidebar Panels */
 .vaca-module .sidebar-panel {
