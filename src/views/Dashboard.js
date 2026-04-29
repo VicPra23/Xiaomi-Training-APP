@@ -786,21 +786,31 @@ function renderDashboard(container) {
             window.reportEditData = { ...report, mode: action };
             window.location.hash = '#report';
         } else if(action === 'delete') {
+            if(!report.id) {
+                showToast("Error", "No se puede eliminar: el reporte no tiene un ID válido.");
+                return;
+            }
             if(!confirm("¿Seguro que quieres eliminar este reporte permanentemente?")) return;
+            
             const btn = document.activeElement;
-            if(btn) btn.disabled = true;
+            const originalHTML = btn ? btn.innerHTML : '';
+            if(btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<div class="loader" style="width:12px; height:12px; border-width:2px; border-color:white transparent transparent;"></div>';
+            }
+
             api.deleteReport(report.id).then(res => {
                 if(res.status === 'success') {
                     showToast("Eliminado", "Reporte borrado correctamente");
                     loadHistory(true);
                     loadStats(true);
                 } else {
-                    showToast("Error", res.message);
-                    if(btn) btn.disabled = false;
+                    showToast("Error", res.message || "No se pudo eliminar el reporte");
+                    if(btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
                 }
             }).catch(e => {
-                showToast("Error", "Fallo de conexión");
-                if(btn) btn.disabled = false;
+                showToast("Error", "Fallo de conexión o error en el servidor");
+                if(btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
             });
         }
     };

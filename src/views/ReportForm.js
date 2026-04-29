@@ -156,7 +156,7 @@ function renderReport(container, editData = null) {
     const html = `
     <div class="report-module fade-in">
         <header class="section-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-main); padding-bottom: 1.5rem;">
-            <h2 style="font-size: 1.75rem; margin-bottom: 0.5rem;"><i data-lucide="edit-3" style="color: var(--xiaomi-orange); width: 28px; vertical-align: middle; margin-right: 10px;"></i> ${editData ? 'Editar Reporte' : 'Nuevo Reporte de Formación'}</h2>
+            <h2 style="font-size: 1.75rem; margin-bottom: 0.5rem;"><i data-lucide="edit-3" style="color: var(--xiaomi-orange); width: 28px; vertical-align: middle; margin-right: 10px;"></i> ${editData && editData.mode === 'edit' ? 'Editar Reporte' : (editData && editData.mode === 'duplicate' ? 'Duplicar Reporte' : 'Nuevo Reporte de Formación')}</h2>
             <p style="color:var(--text-medium); font-weight: 500;">Registra los detalles de tu última sesión de entrenamiento.</p>
         </header>
 
@@ -359,7 +359,7 @@ function renderReport(container, editData = null) {
             <div style="margin-top: 3rem; display: flex; gap: 15px;">
                 ${editData ? '<button type="button" id="btnCancel" class="btn-outline" style="flex:1; height: 55px; font-size: 1.1rem;">Cancelar</button>' : ''}
                 <button type="submit" id="btnSubmit" class="btn-primary" style="flex: 2; height: 55px; font-size: 1.1rem; font-weight: 700;">
-                    <i data-lucide="send" style="width: 20px;"></i> ${editData ? 'Guardar Cambios' : 'Enviar Reporte'}
+                    <i data-lucide="send" style="width: 20px;"></i> ${editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte'}
                 </button>
             </div>
         </form>
@@ -500,10 +500,28 @@ function renderReport(container, editData = null) {
     }
 
     // --- NUEVO COMPRESOR DE IMÁGENES PARA MÓVIL ---
-    function compressImage(file, maxWidth = 1200, quality = 0.7) {
+    async function compressImage(file, maxWidth = 1200, quality = 0.7) {
+        let fileToProcess = file;
+        
+        // Soporte para HEIC/HEIF (Apple)
+        if (file.type === "image/heic" || file.type === "image/heif" || file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif")) {
+            if (typeof heic2any !== 'undefined') {
+                try {
+                    const blob = await heic2any({
+                        blob: file,
+                        toType: "image/jpeg",
+                        quality: 0.8
+                    });
+                    fileToProcess = Array.isArray(blob) ? blob[0] : blob;
+                } catch (e) {
+                    console.error("Error al convertir HEIC:", e);
+                }
+            }
+        }
+
         return new Promise((resolve, reject) => {
             const img = new Image();
-            const url = URL.createObjectURL(file);
+            const url = URL.createObjectURL(fileToProcess);
             img.onload = () => {
                 URL.revokeObjectURL(url);
                 const canvas = document.createElement('canvas');
@@ -648,16 +666,16 @@ function renderReport(container, editData = null) {
                 : await api.saveReport(data, formattedPhotos);
 
             if(res.status === 'success') {
-                showToast("¡Éxito!", editData ? "Reporte actualizado." : "Reporte enviado correctamente.");
+                showToast("¡Éxito!", (editData && editData.mode === 'edit') ? "Reporte actualizado." : "Reporte enviado correctamente.");
                 navigate('#dashboard');
             } else {
                 alert("Error: " + res.message);
-                btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData ? 'Guardar Cambios' : 'Enviar Reporte');
+                btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte');
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
         } catch(err) {
             alert("Error de conexión.");
-            btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData ? 'Guardar Cambios' : 'Enviar Reporte');
+            btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte');
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     };
