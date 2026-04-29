@@ -352,7 +352,7 @@ function renderReport(container, editData = null) {
                         <span style="font-size: 0.65rem; color: var(--text-muted); margin-top: 8px; font-weight: 700;">Añadir</span>
                     </div>
                 </div>
-                <input type="file" id="photoInput" style="display: none;" accept="image/*" multiple>
+                <input type="file" id="photoInput" style="display: none;" accept="image/*,.heic,.heif" multiple>
                 <input type="hidden" id="photoData" name="photoData">
             </div>
 

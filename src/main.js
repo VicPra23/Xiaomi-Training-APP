@@ -51,6 +51,10 @@ function initApp() {
         }
 
         if (link) {
+            // Resetear datos de edición si se hace clic en el link de Reporte directamente
+            if (link.getAttribute('href') === '#report') {
+                window.reportEditData = null;
+            }
             // Close mobile menu on click
             if (navLinks) navLinks.classList.remove('active');
             if (navOverlay) navOverlay.classList.remove('active');

@@ -516,7 +516,12 @@ function getReportsHistory(p) {
         if (rowStr.indexOf(query) === -1) continue;
       }
       
-      const rowTimestamp = d[i][0] instanceof Date ? d[i][0].getTime() : 0;
+      const dVal = d[i][0];
+      let rowTimestamp = 0;
+      if (dVal) {
+          const parsed = (dVal instanceof Date) ? dVal : new Date(dVal);
+          rowTimestamp = isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+      }
       const uniqueId = "RID_" + rowTimestamp + "_" + i;
 
       result.push({
@@ -638,11 +643,18 @@ function deleteReport(p) {
     if (!id) throw new Error("ID de reporte no proporcionado.");
     
     const s = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID).getSheetByName(CONFIG.REPORTES_SHEET_NAME);
-    const colMap = _getColMap(s); // CORRECCIÓN: Le pasamos la hoja 's', no el array de cabeceras
+    const colMap = _getColMap(s);
     const d = s.getDataRange().getValues();
     
+    let targetRow = -1;
     for (let i = d.length - 1; i >= 1; i--) {
-      const rowTimestamp = d[i][0] instanceof Date ? d[i][0].getTime() : 0;
+      // FIX SENIOR: El timestamp debe ser consistente incluso si viene de caché (string) o de hoja (Date)
+      const dVal = d[i][0];
+      let rowTimestamp = 0;
+      if (dVal) {
+          const parsed = (dVal instanceof Date) ? dVal : new Date(dVal);
+          rowTimestamp = isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+      }
       const currentUniqueId = "RID_" + rowTimestamp + "_" + i;
       
       if (currentUniqueId === id) {
