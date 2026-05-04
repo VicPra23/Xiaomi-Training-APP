@@ -192,8 +192,9 @@ function getAdminData() {
     });
 
     const pending = dV.slice(1).filter(r => r[5] === 'Pendiente').map(r => ({ id: r[7], date: r[0], user: r[1], fechas: r[2], month: r[3], type: r[4], count: r[6] }));
+    const approved = dV.slice(1).filter(r => r[5] === 'Aprobado').map(r => ({ id: r[7], date: r[0], user: r[1], fechas: r[2], month: r[3], type: r[4], count: r[6] }));
 
-    return { status: "success", allUsers: allUsers, pendingRequests: pending };
+    return { status: "success", allUsers: allUsers, pendingRequests: pending, approvedRequests: approved };
   } catch(e) { return { status: "error", message: e.toString() }; }
 }
 

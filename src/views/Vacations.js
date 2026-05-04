@@ -52,11 +52,28 @@ function renderVacations(container) {
     let targetUser = currentUser;
     let allTrainers = [];
     let holidayDates = [];
+    let adminData = null;
     let vacationStats = { baseTotal: 23, extraTotal: 0, usedBase: 0, usedExtra: 0, pendingBase: 0, pendingExtra: 0, history: [] };
     let selection = { start: null, end: null };
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
     window.refreshVacationsData = () => { selection = {start:null,end:null}; loadData(); };
+
+    function updateLegend(otherUsersColors = {}, userPositionMap = {}) {
+        const legendEl = document.getElementById('vacaLegend');
+        if (!legendEl) return;
+        let legendHTML = `
+            <div class="legend-item"><div class="legend-box lb-a"></div> Vac</div>
+            <div class="legend-item"><div class="legend-box lb-p"></div> Sol</div>
+            <div class="legend-item"><div class="legend-box lb-e"></div> Ext</div>
+            <div class="legend-item"><div class="legend-box lb-s"></div> Sel</div>
+        `;
+        Object.entries(otherUsersColors).forEach(([user, color]) => {
+            const position = userPositionMap[user.toLowerCase()] || user;
+            legendHTML += `<div class="legend-item" title="Vacaciones aprobadas de ${user}"><div class="legend-box" style="background:${color.bg}; border:1px solid ${color.border};"></div> ${position}</div>`;
+        });
+        legendEl.innerHTML = legendHTML;
+    }
 
     const html = `
         <div class="vaca-module fade-in">
@@ -134,7 +151,7 @@ function renderVacations(container) {
                             <div class="calendar-title" id="vSedeTitle" style="margin:0;">Cargando...</div>
                             <div id="userSelectorContainer"></div>
                         </div>
-                        <div class="legend">
+                        <div class="legend" id="vacaLegend">
                             <div class="legend-item"><div class="legend-box lb-a"></div> Vac</div>
                             <div class="legend-item"><div class="legend-box lb-p"></div> Sol</div>
                             <div class="legend-item"><div class="legend-box lb-e"></div> Ext</div>
@@ -199,6 +216,53 @@ function renderVacations(container) {
                 isAdmin ? api.getAdminData() : Promise.resolve({ status: 'skip' })
             ]);
 
+            let userColorMap = {};
+            let userPositionMap = {};
+            if (isAdmin && aRes && aRes.status === 'success') { 
+                adminData = aRes; 
+                if (adminData.allUsers) {
+                    adminData.allUsers.forEach(u => {
+                        userPositionMap[u.user.toLowerCase()] = u.user;
+                    });
+                }
+                if (adminData.approvedRequests) {
+                    const userColors = [
+                        { bg: '#fae8ff', text: '#86198f', border: '#f5d0fe' }, // Purple
+                        { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' }, // Blue
+                        { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' }, // Orange
+                        { bg: '#e0f2fe', text: '#075985', border: '#bae6fd' }, // Cyan
+                        { bg: '#f1f5f9', text: '#334155', border: '#e2e8f0' }, // Slate
+                        { bg: '#ffebf0', text: '#c01e52', border: '#ffccd8' }, // Pink
+                        { bg: '#fef3c7', text: '#92400e', border: '#fde68a' }, // Amber
+                        { bg: '#ccfbf1', text: '#115e59', border: '#99f6e4' }  // Teal
+                    ];
+                    let colorIndex = 0;
+                    const otherUsers = Array.from(new Set(adminData.approvedRequests.map(r => r.user)))
+                        .filter(u => u && u.toLowerCase() !== targetUser.toLowerCase());
+                    otherUsers.forEach(u => {
+                        userColorMap[u.toString().trim().toLowerCase()] = userColors[colorIndex % userColors.length];
+                        colorIndex++;
+                    });
+                } else {
+                    // Si el usuario no ha vuelto a desplegar, alertamos amigablemente
+                    showToast("ℹ️ Aviso Backend", "Recuerda volver a desplegar tu script de Google Apps Script para activar la visualización del calendario del admin.", "#vacations");
+                }
+                updateLegend(userColorMap, userPositionMap);
+                renderAdminUI(); 
+                
+                // Mover aquí la población del selector para asegurar que adminData existe
+                if (!document.getElementById('userSelect')) {
+                    allTrainers = adminData.allUsers;
+                    renderUserSelector();
+                }
+
+                const rUI = document.getElementById('adminRequestUI'); if(rUI) rUI.style.display = 'block';
+                const uUI = document.getElementById('userRequestUI'); if(uUI) uUI.style.display = 'none';
+                const tLB = document.getElementById('targetLabel'); if(tLB) tLB.innerText = targetUser;
+            } else {
+                updateLegend({}, {});
+            }
+
             if (uRes.status === 'success') {
                 holidayDates = uRes.festivos || [];
                 const sedeTitle = document.getElementById('vSedeTitle');
@@ -251,23 +315,8 @@ function renderVacations(container) {
                 };
                 updateStatsUI();
                 renderHistory(hist);
-                buildCalendar();
+                buildCalendar(userColorMap);
                 updateSummary();
-            }
-
-            if (isAdmin && aRes && aRes.status === 'success') { 
-                adminData = aRes; 
-                renderAdminUI(); 
-                
-                // Mover aquí la población del selector para asegurar que adminData existe
-                if (!document.getElementById('userSelect')) {
-                    allTrainers = adminData.allUsers;
-                    renderUserSelector();
-                }
-
-                const rUI = document.getElementById('adminRequestUI'); if(rUI) rUI.style.display = 'block';
-                const uUI = document.getElementById('userRequestUI'); if(uUI) uUI.style.display = 'none';
-                const tLB = document.getElementById('targetLabel'); if(tLB) tLB.innerText = targetUser;
             }
         } catch (e) { 
             console.error("Shielding error in loadData:", e); 
@@ -301,17 +350,17 @@ function renderVacations(container) {
         sA.innerText = Math.round(vacationStats.usedBase);
     }
 
-    function buildCalendar() {
+    function buildCalendar(colorMap) {
         const grid = document.getElementById('yearGrid'); if (!grid) return;
         grid.innerHTML = "";
         let start = new Date(2026, 1, 1);
         for(let i=0; i<12; i++) {
             const mDate = new Date(start.getFullYear(), start.getMonth() + i, 1);
-            grid.appendChild(createMonthCard(mDate.getFullYear(), mDate.getMonth()));
+            grid.appendChild(createMonthCard(mDate.getFullYear(), mDate.getMonth(), colorMap));
         }
     }
 
-    function createMonthCard(y, m) {
+    function createMonthCard(y, m, colorMap) {
         const card = document.createElement('div'); card.className = "month-card";
         const title = document.createElement('div'); title.className = "month-title";
         title.innerText = monthNames[m] + " " + y;
@@ -355,6 +404,23 @@ function renderVacations(container) {
                    }
                 }
             });
+
+            // Pintar las vacaciones de otros usuarios aprobadas si somos Admin
+            if (isAdmin && typeof adminData !== 'undefined' && adminData && adminData.approvedRequests && colorMap) {
+                const otherApproved = adminData.approvedRequests.filter(r => 
+                    r.user && r.user.toString().trim().toLowerCase() !== targetUser.toLowerCase() && isInHistoryRange(date, r.fechas)
+                );
+                if (otherApproved.length > 0) {
+                    const firstOtherUser = otherApproved[0].user.toString().trim().toLowerCase();
+                    const color = colorMap[firstOtherUser];
+                    if (color && !cell.classList.contains('day-approved') && !cell.classList.contains('day-extra-ap') && !cell.classList.contains('day-pending')) {
+                        cell.style.background = color.bg;
+                        cell.style.color = color.text;
+                        cell.style.border = `1px solid ${color.border}`;
+                        cell.style.fontWeight = '600';
+                    }
+                }
+            }
 
             cell.onclick = () => handleDayClick(iso);
             dGrid.appendChild(cell);

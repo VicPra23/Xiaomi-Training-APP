@@ -648,6 +648,7 @@ h1, h2, h3, h4, h5, h6 {
 .vaca-module .day-extra-ap { background: var(--status-extra-bg); color: var(--status-extra-text); border: 1px solid #b8daff; }
 .vaca-module .day-pending { background: var(--status-pending-bg); color: var(--status-pending-text); border: 1px dashed #ffeeba; }
 .vaca-module .day-rejected { background: var(--status-rejected-bg); color: #d0021b; border: 1px solid #f5c6cb; font-weight: 800;}
+.vaca-module .day-other-approved { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; font-weight: 600; }
 .vaca-module .day-selected { background: var(--xiaomi-orange); color: white; border: 1px solid var(--xiaomi-orange); font-weight: 800; box-shadow: 0 2px 8px rgba(255,103,0,0.3); }
 .vaca-module .day-range { background: var(--xiaomi-orange-light); color: var(--xiaomi-orange); }
 
