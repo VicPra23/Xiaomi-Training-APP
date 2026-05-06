@@ -45,13 +45,15 @@ function renderMaterials(container) {
                 {
                     name: 'Xiaomi Band',
                     items: [
-                        { name: 'Xiaomi Band 10 Series', link: 'https://drive.google.com/drive/folders/1ChCLVcB1Qd47Euaxosfh5y4GWFSiBs0t?usp=drive_link' },
+                        { name: 'Xiaomi Band 10 Pro', link: 'https://drive.google.com/drive/folders/1v6jE8VRI76fsfY68L59AvCH5fkgPJN2u?usp=drive_link' },
+                        { name: 'Xiaomi Band 10', link: 'https://drive.google.com/drive/folders/1ChCLVcB1Qd47Euaxosfh5y4GWFSiBs0t?usp=drive_link' },
                         { name: 'Xiaomi Band 9 Series', link: 'https://drive.google.com/drive/folders/1ynJw_ISQL5aT68IWtOPs9FKCbRSWJ7V_?usp=drive_link' }
                     ]
                 },
                 {
                     name: 'Xiaomi Watch',
                     items: [
+                        { name: 'Xiaomi Watch S5 46mm', link: 'https://drive.google.com/drive/folders/1aG_t62JPgG--mcuLspkaZCoMRp0cpegD?usp=drive_link' },
                         { name: 'Xiaomi Watch 5', link: 'https://drive.google.com/drive/folders/1MKCNhtlIr9kjDmd_u46_1nBL5wqixh7F?usp=drive_link' },
                         { name: 'Xiaomi Watch S4', link: 'https://drive.google.com/drive/folders/1KD4LBsOeYyr-wpzAPruIZZXF63hRMTte?usp=drive_link' },
                         { name: 'Xiaomi Watch S4 41 mm', link: 'https://drive.google.com/drive/folders/12hqXI7ictDs4RIhhzecM1K8kz0_wNt7W?usp=drive_link' },
@@ -62,6 +64,7 @@ function renderMaterials(container) {
                 {
                     name: 'Redmi Watch',
                     items: [
+                        { name: 'Redmi Watch 6', link: 'https://drive.google.com/drive/folders/1gTDcL0BbV8MMrsu_JQfKOOpnEpOw_mM6?usp=drive_link' },
                         { name: 'Redmi Watch 5 Series', link: 'https://drive.google.com/drive/folders/1ROS4qUYwz3oxTK-66zfNlbFPo7o57bLi?usp=drive_link' }
                     ]
                 }
