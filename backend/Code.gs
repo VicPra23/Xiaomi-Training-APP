@@ -592,7 +592,7 @@ function updateReport(p) {
         return { status: "error", message: "No tienes permiso para editar." };
     }
 
-    var newPhotoUrls = _uploadPhotos(p.photos);
+    var newPhotoUrls = _uploadPhotos(p.photos, data);
     // IMPORTANTE: Respetar la selección de fotos del frontend (permite borrar fotos antiguas)
     const keptPhotos = (data.existingPhotos || "").toString().trim();
     
@@ -712,11 +712,23 @@ function getFilterMetadata() {
   return { status:"success", data: { years: Array.from(ys).sort().reverse(), months: Array.from(ms), accounts: Array.from(accounts).sort(), methodologies: Array.from(methodologies).sort(), devices: Array.from(devs).sort() } };
 }
 
-function _uploadPhotos(photos) {
+function _uploadPhotos(photos, data) {
   var photoUrls = [];
   if (photos && photos.length > 0) {
     try {
       var folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
+      
+      var cleanName = function(str) {
+        if (!str) return "";
+        return str.toString().trim()
+          .replace(/[\/\?%\*:\x22<>\|]/g, '') // remove invalid filename chars
+          .replace(/\s+/g, '_'); // replace spaces with underscores
+      };
+      
+      var trainer = cleanName(data && data.trainer ? data.trainer : "usuario");
+      var tienda = cleanName(data && data.cuenta ? data.cuenta : "tienda");
+      var fecha = cleanName(data && data.fecha ? data.fecha : "fecha");
+      
       for (var i=0; i<photos.length; i++) {
           var p = photos[i];
           if (p && p.base64Data) {
@@ -724,7 +736,14 @@ function _uploadPhotos(photos) {
                 var splitted = p.base64Data.split(',');
                 // El replace(/\s/g, '') arregla los saltos de línea de iOS/Android que rompen el decodificador
                 var base64 = (splitted.length > 1 ? splitted[1] : splitted[0]).replace(/\s/g, ''); 
-                var blob = Utilities.newBlob(Utilities.base64Decode(base64), p.mimeType || "image/jpeg", p.name || ("photo_" + i + ".jpg"));
+                
+                var ext = "jpg";
+                if (p.mimeType && p.mimeType.indexOf("/") !== -1) {
+                  ext = p.mimeType.split("/")[1];
+                }
+                var fileName = trainer + "_" + tienda + "_" + fecha + "_" + (i + 1) + "." + ext;
+                
+                var blob = Utilities.newBlob(Utilities.base64Decode(base64), p.mimeType || "image/jpeg", fileName);
                 var file = folder.createFile(blob);
                 photoUrls.push(file.getUrl());
               } catch(err) { console.error("Error individual photo:", err); }
@@ -749,7 +768,7 @@ function handleSaveReport(data, photos) {
         return parseFloat(s) || 0;
     };
 
-    var photoUrls = _uploadPhotos(photos);
+    var photoUrls = _uploadPhotos(photos, data);
     var urlsString = photoUrls.join("\n");
     
     // Obtenemos el número real de columnas de la hoja
