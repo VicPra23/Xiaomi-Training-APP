@@ -742,9 +742,9 @@ function _uploadPhotos(photos, data) {
                   ext = p.mimeType.split("/")[1];
                 }
                 var fileName = trainer + "_" + tienda + "_" + fecha + "_" + (i + 1) + "." + ext;
-                
                 var blob = Utilities.newBlob(Utilities.base64Decode(base64), p.mimeType || "image/jpeg", fileName);
                 var file = folder.createFile(blob);
+                file.setName(fileName); // Force Google Drive to set the clean filename
                 photoUrls.push(file.getUrl());
               } catch(err) { console.error("Error individual photo:", err); }
           }
