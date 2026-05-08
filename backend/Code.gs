@@ -167,7 +167,7 @@ function getAdminData() {
     const consumedMap = {}; 
     for(let i=1; i<dV.length; i++) {
         if (!dV[i][1]) continue; 
-        const u = dV[i][1].toString().toLowerCase();
+        const u = dV[i][1].toString().trim().toLowerCase();
         if(dV[i][5] !== 'Rechazado') {
             if(!consumedMap[u]) consumedMap[u] = {base:0, extra:0};
             if(dV[i][4] === 'Vacaciones') consumedMap[u].base += parseFloat(dV[i][6]) || 0;
@@ -176,7 +176,7 @@ function getAdminData() {
     }
 
     const allUsers = dU.slice(1).map(r => {
-        const u = r[0].toString().toLowerCase();
+        const u = r[0].toString().trim().toLowerCase();
         const cons = consumedMap[u] || {base:0, extra:0};
         const totalExtra = extraMap[u] || 0;
         const totalBase = parseFloat(r[6]) || 23; 
@@ -277,7 +277,7 @@ function getVacationData(user) {
   
   const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
   for (let i = 1; i < dU.length; i++) {
-    if (dU[i][0].toString().toLowerCase() === user.toLowerCase()) {
+    if (dU[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) {
       baseTotal = parseFloat(dU[i][6]) || 23;
       break;
     }
@@ -285,7 +285,7 @@ function getVacationData(user) {
 
   const dF = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.FESTIVOS_SHEET_NAME);
   for (let i = 1; i < dF.length; i++) {
-    if (dF[i][0].toString().trim().toLowerCase() === user.toLowerCase()) {
+    if (dF[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) {
       userSede = (dF[i][2] || "Genérica").toString();
       for (let col = 3; col < dF[i].length; col++) {
         const dO = parseDateStable(dF[i][col]);
@@ -300,14 +300,14 @@ function getVacationData(user) {
 
   let extra = 0;
   const dE = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME);
-  for (let i=1; i<dE.length; i++) if (dE[i][0].toString().toLowerCase() === user.toLowerCase()) { extra = parseFloat(dE[i][1]) || 0; break; }
+  for (let i=1; i<dE.length; i++) if (dE[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) { extra = parseFloat(dE[i][1]) || 0; break; }
 
   let uB = 0, uE = 0, history = [];
   const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
   for (let i = 1; i < dV.length; i++) {
     if (!dV[i][1]) continue;
-    const rowUser = dV[i][1].toString().toLowerCase();
-    if (rowUser === user.toLowerCase()) {
+    const rowUser = dV[i][1].toString().trim().toLowerCase();
+    if (rowUser === user.trim().toLowerCase()) {
       const status = dV[i][5], count = parseFloat(dV[i][6]) || 0, type = dV[i][4];
       if (status !== "Rechazado") { if (type === "Vacaciones") uB += count; else uE += count; }
       history.push({ id: dV[i][7], user: rowUser, date: dV[i][0], fechas: dV[i][2], month: dV[i][3], type: type, status: status, count: count });

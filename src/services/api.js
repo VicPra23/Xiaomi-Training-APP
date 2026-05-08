@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbw_eB29hn7KK21aTnQVopa4TFwTn5NmHeU6h95VPVvXJ5EmfsshlkaGcnPehL1WBEDvbw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyiQHWK43kAOev9GMyWwEQYSuMVb3PIWDp44FzG09QTcUWyUG6elOUu1frl9YlW_eggSw/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -12,7 +12,11 @@ async function sendGet(action, params = {}, useCache = false) {
         return _metadataCache.get(cacheKey);
     }
 
-    const query = new URLSearchParams({ action, ...params }).toString();
+    const queryParams = { action, ...params };
+    if (!useCache) {
+        queryParams._t = Date.now();
+    }
+    const query = new URLSearchParams(queryParams).toString();
     const url = `${API_URL}?${query}`;
     
     console.log(`[API] GET: ${action}`);
