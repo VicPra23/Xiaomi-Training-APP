@@ -57,7 +57,7 @@ function renderVacations(container) {
     let selection = { start: null, end: null };
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-    window.refreshVacationsData = () => { selection = {start:null,end:null}; loadData(); };
+    window.refreshVacationsData = () => { selection = {start:null,end:null}; loadData(); setTimeout(() => { location.reload(); }, 1000); };
 
     function updateLegend(otherUsersColors = {}, userPositionMap = {}) {
         const legendEl = document.getElementById('vacaLegend');
@@ -675,8 +675,9 @@ function renderVacations(container) {
         }
         try {
             await sendPost('requestVacation', { user: currentUser, type: document.querySelector('input[name="vSelector"]:checked').value, dates: laborables });
-            showToast("✅ ¡Enviado!", "Tu solicitud ha sido enviada.", "#vacations");
+            showToast("✅ ¡Enviado!", "Tu solicitud ha sido enviada. Recargando...", "#vacations");
             selection = {start:null,end:null}; loadData();
+            setTimeout(() => { location.reload(); }, 1200);
         } catch(e) { console.error(e); btn.disabled = false; btn.innerText = 'Enviar Petición'; }
     };
 }

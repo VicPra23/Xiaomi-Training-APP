@@ -112,10 +112,11 @@ function doGet(e) {
   
   let res = { status: "error", message: "Accion [" + action + "] no encontrada" };
   try {
+    const forceRefresh = p._t ? true : false;
     if (action === "login")             res = attemptLogin(userParam, p.pass);
     if (action === "getUsersList")      res = getUsersList();
-    if (action === "getVacationData")   res = getVacationData(userParam);
-    if (action === "getAdminData")      res = getAdminData();
+    if (action === "getVacationData")   res = getVacationData(userParam, forceRefresh);
+    if (action === "getAdminData")      res = getAdminData(forceRefresh);
     if (action === "getDashboardStats") res = getDashboardStats(p);
     if (action === "getReportsHistory")  res = getReportsHistory(p);
     if (action === "getCitiesList")     res = getCitiesList();
@@ -152,10 +153,10 @@ function doPost(e) {
 }
 
 // --- ADMIN FEATURES ---
-function getAdminData() {
+function getAdminData(forceRefresh = false) {
   try {
-    const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
-    const dE = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME);
+    const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME, forceRefresh);
+    const dE = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME, forceRefresh);
     const extraMap = {}; 
     for(let i=1; i<dE.length; i++) {
        if (!dE[i][0]) continue;
@@ -163,7 +164,7 @@ function getAdminData() {
        if(uKey) extraMap[uKey] = parseFloat(dE[i][1]) || 0;
     }
     
-    const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
+    const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME, forceRefresh);
     const consumedMap = {}; 
     for(let i=1; i<dV.length; i++) {
         if (!dV[i][1]) continue; 
@@ -271,11 +272,11 @@ function modifyExtraDays(user, delta) {
 }
 
 // --- CORE VACATION LOGIC ---
-function getVacationData(user) {
+function getVacationData(user, forceRefresh = false) {
   if (!user) return { status: "error" };
   let festivos = [], userSede = "Genérica", baseTotal = 23;
   
-  const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
+  const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME, forceRefresh);
   for (let i = 1; i < dU.length; i++) {
     if (dU[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) {
       baseTotal = parseFloat(dU[i][6]) || 23;
@@ -283,7 +284,7 @@ function getVacationData(user) {
     }
   }
 
-  const dF = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.FESTIVOS_SHEET_NAME);
+  const dF = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.FESTIVOS_SHEET_NAME, forceRefresh);
   for (let i = 1; i < dF.length; i++) {
     if (dF[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) {
       userSede = (dF[i][2] || "Genérica").toString();
@@ -299,11 +300,11 @@ function getVacationData(user) {
   }
 
   let extra = 0;
-  const dE = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME);
+  const dE = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME, forceRefresh);
   for (let i=1; i<dE.length; i++) if (dE[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) { extra = parseFloat(dE[i][1]) || 0; break; }
 
   let uB = 0, uE = 0, history = [];
-  const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
+  const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME, forceRefresh);
   for (let i = 1; i < dV.length; i++) {
     if (!dV[i][1]) continue;
     const rowUser = dV[i][1].toString().trim().toLowerCase();
