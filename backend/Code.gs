@@ -171,8 +171,33 @@ function getAdminData(forceRefresh = false) {
         const u = dV[i][1].toString().trim().toLowerCase();
         if(dV[i][5] !== 'Rechazado') {
             if(!consumedMap[u]) consumedMap[u] = {base:0, extra:0};
-            if(dV[i][4] === 'Vacaciones') consumedMap[u].base += parseFloat(dV[i][6]) || 0;
-            else consumedMap[u].extra += parseFloat(dV[i][6]) || 0;
+            
+            const rangeStr = dV[i][2] ? dV[i][2].toString() : "";
+            let count = parseFloat(dV[i][6]) || 0;
+            
+            const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
+            if (matches) {
+                const parseDate = (s) => {
+                    const parts = s.split("/");
+                    let y = parseInt(parts[2]);
+                    if (y < 100) y += 2000;
+                    return new Date(y, parseInt(parts[1]) - 1, parseInt(parts[0]));
+                };
+                const start = parseDate(matches[0]);
+                const end = matches.length > 1 ? parseDate(matches[matches.length - 1]) : start;
+                let cur = new Date(start);
+                let laborableCount = 0;
+                while (cur <= end) {
+                    if (cur.getDay() !== 0 && cur.getDay() !== 6) {
+                        laborableCount++;
+                    }
+                    cur.setDate(cur.getDate() + 1);
+                }
+                count = laborableCount;
+            }
+            
+            if(dV[i][4] === 'Vacaciones') consumedMap[u].base += count;
+            else consumedMap[u].extra += count;
         }
     }
 
