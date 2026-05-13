@@ -362,7 +362,7 @@ function renderDashboard(container) {
             const hdr = document.createElement('button');
             hdr.className = selectedMonthsSet.size === 0 ? 'btn-primary' : 'btn-outline';
             hdr.style = `grid-column: span 3; margin-bottom: 4px; font-size: 0.75rem; height: auto; padding: 4px;`;
-            hdr.innerText = "Limpiar (Todos)";
+            hdr.innerText = "Todos";
             hdr.onclick = (ev) => {
                 ev.stopPropagation();
                 selectedMonthsSet.clear();
@@ -394,7 +394,7 @@ function renderDashboard(container) {
             
             mMonthCont.parentElement.appendChild(picker);
             document.addEventListener('click', function closeM(e) {
-                if(!picker.contains(e.target) && e.target !== mMonthCont) {
+                if(!picker.contains(e.target) && !mMonthCont.contains(e.target)) {
                     picker.remove();
                     document.removeEventListener('click', closeM);
                 }
@@ -438,7 +438,7 @@ function renderDashboard(container) {
             const tBtn = document.createElement('button');
             tBtn.className = 'btn-secondary';
             tBtn.style = `grid-column: span 4; margin-bottom: 4px; font-size: 0.75rem; height: auto; padding: 4px;`;
-            tBtn.innerText = "Alternar Todas";
+            tBtn.innerText = "Todos";
             tBtn.onclick = (ev) => {
                 ev.stopPropagation();
                 const allActiveSelected = currentActiveWeeks.every(w => selectedWeeksSet.has(w));
@@ -472,7 +472,7 @@ function renderDashboard(container) {
             mWeekCont.parentElement.appendChild(picker);
             
             document.addEventListener('click', function close(e) {
-                if(!picker.contains(e.target) && e.target !== mWeekCont) {
+                if(!picker.contains(e.target) && !mWeekCont.contains(e.target)) {
                     picker.remove();
                     document.removeEventListener('click', close);
                 }
