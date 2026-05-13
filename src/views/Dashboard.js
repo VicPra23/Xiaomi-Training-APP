@@ -53,25 +53,41 @@ function renderDashboard(container) {
                         <option value="${currentUser}">Solo Mío</option>
                     </select>
                 </div>
-                <div class="form-group" style="margin:0; min-width: 80px; flex: 0 1 auto; text-align: center;">
-                    <label class="form-label" style="display: block; width: 100%;">Año</label>
-                    <select id="dashboardYear" class="form-control">
-                        <option value="Todos">Todos</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin:0; min-width: 100px; flex: 0 1 auto; text-align: center;">
-                    <label class="form-label" style="display: block; width: 100%;">Mes</label>
-                    <select id="dashboardMonth" class="form-control" onchange="window.syncWeeksByMonth()">
-                        <option value="Todos">Todos</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin:0; position: relative; min-width: 180px; flex: 0 1 auto; text-align: center;">
-                    <label class="form-label" style="display: block; width: 100%;">Semanas (Multi-click)</label>
-                    <div id="multiWeekContainer" class="form-control" style="height: 42px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; justify-content: center;">
-                        <span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Selecciona periodo...</span>
+                
+                <div id="periodFiltersContainer" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:center;">
+                    <div class="form-group" style="margin:0; min-width: 80px; flex: 0 1 auto; text-align: center;">
+                        <label class="form-label" style="display: block; width: 100%;">Año</label>
+                        <select id="dashboardYear" class="form-control" onchange="window.onDashboardYearChange()">
+                            <option value="Todos">Todos</option>
+                        </select>
                     </div>
-                    <input type="hidden" id="dashboardWeek" value="">
+                    <div class="form-group" style="margin:0; position: relative; min-width: 120px; flex: 0 1 auto; text-align: center;">
+                        <label class="form-label" style="display: block; width: 100%;">Meses (Multi)</label>
+                        <div id="multiMonthContainer" class="form-control" style="height: 42px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; justify-content: center; align-items:center;">
+                            <span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Todos</span>
+                        </div>
+                        <input type="hidden" id="dashboardMonth" value="Todos">
+                    </div>
+                    <div class="form-group" style="margin:0; position: relative; min-width: 180px; flex: 0 1 auto; text-align: center;">
+                        <label class="form-label" style="display: block; width: 100%;">Semanas (Multi)</label>
+                        <div id="multiWeekContainer" class="form-control" style="height: 42px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; justify-content: center; align-items:center;">
+                            <span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Selecciona periodo...</span>
+                        </div>
+                        <input type="hidden" id="dashboardWeek" value="">
+                    </div>
                 </div>
+
+                <div id="rangeFiltersContainer" style="display:none; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:center;">
+                    <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
+                        <label class="form-label" style="display: block; width: 100%;">Desde</label>
+                        <input type="date" id="dashboardDateStart" class="form-control" style="height: 42px; font-size: 0.85rem; text-align:center;">
+                    </div>
+                    <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
+                        <label class="form-label" style="display: block; width: 100%;">Hasta</label>
+                        <input type="date" id="dashboardDateEnd" class="form-control" style="height: 42px; font-size: 0.85rem; text-align:center;">
+                    </div>
+                </div>
+
                 <div class="form-group" style="margin:0; min-width: 110px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Dispositivo</label>
                     <select id="dashboardDevice" class="form-control">
@@ -79,6 +95,7 @@ function renderDashboard(container) {
                     </select>
                 </div>
                 <div style="display: flex; gap: 8px;">
+                    <button id="btnToggleRange" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Alternar Rango/Periodos"><i data-lucide="calendar" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Filtrar"><i data-lucide="search" style="width:18px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Borrar Filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
                 </div>
@@ -306,6 +323,77 @@ function renderDashboard(container) {
         });
     };
 
+    // Lógica de Multi-Selección de Meses (Pop-up)
+    const mMonthCont = document.getElementById('multiMonthContainer');
+    const sMonthInput = document.getElementById('dashboardMonth');
+    let selectedMonthsSet = new Set(); // Vacío equivale a "Todos"
+    const allMonthsList = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+    const updateMultiMonthUI = () => {
+        if (!mMonthCont) return;
+        if (selectedMonthsSet.size === 0) {
+            mMonthCont.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Todos</span>';
+            if(sMonthInput) sMonthInput.value = "Todos";
+        } else {
+            const sorted = Array.from(selectedMonthsSet).sort((a,b) => allMonthsList.indexOf(a) - allMonthsList.indexOf(b));
+            mMonthCont.innerHTML = sorted.map(m => `<span class="badge badge-approved" style="font-size: 0.65rem; padding: 2px 6px; margin: 2px;">${m.substring(0,3)}</span>`).join('');
+            if(sMonthInput) sMonthInput.value = sorted.join(',');
+        }
+    };
+    window.updateMultiMonthUI = updateMultiMonthUI;
+
+    if(isAdmin && mMonthCont) {
+        mMonthCont.onclick = (e) => {
+            let picker = document.getElementById('monthPickerPop');
+            if(picker) { picker.remove(); return; }
+            
+            picker = document.createElement('div');
+            picker.id = 'monthPickerPop';
+            picker.style = `position: absolute; top: 100%; left: 0; width: 200px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 100; padding: 10px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;`;
+            
+            const hdr = document.createElement('button');
+            hdr.className = selectedMonthsSet.size === 0 ? 'btn-primary' : 'btn-outline';
+            hdr.style = `grid-column: span 3; margin-bottom: 4px; font-size: 0.75rem; height: auto; padding: 4px;`;
+            hdr.innerText = "Limpiar (Todos)";
+            hdr.onclick = (ev) => {
+                ev.stopPropagation();
+                selectedMonthsSet.clear();
+                updateMultiMonthUI();
+                picker.remove();
+                window.syncWeeksByMonth();
+            };
+            picker.appendChild(hdr);
+
+            allMonthsList.forEach(m => {
+                const isSel = selectedMonthsSet.has(m);
+                const btn = document.createElement('button');
+                btn.className = isSel ? 'btn-primary' : 'btn-outline';
+                btn.style = `padding: 4px; font-size: 0.7rem; height: auto; border-radius: 4px; ${!isSel ? 'border-color: #f1f5f9; color: #64748b;' : ''}`;
+                btn.innerText = m.substring(0,3);
+                btn.onclick = (ev) => {
+                    ev.stopPropagation();
+                    if(selectedMonthsSet.has(m)) selectedMonthsSet.delete(m);
+                    else selectedMonthsSet.add(m);
+                    updateMultiMonthUI();
+                    btn.className = selectedMonthsSet.has(m) ? 'btn-primary' : 'btn-outline';
+                    btn.style.borderColor = selectedMonthsSet.has(m) ? '' : '#f1f5f9';
+                    btn.style.color = selectedMonthsSet.has(m) ? '' : '#64748b';
+                    window.syncWeeksByMonth();
+                };
+                picker.appendChild(btn);
+            });
+            
+            mMonthCont.parentElement.appendChild(picker);
+            document.addEventListener('click', function closeM(e) {
+                if(!picker.contains(e.target) && e.target !== mMonthCont) {
+                    picker.remove();
+                    document.removeEventListener('click', closeM);
+                }
+            });
+        };
+    }
+
+    // Lógica de Multi-Selección de Semanas con Botón Contextual "Seleccionar Todas"
     if(isAdmin) {
         updateMultiWeekUI();
         mWeekCont.onclick = (e) => {
@@ -314,9 +402,48 @@ function renderDashboard(container) {
             
             picker = document.createElement('div');
             picker.id = 'weekPickerPop';
-            picker.style = `position: absolute; top: 100%; left: 0; width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 100; padding: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; max-height: 200px; overflow-y: auto;`;
+            picker.style = `position: absolute; top: 100%; left: 0; width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 100; padding: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; max-height: 220px; overflow-y: auto;`;
             
-            weeksList.forEach(w => {
+            const currentActiveWeeks = [];
+            const monthStr = document.getElementById('dashboardMonth')?.value || "Todos";
+            if (monthStr === "Todos" || monthStr.trim() === "") {
+                weeksList.forEach(w => currentActiveWeeks.push(w));
+            } else {
+                const year = parseInt(document.getElementById('dashboardYear')?.value) || new Date().getFullYear();
+                const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+                const selectedMonths = monthStr.split(',').map(m => m.trim());
+                selectedMonths.forEach(mName => {
+                    const mIdx = mNames.indexOf(mName);
+                    if (mIdx !== -1) {
+                        for (let d = 1; d <= 31; d++) {
+                            const date = new Date(year, mIdx, d);
+                            if (date.getMonth() !== mIdx) break;
+                            const w = weekNumberISO(date);
+                            if (!currentActiveWeeks.includes(w)) currentActiveWeeks.push(w);
+                        }
+                    }
+                });
+            }
+            currentActiveWeeks.sort((a,b)=>a-b);
+
+            const tBtn = document.createElement('button');
+            tBtn.className = 'btn-secondary';
+            tBtn.style = `grid-column: span 4; margin-bottom: 4px; font-size: 0.75rem; height: auto; padding: 4px;`;
+            tBtn.innerText = "Alternar Todas";
+            tBtn.onclick = (ev) => {
+                ev.stopPropagation();
+                const allActiveSelected = currentActiveWeeks.every(w => selectedWeeksSet.has(w));
+                if (allActiveSelected) {
+                    currentActiveWeeks.forEach(w => selectedWeeksSet.delete(w));
+                } else {
+                    currentActiveWeeks.forEach(w => selectedWeeksSet.add(w));
+                }
+                updateMultiWeekUI();
+                picker.remove();
+            };
+            picker.appendChild(tBtn);
+
+            currentActiveWeeks.forEach(w => {
                 const isSel = selectedWeeksSet.has(w);
                 const btn = document.createElement('button');
                 btn.className = isSel ? 'btn-primary' : 'btn-outline';
@@ -345,31 +472,72 @@ function renderDashboard(container) {
     }
     injectWeeks(hW, weeksList);
 
+    // Lógica de alternado Periodo / Rango de Calendario
+    const btnToggle = document.getElementById('btnToggleRange');
+    const periodDiv = document.getElementById('periodFiltersContainer');
+    const rangeDiv = document.getElementById('rangeFiltersContainer');
+    let isRangeMode = false;
+
+    if(btnToggle && periodDiv && rangeDiv) {
+        btnToggle.onclick = () => {
+            isRangeMode = !isRangeMode;
+            if(isRangeMode) {
+                periodDiv.style.display = 'none';
+                rangeDiv.style.display = 'flex';
+                btnToggle.innerHTML = '<i data-lucide="list-filter" style="width:18px;"></i>';
+                btnToggle.title = "Cambiar a Filtro por Periodos";
+            } else {
+                periodDiv.style.display = 'flex';
+                rangeDiv.style.display = 'none';
+                btnToggle.innerHTML = '<i data-lucide="calendar" style="width:18px;"></i>';
+                btnToggle.title = "Cambiar a Rango de Fechas";
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        };
+    }
+
+    window.onDashboardYearChange = () => {
+        const dM = document.getElementById('dashboardMonth');
+        if(dM) dM.value = "Todos";
+        selectedMonthsSet.clear();
+        if(window.updateMultiMonthUI) window.updateMultiMonthUI();
+        
+        // Cuando se cambia el año, automáticamente seleccionamos todas las semanas
+        selectedWeeksSet = new Set(weeksList);
+        updateMultiWeekUI();
+    };
+
     window.syncWeeksByMonth = () => {
-        const month = document.getElementById('dashboardMonth')?.value || "Todos";
+        const monthStr = document.getElementById('dashboardMonth')?.value || "Todos";
         const year = parseInt(document.getElementById('dashboardYear')?.value) || new Date().getFullYear();
         
         const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-        const mIdx = mNames.indexOf(month);
         const monthWeeks = [];
         
-        if (month !== "Todos") {
-            for (let d = 1; d <= 31; d++) {
-                const date = new Date(year, mIdx, d);
-                if (date.getMonth() !== mIdx) break;
-                const w = weekNumberISO(date);
-                if (!monthWeeks.includes(w)) monthWeeks.push(w);
-            }
+        if (monthStr !== "Todos" && monthStr.trim() !== "") {
+            const selectedMonths = monthStr.split(',').map(m => m.trim());
+            selectedMonths.forEach(mName => {
+                const mIdx = mNames.indexOf(mName);
+                if (mIdx === -1) return;
+                for (let d = 1; d <= 31; d++) {
+                    const date = new Date(year, mIdx, d);
+                    if (date.getMonth() !== mIdx) break;
+                    const w = weekNumberISO(date);
+                    if (!monthWeeks.includes(w)) monthWeeks.push(w);
+                }
+            });
         }
 
         if(isAdmin) {
-            if(month === "Todos") selectedWeeksSet = new Set([currentWeek]);
-            else {
-                monthWeeks.forEach(w => selectedWeeksSet.add(w));
+            if(monthStr === "Todos" || monthStr.trim() === "") {
+                selectedWeeksSet = new Set(weeksList);
+            } else {
+                // FIX CRÍTICO: Limpiamos el Set completamente para evitar leak de la semana actual
+                selectedWeeksSet = new Set(monthWeeks);
             }
             updateMultiWeekUI();
         } else {
-            if (month === "Todos") injectWeeks(sW, weeksList);
+            if (monthStr === "Todos" || monthStr.trim() === "") injectWeeks(sW, weeksList);
             else injectWeeks(sW, monthWeeks);
         }
     };
@@ -384,7 +552,7 @@ function renderDashboard(container) {
                 const dS = document.getElementById('dashboardDevice');
                 
                 if (yS) yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}">${y}</option>`).join('');
-                if (mS) mS.innerHTML = '<option value="Todos">Todos</option>' + res.data.months.map(m => `<option value="${m}">${m}</option>`).join('');
+                if (mS && mS.tagName === "SELECT") mS.innerHTML = '<option value="Todos">Todos</option>' + res.data.months.map(m => `<option value="${m}">${m}</option>`).join('');
                 
                 if (dS) {
                     const reported = new Set(res.data.devices);
@@ -470,17 +638,25 @@ function renderDashboard(container) {
         const dMonth = document.getElementById('dashboardMonth');
         const dYear = document.getElementById('dashboardYear');
         const dDevice = document.getElementById('dashboardDevice');
+        const dStart = document.getElementById('dashboardDateStart');
+        const dEnd = document.getElementById('dashboardDateEnd');
 
         const target = isAdmin ? (dTarget ? dTarget.value : "Total") : currentUser;
-        const week = dWeek ? dWeek.value : "";
-        const month = dMonth ? dMonth.value : "Todos";
-        const year = dYear ? dYear.value : "Todos";
         const device = dDevice ? dDevice.value : "Todos";
 
         const statsLoading = document.getElementById('stat_count');
         if (statsLoading) statsLoading.innerText = "...";
 
-        const params = { targetUser: target, week: week, month: month, year: year, device: device, refresh: force };
+        let params = { targetUser: target, device: device, refresh: force };
+        
+        if (isAdmin && isRangeMode) {
+            params.startDate = dStart ? dStart.value : "";
+            params.endDate = dEnd ? dEnd.value : "";
+        } else {
+            params.week = dWeek ? dWeek.value : "";
+            params.month = dMonth ? dMonth.value : "Todos";
+            params.year = dYear ? dYear.value : "Todos";
+        }
         
         api.getDashboardStats(params).then(res => {
             if (res.status === 'success') {
@@ -517,6 +693,15 @@ function renderDashboard(container) {
             document.getElementById('dashboardYear').value = 'Todos';
             document.getElementById('dashboardMonth').value = 'Todos';
             document.getElementById('dashboardDevice').value = 'Todos';
+            
+            if(document.getElementById('dashboardDateStart')) document.getElementById('dashboardDateStart').value = '';
+            if(document.getElementById('dashboardDateEnd')) document.getElementById('dashboardDateEnd').value = '';
+            
+            selectedMonthsSet.clear();
+            if(window.updateMultiMonthUI) window.updateMultiMonthUI();
+            
+            if(isRangeMode && btnToggle) btnToggle.click();
+
             selectedWeeksSet = new Set([currentWeek]);
             updateMultiWeekUI();
             window.syncWeeksByMonth(); 

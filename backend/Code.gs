@@ -397,16 +397,33 @@ function getDashboardStats(p) {
   
   const target = (p.targetUser || "Total").toString().trim();
   const targetWeeksStr = (p.weeks || p.week || "").toString().trim();
-  const targetMonth = (p.month || "Todos").toString().trim();
+  const targetMonthsStr = (p.month || "Todos").toString().trim();
   const targetYear = (p.year || "Todos").toString().trim();
   const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
+
+  const startDateStr = (p.startDate || "").toString().trim();
+  const endDateStr = (p.endDate || "").toString().trim();
+  
+  let startLimit = null, endLimit = null;
+  if (startDateStr) {
+    startLimit = parseDateStable(startDateStr);
+    if (startLimit) startLimit.setHours(0,0,0,0);
+  }
+  if (endDateStr) {
+    endLimit = parseDateStable(endDateStr);
+    if (endLimit) endLimit.setHours(23,59,59,999);
+  }
 
   let selectedWeeks = [];
   if (targetWeeksStr) {
     const matches = targetWeeksStr.match(/\d+/g);
     if (matches) selectedWeeks = matches.map(Number);
   }
-  if (selectedWeeks.length === 0 && targetMonth === "Todos") selectedWeeks = [getWeekNumber(now)];
+  if (selectedWeeks.length === 0 && targetMonthsStr === "Todos" && !startLimit && !endLimit) {
+    selectedWeeks = [getWeekNumber(now)];
+  }
+
+  const selectedMonths = targetMonthsStr !== "Todos" ? targetMonthsStr.split(",").map(s => s.trim()) : [];
 
   const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   let tS=0, tA=0, tH=0, count=0; 
@@ -421,12 +438,21 @@ function getDashboardStats(p) {
     if (!d[i][0] || !d[i][colMap.TRAINER] || !d[i][colMap.FECHA]) continue;
 
     var dO = parseDateStable(d[i][colMap.FECHA]); if (!dO) continue;
+    dO.setHours(12,0,0,0); 
+    
     var rowYear = dO.getFullYear();
     var rowMonth = dO.getMonth();
     var rowWeek = getWeekNumber(dO);
 
-    if (targetYear !== "Todos" && rowYear.toString() !== targetYear) continue;
-    if (targetMonth !== "Todos" && mNames[rowMonth] !== targetMonth) continue;
+    // 1. Filtrado por Rango de Fechas (Mayor prioridad)
+    if (startLimit || endLimit) {
+      if (startLimit && dO < startLimit) continue;
+      if (endLimit && dO > endLimit) continue;
+    } else {
+      // 2. Filtrado Tradicional Año/Mes
+      if (targetYear !== "Todos" && rowYear.toString() !== targetYear) continue;
+      if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) continue;
+    }
     
     if (targetDevice !== "todos") {
         const mobiles = (d[i][colMap.DISP_MOVIL]||"").toString().toLowerCase();
@@ -434,7 +460,7 @@ function getDashboardStats(p) {
         if (mobiles.indexOf(targetDevice) === -1 && eco.indexOf(targetDevice) === -1) continue;
     }
 
-    if (targetMonth === "Todos" || mNames[rowMonth] === targetMonth) availableWeeks.add(rowWeek);
+    availableWeeks.add(rowWeek);
 
     const rowTrainer = (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim().toLowerCase();
     const targetLower = target.toLowerCase();
@@ -443,7 +469,11 @@ function getDashboardStats(p) {
     var trainer = (d[i][colMap.TRAINER]||d[i][1]||"Desconocido").toString().trim();
     var cuenta = (d[i][colMap.CUENTA]||"Otros").toString().trim();
 
-    if (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek)) {
+    // En modo rango de fechas o si no hay semanas seleccionadas, entran todas las filtradas por fecha.
+    // En modo normal, debe coincidir con el set de semanas seleccionado.
+    const isWeekSelected = (startLimit || endLimit) || (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek));
+
+    if (isWeekSelected) {
       if (matchesUser) {
         tS+=ses; tA+=alu; tH+=hor; count++;
         var met=(d[i][colMap.METODOLOGIA]||"Otros").toString().trim(); mS[met]=(mS[met]||0)+hor;
@@ -454,7 +484,7 @@ function getDashboardStats(p) {
       }
     }
 
-    if (matchesUser && (targetMonth === "Todos" || rowMonth === mNames.indexOf(targetMonth))) {
+    if (matchesUser) {
       if(!monthlyWS[rowWeek]) monthlyWS[rowWeek] = { sesiones:0, alumnos:0 };
       monthlyWS[rowWeek].sesiones += ses; monthlyWS[rowWeek].alumnos += alu;
     }
