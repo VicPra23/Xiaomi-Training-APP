@@ -8,7 +8,7 @@ function renderDashboard(container) {
         const isAdmin = (role === 'Admin');
 
         const masterMobiles = ["Redmi 15 Series", "Redmi 15C Series", "Redmi A5", "Redmi A7 Pro", "Redmi Note 15 Series", "Xiaomi 17 series", "Xiaomi 17T Series"];
-        const masterEcosystem = ["Air Fryer Series", "Aire Acondicionado", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Redmi Watch 5 Series", "Redmi Watch 6 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Band 10 Series", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series", "Xiaomi Watch 5 Series", "Xiaomi Watch S4 Series", "Xiaomi Watch S5 Series"];
+        const masterEcosystem = ["Air Fryer Series", "Aire Acondicionado", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 9,7\"", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Redmi Watch 5 Series", "Redmi Watch 6 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Band 10 Series", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series", "Xiaomi Watch 5 Series", "Xiaomi Watch S4 Series", "Xiaomi Watch S5 Series"];
         const masterDevices = [...masterMobiles, ...masterEcosystem].sort();
 
         const parseISO = (s) => {
@@ -306,7 +306,15 @@ function renderDashboard(container) {
     const updateMultiWeekUI = () => {
         if (!mWeekCont) return;
         const sorted = Array.from(selectedWeeksSet).sort((a,b)=>a-b);
-        mWeekCont.innerHTML = sorted.length ? sorted.map(w => `<span class="badge badge-extra" style="font-size: 0.65rem; padding: 2px 6px; margin: 2px;">Sem ${w}</span>`).join('') : '<span style="color: #94a3b8; font-size: 0.8rem; padding: 4px;">Selecciona periodo...</span>';
+        
+        if (sorted.length === weeksList.length) {
+            mWeekCont.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Todas</span>';
+        } else if (sorted.length > 8) {
+            mWeekCont.innerHTML = `<span class="badge badge-extra" style="font-size: 0.75rem; padding: 4px 8px; margin: 2px;">${sorted.length} Semanas</span>`;
+        } else {
+            mWeekCont.innerHTML = sorted.length ? sorted.map(w => `<span class="badge badge-extra" style="font-size: 0.65rem; padding: 2px 6px; margin: 2px;">Sem ${w}</span>`).join('') : '<span style="color: #94a3b8; font-size: 0.8rem; padding: 4px;">Selecciona periodo...</span>';
+        }
+        
         if(sW) sW.value = sorted.join(',');
     };
 
@@ -360,6 +368,7 @@ function renderDashboard(container) {
                 selectedMonthsSet.clear();
                 updateMultiMonthUI();
                 picker.remove();
+                selectedWeeksSet = new Set(weeksList);
                 window.syncWeeksByMonth();
             };
             picker.appendChild(hdr);
@@ -529,9 +538,7 @@ function renderDashboard(container) {
         }
 
         if(isAdmin) {
-            if(monthStr === "Todos" || monthStr.trim() === "") {
-                selectedWeeksSet = new Set(weeksList);
-            } else {
+            if(monthStr !== "Todos" && monthStr.trim() !== "") {
                 // FIX CRÍTICO: Limpiamos el Set completamente para evitar leak de la semana actual
                 selectedWeeksSet = new Set(monthWeeks);
             }
@@ -703,8 +710,7 @@ function renderDashboard(container) {
             if(isRangeMode && btnToggle) btnToggle.click();
 
             selectedWeeksSet = new Set([currentWeek]);
-            updateMultiWeekUI();
-            window.syncWeeksByMonth(); 
+            updateMultiWeekUI(); 
         }
         if(document.getElementById('dashboardWeek')) document.getElementById('dashboardWeek').value = currentWeek;
         
