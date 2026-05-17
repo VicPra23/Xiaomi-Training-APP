@@ -290,6 +290,36 @@ function renderDashboard(container) {
     container.innerHTML = html;
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
+    // Limpiar cualquier instancia previa de TomSelect al iniciar
+    window.tsInstances = window.tsInstances || {};
+    Object.keys(window.tsInstances).forEach(k => {
+        try { window.tsInstances[k].destroy(); } catch(e){}
+    });
+    window.tsInstances = {};
+
+    const initTomSelect = (selectId, placeholder) => {
+        if (typeof TomSelect === 'undefined') return;
+        const el = document.getElementById(selectId);
+        if (!el) return;
+        
+        if (window.tsInstances[selectId]) {
+            try { window.tsInstances[selectId].destroy(); } catch(e){}
+        }
+        
+        window.tsInstances[selectId] = new TomSelect("#" + selectId, {
+            placeholder: placeholder,
+            sortField: { field: "text", direction: "asc" },
+            dropdownParent: 'body',
+            onInitialize: function() {
+                const wrapper = this.control.parentElement.querySelector('.ts-wrapper');
+                if (wrapper) {
+                    wrapper.style.minWidth = '160px';
+                    wrapper.style.borderRadius = '8px';
+                }
+            }
+        });
+    };
+
     const weekNumberISO = (d) => {
         let d2 = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
         d2.setUTCDate(d2.getUTCDate() + 4 - (d2.getUTCDay() || 7));
@@ -575,6 +605,7 @@ function renderDashboard(container) {
                         });
                     }
                     dS.innerHTML = opts;
+                    initTomSelect('dashboardDevice', 'Busca dispositivo...');
                 }
             }
         });
@@ -617,6 +648,7 @@ function renderDashboard(container) {
                         });
                     }
                     hD.innerHTML = opts;
+                    initTomSelect('histFilterDevice', 'Busca dispositivo...');
                 }
                 if(hMet) res.data.methodologies.forEach(h => hMet.innerHTML += `<option value="${h}">${h}</option>`);
             }
@@ -699,7 +731,11 @@ function renderDashboard(container) {
             document.getElementById('dashboardTarget').value = 'Total';
             document.getElementById('dashboardYear').value = 'Todos';
             document.getElementById('dashboardMonth').value = 'Todos';
-            document.getElementById('dashboardDevice').value = 'Todos';
+            if (window.tsInstances && window.tsInstances['dashboardDevice']) {
+                window.tsInstances['dashboardDevice'].setValue('Todos');
+            } else {
+                document.getElementById('dashboardDevice').value = 'Todos';
+            }
             
             if(document.getElementById('dashboardDateStart')) document.getElementById('dashboardDateStart').value = '';
             if(document.getElementById('dashboardDateEnd')) document.getElementById('dashboardDateEnd').value = '';
@@ -719,7 +755,11 @@ function renderDashboard(container) {
         document.getElementById('histFilterWeek').value = 'Todos';
         document.getElementById('histFilterMonth').value = 'Todos';
         document.getElementById('histFilterAccount').value = 'Todos';
-        document.getElementById('histFilterDevice').value = 'Todos';
+        if (window.tsInstances && window.tsInstances['histFilterDevice']) {
+            window.tsInstances['histFilterDevice'].setValue('Todos');
+        } else {
+            document.getElementById('histFilterDevice').value = 'Todos';
+        }
         document.getElementById('histFilterMethod').value = 'Todos';
         const hS = document.getElementById('historySearch');
         if(hS) hS.value = '';
@@ -760,6 +800,7 @@ function renderDashboard(container) {
                         });
                     }
                     el.innerHTML = opts;
+                    initTomSelect('histFilterDevice', 'Busca dispositivo...');
                 } else {
                     el.innerHTML = `<option value="Todos">${s.label}</option>` + 
                         s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
@@ -1013,7 +1054,12 @@ function renderDashboard(container) {
     if(btnClearHistory) btnClearHistory.onclick = () => {
         ['histFilterMonth', 'histFilterWeek', 'histFilterAccount', 'histFilterDevice', 'histFilterMethod'].forEach(id => {
             const el = document.getElementById(id);
-            if(el) el.value = 'Todos';
+            if(el) {
+                el.value = 'Todos';
+                if (id === 'histFilterDevice' && window.tsInstances && window.tsInstances[id]) {
+                    window.tsInstances[id].setValue('Todos');
+                }
+            }
         });
         loadHistory();
     };
