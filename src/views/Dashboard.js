@@ -251,7 +251,7 @@ function renderDashboard(container) {
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Metodología</label>
                             <select id="histFilterMethod" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
-                                <option value="Todos">Todas</option>
+                                <option value="Todos">Todos</option>
                             </select>
                         </div>
                     </div>
@@ -509,7 +509,7 @@ function renderDashboard(container) {
             });
         };
     }
-    injectWeeks(hW, weeksList);
+    injectWeeks(hW, weeksList, currentWeek);
 
     // Lógica de alternado Periodo / Rango de Calendario
     const btnToggle = document.getElementById('btnToggleRange');
@@ -650,7 +650,10 @@ function renderDashboard(container) {
                     hD.innerHTML = opts;
                     initTomSelect('histFilterDevice', 'Busca dispositivo...');
                 }
-                if(hMet) res.data.methodologies.forEach(h => hMet.innerHTML += `<option value="${h}">${h}</option>`);
+                if(hMet) {
+                    hMet.innerHTML = '<option value="Todos">Todos</option>' + res.data.methodologies.map(h => `<option value="${h}">${h}</option>`).join('');
+                    initTomSelect('histFilterMethod', 'Busca metodología...');
+                }
             }
         });
     };
@@ -752,7 +755,7 @@ function renderDashboard(container) {
         
         // Historial
         if(isAdmin && document.getElementById('histFilterTrainer')) document.getElementById('histFilterTrainer').value = 'Total';
-        document.getElementById('histFilterWeek').value = 'Todos';
+        if(document.getElementById('histFilterWeek')) document.getElementById('histFilterWeek').value = currentWeek;
         document.getElementById('histFilterMonth').value = 'Todos';
         document.getElementById('histFilterAccount').value = 'Todos';
         if (window.tsInstances && window.tsInstances['histFilterDevice']) {
@@ -760,7 +763,11 @@ function renderDashboard(container) {
         } else {
             document.getElementById('histFilterDevice').value = 'Todos';
         }
-        document.getElementById('histFilterMethod').value = 'Todos';
+        if (window.tsInstances && window.tsInstances['histFilterMethod']) {
+            window.tsInstances['histFilterMethod'].setValue('Todos');
+        } else {
+            document.getElementById('histFilterMethod').value = 'Todos';
+        }
         const hS = document.getElementById('historySearch');
         if(hS) hS.value = '';
         
@@ -778,7 +785,7 @@ function renderDashboard(container) {
                 { id: 'histFilterWeek', data: af.weeks, label: 'Todas' },
                 { id: 'histFilterAccount', data: af.accounts, label: 'Todas' },
                 { id: 'histFilterDevice', data: af.devices, label: 'Todos' },
-                { id: 'histFilterMethod', data: af.methods, label: 'Todas' }
+                { id: 'histFilterMethod', data: af.methods, label: 'Todos' }
             ];
             
             selectors.forEach(s => {
@@ -801,6 +808,10 @@ function renderDashboard(container) {
                     }
                     el.innerHTML = opts;
                     initTomSelect('histFilterDevice', 'Busca dispositivo...');
+                } else if (s.id === 'histFilterMethod') {
+                    el.innerHTML = `<option value="Todos">${s.label}</option>` + 
+                        s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
+                    initTomSelect('histFilterMethod', 'Busca metodología...');
                 } else {
                     el.innerHTML = `<option value="Todos">${s.label}</option>` + 
                         s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
@@ -833,9 +844,16 @@ function renderDashboard(container) {
         const loader = document.getElementById('historyLoading');
         if(loader) loader.style.visibility = 'visible';
 
-        api.getReportsHistory({ 
+        const isFiltered = (isAdmin && target !== 'Total') || 
+                           (week !== "Todos" && week !== "" && week.toString() !== currentWeek.toString()) || 
+                           (month !== "Todos") || 
+                           (account !== "Todos") || 
+                           (device !== "Todos") || 
+                           (method !== "Todos") || 
+                           (q.trim() !== "");
+
+        const historyParams = { 
             targetUser: target === 'Total' ? '' : target, 
-            limit: 25, 
             week: (week === "Todos" ? "" : week),
             month: month,
             account: account,
@@ -843,7 +861,13 @@ function renderDashboard(container) {
             methodology: method,
             q: q,
             refresh: force
-        }).then(res => {
+        };
+
+        if (!isFiltered) {
+            historyParams.limit = 25;
+        }
+
+        api.getReportsHistory(historyParams).then(res => {
             if(res.status === 'success' && res.availableFilters) {
                 updateHistoryFilters(res.availableFilters);
             }
@@ -1052,15 +1076,19 @@ function renderDashboard(container) {
 
     const btnClearHistory = document.getElementById('btnClearHistory');
     if(btnClearHistory) btnClearHistory.onclick = () => {
-        ['histFilterMonth', 'histFilterWeek', 'histFilterAccount', 'histFilterDevice', 'histFilterMethod'].forEach(id => {
+        ['histFilterMonth', 'histFilterAccount', 'histFilterDevice', 'histFilterMethod'].forEach(id => {
             const el = document.getElementById(id);
             if(el) {
                 el.value = 'Todos';
-                if (id === 'histFilterDevice' && window.tsInstances && window.tsInstances[id]) {
+                if ((id === 'histFilterDevice' || id === 'histFilterMethod') && window.tsInstances && window.tsInstances[id]) {
                     window.tsInstances[id].setValue('Todos');
                 }
             }
         });
+        const hW = document.getElementById('histFilterWeek');
+        if(hW) hW.value = currentWeek;
+        const hS = document.getElementById('historySearch');
+        if(hS) hS.value = '';
         loadHistory();
     };
 
