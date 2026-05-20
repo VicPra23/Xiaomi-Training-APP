@@ -1232,13 +1232,20 @@ function renderCharts(data) {
             data: { 
                 labels: data.pieLabels || [], 
                 datasets: [{ 
-                    data: data.pieData, 
+                    data: data.pieData,
                     backgroundColor: [
-                        primaryColor, 
-                        isDark ? '#3b82f6' : '#2563eb', // Blue
-                        isDark ? '#10b981' : '#059669', // Green
-                        isDark ? '#8b5cf6' : '#7c3aed', // Purple
-                        isDark ? '#f59e0b' : '#d97706'  // Amber
+                        primaryColor,                                   // 1. Orange (Brand)
+                        isDark ? '#3b82f6' : '#2563eb',                 // 2. Blue
+                        isDark ? '#10b981' : '#059669',                 // 3. Green
+                        isDark ? '#8b5cf6' : '#7c3aed',                 // 4. Purple
+                        isDark ? '#f59e0b' : '#d97706',                 // 5. Amber
+                        isDark ? '#ec4899' : '#db2777',                 // 6. Pink
+                        isDark ? '#06b6d4' : '#0891b2',                 // 7. Cyan/Teal
+                        isDark ? '#f43f5e' : '#e11d48',                 // 8. Rose
+                        isDark ? '#6366f1' : '#4f46e5',                 // 9. Indigo
+                        isDark ? '#84cc16' : '#65a30d',                 // 10. Lime
+                        isDark ? '#0d9488' : '#0f766e',                 // 11. Teal Dark
+                        isDark ? '#a21caf' : '#86198f'                  // 12. Magenta/Fuchsia
                     ],
                     borderWidth: 0,
                     hoverOffset: 12
