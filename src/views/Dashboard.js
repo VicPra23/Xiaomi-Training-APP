@@ -250,7 +250,7 @@ function renderDashboard(container) {
                         </div>
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Metodología</label>
-                            <select id="histFilterMethod" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterMethod" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" multiple onchange="window.dashboardLoadHistory()">
                                 <option value="Todos">Todos</option>
                             </select>
                         </div>
@@ -306,7 +306,8 @@ function renderDashboard(container) {
             try { window.tsInstances[selectId].destroy(); } catch(e){}
         }
         
-        window.tsInstances[selectId] = new TomSelect("#" + selectId, {
+        const isMultiple = el.hasAttribute('multiple');
+        const config = {
             placeholder: placeholder,
             sortField: { field: "text", direction: "asc" },
             dropdownParent: 'body',
@@ -317,7 +318,30 @@ function renderDashboard(container) {
                     wrapper.style.borderRadius = '8px';
                 }
             }
-        });
+        };
+
+        if (isMultiple) {
+            config.plugins = {
+                'remove_button': {
+                    title: 'Eliminar'
+                }
+            };
+            config.onChange = function(values) {
+                if (Array.isArray(values) && values.length > 1) {
+                    if (values[0] === 'Todos') {
+                        this.removeItem('Todos', true);
+                    } else if (values.includes('Todos')) {
+                        this.clear(true);
+                        this.addItem('Todos', true);
+                    }
+                }
+                if (typeof window.dashboardLoadHistory === 'function') {
+                    window.dashboardLoadHistory();
+                }
+            };
+        }
+        
+        window.tsInstances[selectId] = new TomSelect("#" + selectId, config);
     };
 
     const weekNumberISO = (d) => {
@@ -791,26 +815,37 @@ function renderDashboard(container) {
             selectors.forEach(s => {
                 const el = document.getElementById(s.id);
                 if (!el) return;
-                const currentVal = el.value;
+                
+                let currentVal = el.value;
+                if (window.tsInstances && window.tsInstances[s.id]) {
+                    currentVal = window.tsInstances[s.id].getValue();
+                }
 
                 if (s.id === 'histFilterDevice') {
                     const reported = new Set(s.data);
-                    let opts = `<option value="Todos">${s.label}</option>`;
+                    const isTodosSel = Array.isArray(currentVal) ? currentVal.includes('Todos') : currentVal === 'Todos';
+                    let opts = `<option value="Todos" ${isTodosSel ? 'selected' : ''}>${s.label}</option>`;
                     if (isAdmin) {
                         masterDevices.forEach(d => {
                             const hasData = reported.has(d);
-                            opts += `<option value="${d}" ${d.toString() === currentVal ? 'selected' : ''} ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
+                            const isSel = Array.isArray(currentVal) ? currentVal.includes(d.toString()) : d.toString() === currentVal;
+                            opts += `<option value="${d}" ${isSel ? 'selected' : ''} ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
                         });
                     } else {
                         s.data.sort().forEach(d => {
-                            opts += `<option value="${d}" ${d.toString() === currentVal ? 'selected' : ''}>${d}</option>`;
+                            const isSel = Array.isArray(currentVal) ? currentVal.includes(d.toString()) : d.toString() === currentVal;
+                            opts += `<option value="${d}" ${isSel ? 'selected' : ''}>${d}</option>`;
                         });
                     }
                     el.innerHTML = opts;
                     initTomSelect('histFilterDevice', 'Busca dispositivo...');
                 } else if (s.id === 'histFilterMethod') {
-                    el.innerHTML = `<option value="Todos">${s.label}</option>` + 
-                        s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
+                    const isTodosSel = Array.isArray(currentVal) ? currentVal.includes('Todos') : currentVal === 'Todos';
+                    el.innerHTML = `<option value="Todos" ${isTodosSel ? 'selected' : ''}>${s.label}</option>` + 
+                        s.data.map(v => {
+                            const isSel = Array.isArray(currentVal) ? currentVal.includes(v.toString()) : v.toString() === currentVal;
+                            return `<option value="${v}" ${isSel ? 'selected' : ''}>${v}</option>`;
+                        }).join('');
                     initTomSelect('histFilterMethod', 'Busca metodología...');
                 } else {
                     el.innerHTML = `<option value="Todos">${s.label}</option>` + 
@@ -828,9 +863,20 @@ function renderDashboard(container) {
         const month = document.getElementById('histFilterMonth')?.value || "Todos";
         const account = document.getElementById('histFilterAccount')?.value || "Todos";
         const device = document.getElementById('histFilterDevice')?.value || "Todos";
-        const method = document.getElementById('histFilterMethod')?.value || "Todos";
         const q = document.getElementById('historySearch')?.value || "";
         
+        let methods = [];
+        if (window.tsInstances && window.tsInstances['histFilterMethod']) {
+            const val = window.tsInstances['histFilterMethod'].getValue();
+            methods = Array.isArray(val) ? val : (val ? [val] : []);
+        } else {
+            const el = document.getElementById('histFilterMethod');
+            if (el) {
+                methods = Array.from(el.selectedOptions).map(o => o.value);
+            }
+        }
+        const isMethodTodos = methods.length === 0 || methods.includes('Todos');
+
         const parseDuration = (val) => {
             if (!val) return 0;
             const s = val.toString();
@@ -849,7 +895,7 @@ function renderDashboard(container) {
                            (month !== "Todos") || 
                            (account !== "Todos") || 
                            (device !== "Todos") || 
-                           (method !== "Todos") || 
+                           (!isMethodTodos) || 
                            (q.trim() !== "");
 
         const historyParams = { 
@@ -858,7 +904,7 @@ function renderDashboard(container) {
             month: month,
             account: account,
             device: device,
-            methodology: method,
+            methodology: "Todos", // Send Todos to bypass backend filtering, we filter client-side
             q: q,
             refresh: force
         };
@@ -875,8 +921,20 @@ function renderDashboard(container) {
             if (!body) return; // FIX: Guard if user navigated away
 
             if(res.status === 'success' && res.data.length > 0) {
-                window.dashboardHistoryData = res.data;
-                body.innerHTML = res.data.map((r, idx) => `
+                // Client-side methodology filtering
+                let filteredData = res.data;
+                if (!isMethodTodos) {
+                    filteredData = res.data.filter(r => methods.includes(r.metodologia));
+                }
+
+                window.dashboardHistoryData = filteredData;
+
+                if (filteredData.length === 0) {
+                    body.innerHTML = '<tr><td colspan="7" style="padding: 20px; text-align: center; color: var(--text-muted);">No se encontraron reportes que coincidan con la metodología seleccionada.</td></tr>';
+                    return;
+                }
+
+                body.innerHTML = filteredData.map((r, idx) => `
                     <tr style="border-bottom: 1px solid var(--border-main);">
                         <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${formatDateSafe(r.fecha)}</td>
                         ${isAdmin ? `<td data-label="Trainer" style="padding: 12px; font-weight: 600; color: var(--xiaomi-orange);">${r.trainer || '-'}</td>` : ''}
