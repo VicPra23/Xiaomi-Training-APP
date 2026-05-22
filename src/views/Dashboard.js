@@ -313,10 +313,13 @@ function renderDashboard(container) {
             dropdownParent: 'body',
             hideSelected: false, // Maintain selected options in the list
             score: function(search) {
-                var score = this.getScoreFunction(search);
+                var scoreFunc = this.getScoreFunction(search);
                 return function(item) {
                     if (item.value === 'Todos') return 1000; // Todos always on top and visible
-                    return score(item);
+                    if (typeof scoreFunc === 'function') {
+                        return scoreFunc(item);
+                    }
+                    return 1;
                 };
             },
             onInitialize: function() {
@@ -337,6 +340,10 @@ function renderDashboard(container) {
             config.onChange = function(values) {
                 if (window.isUpdatingHistoryFilters) return;
                 
+                const valStr = Array.isArray(values) ? values.join(',') : values;
+                if (this._lastValue === valStr) return;
+                this._lastValue = valStr;
+
                 if (Array.isArray(values) && values.length > 1) {
                     if (values[0] === 'Todos') {
                         this.removeItem('Todos', true);
@@ -350,8 +357,13 @@ function renderDashboard(container) {
                 }
             };
         } else {
-            config.onChange = function() {
+            config.onChange = function(values) {
                 if (window.isUpdatingHistoryFilters) return;
+                
+                const valStr = Array.isArray(values) ? values.join(',') : values;
+                if (this._lastValue === valStr) return;
+                this._lastValue = valStr;
+
                 if (typeof window.dashboardLoadHistory === 'function') {
                     window.dashboardLoadHistory();
                 }
