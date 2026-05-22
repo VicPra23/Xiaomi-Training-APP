@@ -37,8 +37,14 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
+    fetch(event.request)
+      .then((response) => {
+        // Si hay internet, devuelve lo nuevo y actualiza la caché en segundo plano
+        return response;
+      })
+      .catch(() => {
+        // Si no hay red (offline), busca en la caché ignorando los parámetros ?v=...
+        return caches.match(event.request, { ignoreSearch: true });
+      })
   );
 });
