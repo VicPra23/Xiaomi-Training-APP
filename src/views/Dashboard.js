@@ -311,6 +311,14 @@ function renderDashboard(container) {
             placeholder: placeholder,
             sortField: { field: "text", direction: "asc" },
             dropdownParent: 'body',
+            hideSelected: false, // Maintain selected options in the list
+            score: function(search) {
+                var score = this.getScoreFunction(search);
+                return function(item) {
+                    if (item.value === 'Todos') return 1000; // Todos always on top and visible
+                    return score(item);
+                };
+            },
             onInitialize: function() {
                 const wrapper = this.control.parentElement.querySelector('.ts-wrapper');
                 if (wrapper) {
@@ -327,6 +335,8 @@ function renderDashboard(container) {
                 }
             };
             config.onChange = function(values) {
+                if (window.isUpdatingHistoryFilters) return;
+                
                 if (Array.isArray(values) && values.length > 1) {
                     if (values[0] === 'Todos') {
                         this.removeItem('Todos', true);
@@ -335,6 +345,13 @@ function renderDashboard(container) {
                         this.addItem('Todos', true);
                     }
                 }
+                if (typeof window.dashboardLoadHistory === 'function') {
+                    window.dashboardLoadHistory();
+                }
+            };
+        } else {
+            config.onChange = function() {
+                if (window.isUpdatingHistoryFilters) return;
                 if (typeof window.dashboardLoadHistory === 'function') {
                     window.dashboardLoadHistory();
                 }
@@ -799,10 +816,10 @@ function renderDashboard(container) {
         loadHistory();
     };
     
-    let isUpdatingFilters = false;
+    window.isUpdatingHistoryFilters = false;
     const updateHistoryFilters = (af) => {
-        if (isUpdatingFilters) return;
-        isUpdatingFilters = true;
+        if (window.isUpdatingHistoryFilters) return;
+        window.isUpdatingHistoryFilters = true;
         try {
             const selectors = [
                 { id: 'histFilterMonth', data: af.months, label: 'Todos' },
@@ -819,41 +836,62 @@ function renderDashboard(container) {
                 let currentVal = el.value;
                 if (window.tsInstances && window.tsInstances[s.id]) {
                     currentVal = window.tsInstances[s.id].getValue();
-                }
-
-                if (s.id === 'histFilterDevice') {
-                    const reported = new Set(s.data);
-                    const isTodosSel = Array.isArray(currentVal) ? currentVal.includes('Todos') : currentVal === 'Todos';
-                    let opts = `<option value="Todos" ${isTodosSel ? 'selected' : ''}>${s.label}</option>`;
-                    if (isAdmin) {
-                        masterDevices.forEach(d => {
-                            const hasData = reported.has(d);
-                            const isSel = Array.isArray(currentVal) ? currentVal.includes(d.toString()) : d.toString() === currentVal;
-                            opts += `<option value="${d}" ${isSel ? 'selected' : ''} ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
-                        });
-                    } else {
-                        s.data.sort().forEach(d => {
-                            const isSel = Array.isArray(currentVal) ? currentVal.includes(d.toString()) : d.toString() === currentVal;
-                            opts += `<option value="${d}" ${isSel ? 'selected' : ''}>${d}</option>`;
-                        });
+                    const ts = window.tsInstances[s.id];
+                    
+                    // Update options dynamically without destroying the instance
+                    ts.clearOptions();
+                    ts.addOption({value: 'Todos', text: s.label});
+                    
+                    if (s.id === 'histFilterDevice') {
+                        const reported = new Set(s.data);
+                        if (isAdmin) {
+                            masterDevices.forEach(d => {
+                                const hasData = reported.has(d);
+                                ts.addOption({value: d.toString(), text: hasData ? d : d + ' (Sin datos)'});
+                            });
+                        } else {
+                            s.data.sort().forEach(d => ts.addOption({value: d.toString(), text: d}));
+                        }
+                    } else if (s.id === 'histFilterMethod') {
+                        s.data.forEach(v => ts.addOption({value: v.toString(), text: v}));
                     }
-                    el.innerHTML = opts;
-                    initTomSelect('histFilterDevice', 'Busca dispositivo...');
-                } else if (s.id === 'histFilterMethod') {
-                    const isTodosSel = Array.isArray(currentVal) ? currentVal.includes('Todos') : currentVal === 'Todos';
-                    el.innerHTML = `<option value="Todos" ${isTodosSel ? 'selected' : ''}>${s.label}</option>` + 
-                        s.data.map(v => {
-                            const isSel = Array.isArray(currentVal) ? currentVal.includes(v.toString()) : v.toString() === currentVal;
-                            return `<option value="${v}" ${isSel ? 'selected' : ''}>${v}</option>`;
-                        }).join('');
-                    initTomSelect('histFilterMethod', 'Busca metodología...');
+                    
+                    ts.setValue(currentVal, true); // true = silent
                 } else {
-                    el.innerHTML = `<option value="Todos">${s.label}</option>` + 
-                        s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
+                    if (s.id === 'histFilterDevice') {
+                        const reported = new Set(s.data);
+                        const isTodosSel = Array.isArray(currentVal) ? currentVal.includes('Todos') : currentVal === 'Todos';
+                        let opts = `<option value="Todos" ${isTodosSel ? 'selected' : ''}>${s.label}</option>`;
+                        if (isAdmin) {
+                            masterDevices.forEach(d => {
+                                const hasData = reported.has(d);
+                                const isSel = Array.isArray(currentVal) ? currentVal.includes(d.toString()) : d.toString() === currentVal;
+                                opts += `<option value="${d}" ${isSel ? 'selected' : ''} ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
+                            });
+                        } else {
+                            s.data.sort().forEach(d => {
+                                const isSel = Array.isArray(currentVal) ? currentVal.includes(d.toString()) : d.toString() === currentVal;
+                                opts += `<option value="${d}" ${isSel ? 'selected' : ''}>${d}</option>`;
+                            });
+                        }
+                        el.innerHTML = opts;
+                        initTomSelect('histFilterDevice', 'Busca dispositivo...');
+                    } else if (s.id === 'histFilterMethod') {
+                        const isTodosSel = Array.isArray(currentVal) ? currentVal.includes('Todos') : currentVal === 'Todos';
+                        el.innerHTML = `<option value="Todos" ${isTodosSel ? 'selected' : ''}>${s.label}</option>` + 
+                            s.data.map(v => {
+                                const isSel = Array.isArray(currentVal) ? currentVal.includes(v.toString()) : v.toString() === currentVal;
+                                return `<option value="${v}" ${isSel ? 'selected' : ''}>${v}</option>`;
+                            }).join('');
+                        initTomSelect('histFilterMethod', 'Busca metodología...');
+                    } else {
+                        el.innerHTML = `<option value="Todos">${s.label}</option>` + 
+                            s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
+                    }
                 }
             });
         } catch(e) { console.error("Error updating filters:", e); }
-        isUpdatingFilters = false;
+        setTimeout(() => { window.isUpdatingHistoryFilters = false; }, 50);
     };
 
     const loadHistory = (force = false) => {
