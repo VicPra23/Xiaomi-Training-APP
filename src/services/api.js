@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbx7O2-hiYRVnRJ5cxRCtg_qsp_Brd_OM3xZMcfq6Q37XYARwFwaCHkKH5wplSIQJ94jzg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzIhKFXoftoBZGIE2NxLVwsTg5feZkzWlxG63Kj5mU_VJuvl99AtnG9bGRh0H_nZq1pGg/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -37,27 +37,29 @@ async function sendGet(action, params = {}, useCache = false) {
 }
 
 /**
- * Motor de comunicación POST (V6.8) - Sincronía honesta
+ * Motor de comunicación POST (V6.8) - FIXED
  */
 async function sendPost(action, data = {}) {
     const payload = JSON.stringify({ action, ...data });
-    console.log(`[API] POST: ${action}`);
-    
+    console.log(`[API] sending POST for action: ${action}`);
     try {
         const res = await fetch(API_URL, { 
             method: 'POST', 
-            body: payload,
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            body: payload, 
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+            }
         });
         
-        const result = await res.json(); 
-        console.log(`[API] POST Result:`, result);
+        const result = await res.json();
+        console.log(`[API] POST sent successfully`, result);
         
+        // Importante: Al recibir un POST exitoso, invalidamos la caché
         _metadataCache.clear();
-        return result; 
+        return result;
     } catch (e) {
-        console.error(`[API] POST Error:`, e);
-        return { status: "error", message: "Error al enviar: archivo pesado o fallo de conexión." };
+        console.error(`[API] fetch error:`, e);
+        return { status: "error", message: "Error de red o conexión bloqueada." };
     }
 }
 

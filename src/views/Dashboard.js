@@ -364,8 +364,10 @@ function renderDashboard(container) {
                 if (this._lastValue === valStr) return;
                 this._lastValue = valStr;
 
-                if (typeof window.dashboardLoadHistory === 'function') {
-                    window.dashboardLoadHistory();
+                if (selectId.startsWith('dashboard')) {
+                    if (typeof loadStats === 'function') loadStats(false);
+                } else {
+                    if (typeof window.dashboardLoadHistory === 'function') window.dashboardLoadHistory();
                 }
             };
         }
@@ -384,6 +386,8 @@ function renderDashboard(container) {
     const sW = document.getElementById('dashboardWeek');
     const hW = document.getElementById('histFilterWeek');
     const mWeekCont = document.getElementById('multiWeekContainer');
+    
+    // El usuario ha pedido que siempre arranque con la semana actual
     let selectedWeeksSet = new Set([currentWeek]);
 
     const updateMultiWeekUI = () => {
@@ -392,13 +396,14 @@ function renderDashboard(container) {
         
         if (sorted.length === weeksList.length) {
             mWeekCont.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Todas</span>';
+            if(sW) sW.value = ""; // Mandar vacío para que el backend entienda "Todas" sin filtrar
         } else if (sorted.length > 8) {
             mWeekCont.innerHTML = `<span class="badge badge-extra" style="font-size: 0.75rem; padding: 4px 8px; margin: 2px;">${sorted.length} Semanas</span>`;
+            if(sW) sW.value = sorted.join(',');
         } else {
             mWeekCont.innerHTML = sorted.length ? sorted.map(w => `<span class="badge badge-extra" style="font-size: 0.65rem; padding: 2px 6px; margin: 2px;">Sem ${w}</span>`).join('') : '<span style="color: #94a3b8; font-size: 0.8rem; padding: 4px;">Selecciona periodo...</span>';
+            if(sW) sW.value = sorted.join(',');
         }
-        
-        if(sW) sW.value = sorted.join(',');
     };
 
     const injectWeeks = (select, list, selected = null) => {
@@ -803,9 +808,9 @@ function renderDashboard(container) {
 
             selectedWeeksSet = new Set([currentWeek]);
             updateMultiWeekUI(); 
+        } else {
+            if(document.getElementById('dashboardWeek')) document.getElementById('dashboardWeek').value = currentWeek;
         }
-        if(document.getElementById('dashboardWeek')) document.getElementById('dashboardWeek').value = currentWeek;
-        
         // Historial
         if(isAdmin && document.getElementById('histFilterTrainer')) document.getElementById('histFilterTrainer').value = 'Total';
         if(document.getElementById('histFilterWeek')) document.getElementById('histFilterWeek').value = currentWeek;

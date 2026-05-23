@@ -390,40 +390,36 @@ function getDashboardStats(p) {
   const now = new Date();
   const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME, force);
   
-  // Mapeo dinámico
   const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
   const sRef = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
   const colMap = _getColMap(sRef);
   
   const target = (p.targetUser || "Total").toString().trim();
   const targetWeeksStr = (p.weeks || p.week || "").toString().trim();
-  const targetMonthsStr = (p.month || "Todos").toString().trim();
+  const targetMonth = (p.month || "Todos").toString().trim();
   const targetYear = (p.year || "Todos").toString().trim();
   const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
 
+  // 1️⃣ NUEVO: Leer Rango de Fechas (Si el Admin lo usa)
   const startDateStr = (p.startDate || "").toString().trim();
   const endDateStr = (p.endDate || "").toString().trim();
-  
-  let startLimit = null, endLimit = null;
-  if (startDateStr) {
-    startLimit = parseDateStable(startDateStr);
-    if (startLimit) startLimit.setHours(0,0,0,0);
-  }
-  if (endDateStr) {
-    endLimit = parseDateStable(endDateStr);
-    if (endLimit) endLimit.setHours(23,59,59,999);
-  }
+  let startD = startDateStr ? new Date(startDateStr) : null;
+  let endD = endDateStr ? new Date(endDateStr) : null;
+  if(startD) startD.setHours(0,0,0,0);
+  if(endD) endD.setHours(23,59,59,999);
 
   let selectedWeeks = [];
   if (targetWeeksStr) {
     const matches = targetWeeksStr.match(/\d+/g);
     if (matches) selectedWeeks = matches.map(Number);
   }
-  if (selectedWeeks.length === 0 && targetMonthsStr === "Todos" && !startLimit && !endLimit) {
-    selectedWeeks = [getWeekNumber(now)];
-  }
+  if (selectedWeeks.length === 0 && targetMonth === "Todos" && !startD) selectedWeeks = [getWeekNumber(now)];
 
-  const selectedMonths = targetMonthsStr !== "Todos" ? targetMonthsStr.split(",").map(s => s.trim()) : [];
+  // 2️⃣ NUEVO: Soporte para Múltiples Meses (Ej: "Mayo,Junio")
+  let selectedMonths = [];
+  if (targetMonth !== "Todos") {
+      selectedMonths = targetMonth.split(',').map(m => m.trim());
+  }
 
   const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   let tS=0, tA=0, tH=0, count=0; 
@@ -434,24 +430,24 @@ function getDashboardStats(p) {
   let availableWeeks = new Set();
 
   for (var i=1; i<d.length; i++) {
-    // PROTECCIÓN: Saltar si la fila está vacía (evita datos fantasma tras borrados manuales)
     if (!d[i][0] || !d[i][colMap.TRAINER] || !d[i][colMap.FECHA]) continue;
 
     var dO = parseDateStable(d[i][colMap.FECHA]); if (!dO) continue;
-    dO.setHours(12,0,0,0); 
-    
     var rowYear = dO.getFullYear();
     var rowMonth = dO.getMonth();
     var rowWeek = getWeekNumber(dO);
 
-    // 1. Filtrado por Rango de Fechas (Mayor prioridad)
-    if (startLimit || endLimit) {
-      if (startLimit && dO < startLimit) continue;
-      if (endLimit && dO > endLimit) continue;
+    // 3️⃣ NUEVO: Aplicación lógica de los Filtros
+    if (startD && endD) {
+        // Modo Rango de Fechas
+        if (dO.getTime() < startD.getTime() || dO.getTime() > endD.getTime()) continue;
+        availableWeeks.add(rowWeek);
     } else {
-      // 2. Filtrado Tradicional Año/Mes
-      if (targetYear !== "Todos" && rowYear.toString() !== targetYear) continue;
-      if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) continue;
+        // Modo Estándar (Año, Mes, Semana)
+        if (targetYear !== "Todos" && rowYear.toString() !== targetYear) continue;
+        // Si hay meses seleccionados y este mes NO está en la lista, saltamos
+        if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) continue;
+        if (selectedMonths.length === 0 || selectedMonths.includes(mNames[rowMonth])) availableWeeks.add(rowWeek);
     }
     
     if (targetDevice !== "todos") {
@@ -460,20 +456,18 @@ function getDashboardStats(p) {
         if (mobiles.indexOf(targetDevice) === -1 && eco.indexOf(targetDevice) === -1) continue;
     }
 
-    availableWeeks.add(rowWeek);
-
     const rowTrainer = (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim().toLowerCase();
     const targetLower = target.toLowerCase();
     const matchesUser = (target === "Total" || rowTrainer === targetLower);
+    
     var ses=parseFloat(d[i][colMap.SESIONES])||0, alu=parseFloat(d[i][colMap.ALUMNOS])||0, hor=_parseDur(d[i][colMap.HORAS]);
     var trainer = (d[i][colMap.TRAINER]||d[i][1]||"Desconocido").toString().trim();
     var cuenta = (d[i][colMap.CUENTA]||"Otros").toString().trim();
 
-    // En modo rango de fechas o si no hay semanas seleccionadas, entran todas las filtradas por fecha.
-    // En modo normal, debe coincidir con el set de semanas seleccionado.
-    const isWeekSelected = (startLimit || endLimit) || (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek));
+    // Sumar a totales si coincide la semana (o si estamos en modo Rango de Fechas)
+    const inSelectedWeek = (startD && endD) ? true : (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek));
 
-    if (isWeekSelected) {
+    if (inSelectedWeek) {
       if (matchesUser) {
         tS+=ses; tA+=alu; tH+=hor; count++;
         var met=(d[i][colMap.METODOLOGIA]||"Otros").toString().trim(); mS[met]=(mS[met]||0)+hor;
@@ -484,9 +478,13 @@ function getDashboardStats(p) {
       }
     }
 
+    // Acumular para el gráfico de barras semanal
     if (matchesUser) {
-      if(!monthlyWS[rowWeek]) monthlyWS[rowWeek] = { sesiones:0, alumnos:0 };
-      monthlyWS[rowWeek].sesiones += ses; monthlyWS[rowWeek].alumnos += alu;
+        const matchesMonthForChart = (startD && endD) ? true : (selectedMonths.length === 0 || selectedMonths.includes(mNames[rowMonth]));
+        if (matchesMonthForChart) {
+            if(!monthlyWS[rowWeek]) monthlyWS[rowWeek] = { sesiones:0, alumnos:0 };
+            monthlyWS[rowWeek].sesiones += ses; monthlyWS[rowWeek].alumnos += alu;
+        }
     }
   }
   
