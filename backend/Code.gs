@@ -95,7 +95,11 @@ function _getValuesCached(ssId, sheetName, forceRefresh = false) {
     const s = ss.getSheetByName(sheetName);
     if (!s) return [];
     const d = s.getDataRange().getValues();
-    cache.put(key, JSON.stringify(d), CACHE_EXPIRATION);
+    try {
+      cache.put(key, JSON.stringify(d), CACHE_EXPIRATION);
+    } catch(cacheError) {
+      // CacheService limit is 100KB. If it fails, ignore and return data anyway.
+    }
     return d;
   } catch(e) { return []; }
 }
