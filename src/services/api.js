@@ -1,83 +1,98 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbzIhKFXoftoBZGIE2NxLVwsTg5feZkzWlxG63Kj5mU_VJuvl99AtnG9bGRh0H_nZq1pGg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxrinGu2L5MC_oCjmKD4i-WAzWRSsdRNTvrUFTLxykfRMJ-eQ_7bjwTdNb9xafp3mUDKA/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
 
 /**
- * Motor de comunicación GET (V6.8) - Migración total a Fetch
+ * Motor de comunicación GET (V6.9) - MODO JSONP (Anti-Bloqueos CORS)
+ * Esto evita que el móvil bloquee las redirecciones de Google Apps Script.
  */
-async function sendGet(action, params = {}, useCache = false) {
+function sendGet(action, params = {}, useCache = false) {
     const cacheKey = action + JSON.stringify(params);
     if (useCache && _metadataCache.has(cacheKey)) {
-        return _metadataCache.get(cacheKey);
+        return Promise.resolve(_metadataCache.get(cacheKey));
     }
 
-    const queryParams = { action, ...params };
-    if (!useCache) {
-        queryParams._t = Date.now();
-    }
-    const query = new URLSearchParams(queryParams).toString();
-    const url = `${API_URL}?${query}`;
-    
-    console.log(`[API] GET: ${action}`);
-    try {
-        const res = await fetch(url, { 
-            method: 'GET',
-            mode: 'cors',
-            credentials: 'omit'
-        });
-        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-        const result = await res.json();
-        if (useCache) _metadataCache.set(cacheKey, result);
-        return result;
-    } catch (e) {
-        console.error(`[API] GET Error:`, e);
-        throw new Error("Error de red o bloqueo de seguridad (VPN/Adblock).");
-    }
+    return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_' + Math.round(100000 * Math.random());
+        const script = document.createElement('script');
+        
+        const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error("Timeout: El servidor de Google no responde o hay mala cobertura."));
+        }, 15000); 
+
+        function cleanup() {
+            clearTimeout(timeout);
+            if (script.parentNode) script.parentNode.removeChild(script);
+            delete window[callbackName];
+        }
+
+        window[callbackName] = function(data) {
+            cleanup();
+            if (useCache) _metadataCache.set(cacheKey, data);
+            resolve(data);
+        };
+
+        const queryParams = { action, ...params, callback: callbackName };
+        if (!useCache) queryParams._t = Date.now(); // Evitar caché del navegador
+        
+        const query = new URLSearchParams(queryParams).toString();
+        script.src = `${API_URL}?${query}`;
+        script.onerror = () => { 
+            cleanup(); 
+            reject(new Error("Error de red o bloqueo de seguridad (CORS/VPN).")); 
+        };
+        
+        document.body.appendChild(script);
+    });
 }
 
 /**
- * Motor de comunicación POST (V6.8) - FIXED
+ * Motor de comunicación POST para subida de reportes y fotos
  */
 async function sendPost(action, data = {}) {
     const payload = JSON.stringify({ action, ...data });
     console.log(`[API] sending POST for action: ${action}`);
+    
     try {
         const res = await fetch(API_URL, { 
             method: 'POST', 
             body: payload, 
             headers: {
-                'Content-Type': 'text/plain;charset=utf-8'
+                'Content-Type': 'text/plain;charset=utf-8' // Obligatorio para evitar preflight
             }
         });
         
+        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         const result = await res.json();
-        console.log(`[API] POST sent successfully`, result);
         
-        // Importante: Al recibir un POST exitoso, invalidamos la caché
-        _metadataCache.clear();
+        console.log(`[API] POST sent successfully`);
+        _metadataCache.clear(); // Limpiamos caché porque hubo cambios
         return result;
     } catch (e) {
         console.error(`[API] fetch error:`, e);
-        return { status: "error", message: "Error de red o conexión bloqueada." };
+        throw new Error("Error de red o conexión bloqueada al enviar datos.");
     }
 }
 
-// Compatibilidad con código antiguo que usa sendJSONP
-const sendJSONP = (action, params, useCache) => sendGet(action, params, useCache);
-
-// GESTIÓN DE SESIÓN
 function setSessionData(data) { 
-    try { localStorage.setItem('userSession', JSON.stringify(data)); } catch(e) {}
-}
-function getSessionData() { 
-    try { return JSON.parse(localStorage.getItem('userSession')); } catch(e) { return null; }
-}
-function clearSessionData() { 
-    try { localStorage.removeItem('userSession'); _metadataCache.clear(); } catch(e) {}
+    try { localStorage.setItem('userSession', JSON.stringify(data)); } 
+    catch(e) { console.warn("LocalStorage bloqueado:", e); }
 }
 
-// EXPOSICIÓN DE MÉTODOS
+function getSessionData() { 
+    try { return JSON.parse(localStorage.getItem('userSession')); } 
+    catch(e) { return null; }
+}
+
+function clearSessionData() { 
+    try {
+        localStorage.removeItem('userSession'); 
+        _metadataCache.clear();
+    } catch(e) {}
+}
+
 const api = {
     login: (user, pass) => sendGet("login", { user, pass }),
     getUsersList: () => sendGet("getUsersList", {}, true),
@@ -103,8 +118,9 @@ const api = {
     deleteReport: (id) => sendPost("deleteReport", { id })
 };
 
-// Hacer funciones globales para compatibilidad con main.js
-window.sendJSONP = sendJSONP;
+window.setSessionData = setSessionData;
 window.getSessionData = getSessionData;
 window.clearSessionData = clearSessionData;
+window.sendJSONP = sendGet; // Compatibilidad
+window.sendPost = sendPost;
 window.api = api;

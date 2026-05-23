@@ -40,7 +40,7 @@ function _getColMap(sheet) {
     else if (clean.includes("ECOSISTEMA") || clean.includes("NO M")) map.DISP_ECO = i;
     else if (clean.includes("COMENTARIO")) map.COMENTARIOS = i;
     else if (clean.includes("FOTO") || clean.includes("URL")) map.FOTOS = i;
-    else if (clean.includes("TRAINER") || clean.includes("USUARIO")) map.TRAINER = i;
+    else if (clean.includes("TRAINER") || clean.includes("USUARIO") || clean.includes("NOMBRE")) map.TRAINER = i;
   });
   return map;
 }
@@ -430,9 +430,11 @@ function getDashboardStats(p) {
   let availableWeeks = new Set();
 
   for (var i=1; i<d.length; i++) {
-    if (!d[i][0] || !d[i][colMap.TRAINER] || !d[i][colMap.FECHA]) continue;
+    var fVal = colMap.FECHA !== undefined ? d[i][colMap.FECHA] : d[i][2];
+    var tVal = colMap.TRAINER !== undefined ? d[i][colMap.TRAINER] : d[i][1];
+    if (!d[i][0] || !fVal || !tVal) continue; 
 
-    var dO = parseDateStable(d[i][colMap.FECHA]); if (!dO) continue;
+    var dO = parseDateStable(fVal); if (!dO) continue;
     var rowYear = dO.getFullYear();
     var rowMonth = dO.getMonth();
     var rowWeek = getWeekNumber(dO);
@@ -525,11 +527,15 @@ function getReportsHistory(p) {
     const targetLower = target.toLowerCase();
 
     for (var j=1; j<d.length; j++) {
-        const rowTrainer = (d[j][colMap.TRAINER]||d[j][1]||"").toString().trim().toLowerCase();
+        var tVal = colMap.TRAINER !== undefined ? d[j][colMap.TRAINER] : d[j][1];
+        var fVal = colMap.FECHA !== undefined ? d[j][colMap.FECHA] : d[j][2];
+        if (!d[j][0] || !fVal || !tVal) continue;
+
+        const rowTrainer = tVal.toString().trim().toLowerCase();
         const matchesUser = (target === "Total" || !target || rowTrainer === targetLower);
         
         if (matchesUser) {
-            const dO = parseDateStable(d[j][colMap.FECHA]);
+            const dO = parseDateStable(fVal);
             if (dO) {
                 const rowMonth = mNames[dO.getMonth()];
                 const rowWeek = getWeekNumber(dO);
@@ -548,11 +554,15 @@ function getReportsHistory(p) {
 
   
     for (let i = d.length - 1; i >= 1; i--) {
-      const rowTrainer = (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim().toLowerCase();
+      var tVal = colMap.TRAINER !== undefined ? d[i][colMap.TRAINER] : d[i][1];
+      var fVal = colMap.FECHA !== undefined ? d[i][colMap.FECHA] : d[i][2];
+      if (!d[i][0] || !fVal || !tVal) continue;
+
+      const rowTrainer = tVal.toString().trim().toLowerCase();
       const matchesUser = (target === "Total" || !target || rowTrainer === targetLower);
       
       if (!matchesUser) continue;
-      const dO = parseDateStable(d[i][colMap.FECHA]);
+      const dO = parseDateStable(fVal);
       if (!dO) continue;
       
       if (weekFilter && weekFilter !== "Todos" && getWeekNumber(dO) != weekFilter) continue;
@@ -750,8 +760,9 @@ function getFilterMetadata() {
   var mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   
   for (var i=1; i<d.length; i++) {
-    if (!d[i][0] || !d[i][colMap.FECHA]) continue;
-    var dO = parseDateStable(d[i][colMap.FECHA]);
+    var fVal = colMap.FECHA !== undefined ? d[i][colMap.FECHA] : d[i][2];
+    if (!d[i][0] || !fVal) continue;
+    var dO = parseDateStable(fVal);
     if(dO) { ys.add(dO.getFullYear().toString()); ms.add(mNames[dO.getMonth()]); }
     if(d[i][colMap.CUENTA]) accounts.add(d[i][colMap.CUENTA].toString().trim());
     if(d[i][colMap.METODOLOGIA]) methodologies.add(d[i][colMap.METODOLOGIA].toString().trim());
