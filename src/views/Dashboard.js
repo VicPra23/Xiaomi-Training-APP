@@ -761,10 +761,10 @@ function renderDashboard(container) {
         api.getDashboardStats(params).then(res => {
             if (res.status === 'success') {
                 try {
-                    const sCount = document.getElementById('stat_count'); if(sCount) sCount.innerText = res.currentWeekData.count;
-                    const sSesi = document.getElementById('stat_sesiones'); if(sSesi) sSesi.innerText = res.totalSesiones;
-                    const sAlum = document.getElementById('stat_alumnos'); if(sAlum) sAlum.innerText = res.totalAlumnos;
-                    const sHora = document.getElementById('stat_horas'); if(sHora) sHora.innerText = res.totalHoras;
+                    const sCount = document.getElementById('stat_count'); if(sCount) sCount.innerText = (res.currentWeekData && res.currentWeekData.count !== undefined) ? res.currentWeekData.count : (res.count || 0);
+                    const sSesi = document.getElementById('stat_sesiones'); if(sSesi) sSesi.innerText = res.totalSesiones !== undefined ? res.totalSesiones : (res.sesiones || 0);
+                    const sAlum = document.getElementById('stat_alumnos'); if(sAlum) sAlum.innerText = res.totalAlumnos !== undefined ? res.totalAlumnos : (res.alumnos || 0);
+                    const sHora = document.getElementById('stat_horas'); if(sHora) sHora.innerText = res.totalHoras !== undefined ? res.totalHoras : (res.horas || 0);
                     
                     const pText = document.getElementById('dashPeriodText');
                     if (pText) {
@@ -1019,10 +1019,10 @@ function renderDashboard(container) {
         const body = document.getElementById('accountTableBody');
         if(!body) return;
         let rows = '', totalSes = 0, totalAlu = 0;
-        const accounts = Object.keys(stats.byAccount).sort();
+        const accounts = Object.keys(stats.byAccount || {}).sort();
         accounts.forEach(acc => {
-            const s = stats.byAccount[acc].sesiones;
-            const a = stats.byAccount[acc].alumnos;
+            const s = stats.byAccount[acc]?.sesiones || 0;
+            const a = stats.byAccount[acc]?.alumnos || 0;
             totalSes += s; totalAlu += a;
             rows += `
                 <tr class="table-row-hover" style="border-bottom:1px solid var(--border-main); transition: background 0.2s;">
@@ -1276,11 +1276,11 @@ function renderCharts(data) {
         weeklyChart = new Chart(ctxW, {
             type: 'bar',
             data: { 
-                labels: data.chartLabels, 
+                labels: data.chartLabels || data.labels || ["Sin Datos"], 
                 datasets: [
                     { 
                         label: 'Sesiones', 
-                        data: data.chartSesiones, 
+                        data: data.chartSesiones || data.sesiones || [0], 
                         backgroundColor: gradOrange, 
                         borderRadius: 12,
                         hoverBackgroundColor: primaryColor,
@@ -1288,7 +1288,7 @@ function renderCharts(data) {
                     },
                     { 
                         label: 'Alumnos', 
-                        data: data.chartAlumnos, 
+                        data: data.chartAlumnos || data.alumnos || [0], 
                         backgroundColor: gradGray, 
                         borderRadius: 12,
                         hoverBackgroundColor: secondaryColor,
@@ -1343,9 +1343,9 @@ function renderCharts(data) {
         methodsChart = new Chart(ctxM, {
             type: 'doughnut',
             data: { 
-                labels: data.pieLabels || [], 
+                labels: data.pieLabels || data.methodLabels || [], 
                 datasets: [{ 
-                    data: data.pieData,
+                    data: data.pieData || data.methodData || [],
                     backgroundColor: [
                         primaryColor,                                   // 1. Orange (Brand)
                         isDark ? '#3b82f6' : '#2563eb',                 // 2. Blue
@@ -1411,8 +1411,8 @@ function renderCharts(data) {
                 data: {
                     labels: names,
                     datasets: [
-                        { label: 'Personas', data: names.map(n => data.adminStats.byTrainer[n].alumnos), backgroundColor: gradT_Orange, borderRadius: 20 },
-                        { label: 'Sesiones', data: names.map(n => data.adminStats.byTrainer[n].sesiones), backgroundColor: gradT_Gray, borderRadius: 20 }
+                        { label: 'Personas', data: names.map(n => data.adminStats.byTrainer[n]?.alumnos || 0), backgroundColor: gradT_Orange, borderRadius: 20 },
+                        { label: 'Sesiones', data: names.map(n => data.adminStats.byTrainer[n]?.sesiones || 0), backgroundColor: gradT_Gray, borderRadius: 20 }
                     ]
                 },
                 options: {
