@@ -432,7 +432,7 @@ function getDashboardStats(p) {
   for (var i=1; i<d.length; i++) {
     var fVal = colMap.FECHA !== undefined ? d[i][colMap.FECHA] : d[i][2];
     var tVal = colMap.TRAINER !== undefined ? d[i][colMap.TRAINER] : d[i][1];
-    if (!d[i][0] || !fVal || !tVal) continue; 
+    if (!fVal || !tVal) continue; 
 
     var dO = parseDateStable(fVal); if (!dO) continue;
     var rowYear = dO.getFullYear();
@@ -453,8 +453,8 @@ function getDashboardStats(p) {
     }
     
     if (targetDevice !== "todos") {
-        const mobiles = (d[i][colMap.DISP_MOVIL]||"").toString().toLowerCase();
-        const eco = (d[i][colMap.DISP_ECO]||"").toString().toLowerCase();
+        const mobiles = (colMap.DISP_MOVIL !== undefined ? d[i][colMap.DISP_MOVIL] : (d[i][11]||"")).toString().toLowerCase();
+        const eco = (colMap.DISP_ECO !== undefined ? d[i][colMap.DISP_ECO] : (d[i][12]||"")).toString().toLowerCase();
         if (mobiles.indexOf(targetDevice) === -1 && eco.indexOf(targetDevice) === -1) continue;
     }
 
@@ -462,7 +462,10 @@ function getDashboardStats(p) {
     const targetLower = target.toLowerCase();
     const matchesUser = (target === "Total" || rowTrainer === targetLower);
     
-    var ses=parseFloat(d[i][colMap.SESIONES])||0, alu=parseFloat(d[i][colMap.ALUMNOS])||0, hor=_parseDur(d[i][colMap.HORAS]);
+    var sVal = colMap.SESIONES !== undefined ? d[i][colMap.SESIONES] : d[i][6];
+    var aVal = colMap.ALUMNOS !== undefined ? d[i][colMap.ALUMNOS] : d[i][8];
+    var hVal = colMap.HORAS !== undefined ? d[i][colMap.HORAS] : d[i][9];
+    var ses=parseFloat(sVal)||0, alu=parseFloat(aVal)||0, hor=_parseDur(hVal);
     var trainer = (d[i][colMap.TRAINER]||d[i][1]||"Desconocido").toString().trim();
     var cuenta = (d[i][colMap.CUENTA]||"Otros").toString().trim();
 
@@ -472,7 +475,8 @@ function getDashboardStats(p) {
     if (inSelectedWeek) {
       if (matchesUser) {
         tS+=ses; tA+=alu; tH+=hor; count++;
-        var met=(d[i][colMap.METODOLOGIA]||"Otros").toString().trim(); mS[met]=(mS[met]||0)+hor;
+        var met=(colMap.METODOLOGIA !== undefined ? d[i][colMap.METODOLOGIA] : (d[i][3]||"Otros")).toString().trim(); 
+        mS[met]=(mS[met]||0)+hor;
         if(!statsByAccount[cuenta]) statsByAccount[cuenta] = { sesiones:0, alumnos:0 };
         statsByAccount[cuenta].sesiones += ses; statsByAccount[cuenta].alumnos += alu;
         if(!statsByTrainer[trainer]) statsByTrainer[trainer] = { sesiones:0, alumnos:0 };
@@ -529,7 +533,7 @@ function getReportsHistory(p) {
     for (var j=1; j<d.length; j++) {
         var tVal = colMap.TRAINER !== undefined ? d[j][colMap.TRAINER] : d[j][1];
         var fVal = colMap.FECHA !== undefined ? d[j][colMap.FECHA] : d[j][2];
-        if (!d[j][0] || !fVal || !tVal) continue;
+        if (!fVal || !tVal) continue;
 
         const rowTrainer = tVal.toString().trim().toLowerCase();
         const matchesUser = (target === "Total" || !target || rowTrainer === targetLower);
@@ -556,7 +560,7 @@ function getReportsHistory(p) {
     for (let i = d.length - 1; i >= 1; i--) {
       var tVal = colMap.TRAINER !== undefined ? d[i][colMap.TRAINER] : d[i][1];
       var fVal = colMap.FECHA !== undefined ? d[i][colMap.FECHA] : d[i][2];
-      if (!d[i][0] || !fVal || !tVal) continue;
+      if (!fVal || !tVal) continue;
 
       const rowTrainer = tVal.toString().trim().toLowerCase();
       const matchesUser = (target === "Total" || !target || rowTrainer === targetLower);
@@ -761,7 +765,7 @@ function getFilterMetadata() {
   
   for (var i=1; i<d.length; i++) {
     var fVal = colMap.FECHA !== undefined ? d[i][colMap.FECHA] : d[i][2];
-    if (!d[i][0] || !fVal) continue;
+    if (!fVal) continue;
     var dO = parseDateStable(fVal);
     if(dO) { ys.add(dO.getFullYear().toString()); ms.add(mNames[dO.getMonth()]); }
     if(d[i][colMap.CUENTA]) accounts.add(d[i][colMap.CUENTA].toString().trim());
