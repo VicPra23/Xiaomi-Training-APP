@@ -101,13 +101,26 @@ function renderDashboard(container) {
                 </div>
             </div>
         </div>` : `
-        <div class="glass-card" style="margin-left: 0; margin-right: auto; margin-bottom: 2rem; max-width: 350px; padding: 0.75rem 1.25rem; position: relative; z-index: 10;">
+        <div class="glass-card" style="margin-left: 0; margin-right: auto; margin-bottom: 2rem; max-width: 500px; padding: 0.75rem 1.25rem; position: relative; z-index: 10;">
             <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
-                <div class="form-group" style="margin:0; min-width: 180px; flex: 0 1 auto; text-align: center;">
-                    <label class="form-label" style="display: block; width: 100%;">Semana</label>
-                    <select id="dashboardWeek" class="form-control"></select>
+                <div id="periodFiltersContainer" style="display:flex; gap:12px;">
+                    <div class="form-group" style="margin:0; min-width: 180px; flex: 0 1 auto; text-align: center;">
+                        <label class="form-label" style="display: block; width: 100%;">Semana</label>
+                        <select id="dashboardWeek" class="form-control"></select>
+                    </div>
+                </div>
+                <div id="rangeFiltersContainer" style="display:none; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
+                    <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
+                        <label class="form-label" style="display: block; width: 100%;">Desde</label>
+                        <input type="date" id="dashboardDateStart" class="form-control" style="height: 42px; font-size: 0.85rem; text-align:center;">
+                    </div>
+                    <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
+                        <label class="form-label" style="display: block; width: 100%;">Hasta</label>
+                        <input type="date" id="dashboardDateEnd" class="form-control" style="height: 42px; font-size: 0.85rem; text-align:center;">
+                    </div>
                 </div>
                 <div style="display:flex; gap:8px;">
+                    <button id="btnToggleRange" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Alternar Rango/Periodos"><i data-lucide="calendar" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" style="height:42px; width:42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="search" style="width:20px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="refresh-ccw" style="width:18px;"></i></button>
                 </div>
@@ -207,6 +220,9 @@ function renderDashboard(container) {
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; margin-bottom: 2rem;">
                         <h3 style="margin:0; font-size: 1.4rem; display: flex; align-items: center; gap: 12px;"><i data-lucide="history" style="color: var(--xiaomi-orange);"></i> Historial de Actividad</h3>
                         <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button id="btnToggleHistoryRange" class="btn-secondary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Alternar Rango/Periodos">
+                                <i data-lucide="calendar" style="width:20px;"></i>
+                            </button>
                             <button onclick="window.dashboardLoadHistory()" class="btn-primary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0;" title="Filtrar">
                                 <i data-lucide="search" style="width:20px;"></i>
                             </button>
@@ -224,33 +240,41 @@ function renderDashboard(container) {
                                 <option value="Total">Dato Global</option>
                             </select>
                         </div>` : ''}
-                        <div class="form-group" style="margin:0;">
+                        <div id="histPeriodMonth" class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Mes</label>
-                            <select id="histFilterMonth" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterMonth" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
                                 <option value="Todos">Todos</option>
                             </select>
                         </div>
-                        <div class="form-group" style="margin:0;">
+                        <div id="histPeriodWeek" class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Semana</label>
-                            <select id="histFilterWeek" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterWeek" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
                                 <option value="Todos">Todas</option>
                             </select>
                         </div>
+                        <div id="histRangeStart" class="form-group" style="margin:0; display:none;">
+                            <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Desde</label>
+                            <input type="date" id="histFilterDateStart" class="form-control" style="font-size: 0.85rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                        </div>
+                        <div id="histRangeEnd" class="form-group" style="margin:0; display:none;">
+                            <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Hasta</label>
+                            <input type="date" id="histFilterDateEnd" class="form-control" style="font-size: 0.85rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                        </div>
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Cuenta</label>
-                            <select id="histFilterAccount" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterAccount" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
                                 <option value="Todos">Todas</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Dispositivo</label>
-                            <select id="histFilterDevice" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterDevice" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
                                 <option value="Todos">Todos</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Metodología</label>
-                            <select id="histFilterMethod" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" multiple onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterMethod" class="form-control" style="font-size: 0.8rem; margin:0;" multiple onchange="window.dashboardLoadHistory()">
                                 <option value="Todos">Todos</option>
                             </select>
                         </div>
@@ -325,7 +349,7 @@ function renderDashboard(container) {
             onInitialize: function() {
                 const wrapper = this.control.parentElement.querySelector('.ts-wrapper');
                 if (wrapper) {
-                    wrapper.style.minWidth = '160px';
+                    wrapper.style.minWidth = '120px';
                     wrapper.style.borderRadius = '8px';
                 }
             }
@@ -344,15 +368,33 @@ function renderDashboard(container) {
                 if (this._lastValue === valStr) return;
                 this._lastValue = valStr;
 
-                if (Array.isArray(values) && values.length > 1) {
-                    if (values[0] === 'Todos') {
-                        this.removeItem('Todos', true);
-                    } else if (values.includes('Todos')) {
-                        this.clear(true);
-                        this.addItem('Todos', true);
+                if (Array.isArray(values)) {
+                    if (values.length === 0) {
+                        setTimeout(() => {
+                            this.addItem('Todos', true);
+                            if (selectId.includes('histFilter')) window.dashboardLoadHistory();
+                        }, 0);
+                        return;
+                    } else if (values.length > 1) {
+                        if (values[0] === 'Todos') {
+                            setTimeout(() => {
+                                this.removeItem('Todos', true);
+                                if (selectId.includes('histFilter')) window.dashboardLoadHistory();
+                            }, 0);
+                            return;
+                        } else if (values.includes('Todos')) {
+                            setTimeout(() => {
+                                this.clear(true);
+                                this.addItem('Todos', true);
+                                if (selectId.includes('histFilter')) window.dashboardLoadHistory();
+                            }, 0);
+                            return;
+                        }
                     }
                 }
-                if (typeof window.dashboardLoadHistory === 'function') {
+                
+                // For history filters, we want to auto-load on change
+                if (selectId.includes('histFilter')) {
                     window.dashboardLoadHistory();
                 }
             };
@@ -709,8 +751,12 @@ function renderDashboard(container) {
                     initTomSelect('histFilterDevice', 'Busca dispositivo...');
                 }
                 if(hMet) {
-                    hMet.innerHTML = '<option value="Todos">Todos</option>' + res.data.methodologies.map(h => `<option value="${h}">${h}</option>`).join('');
-                    initTomSelect('histFilterMethod', 'Busca metodología...');
+                    const methods = res.data.methodologies || [];
+                    hMet.innerHTML = '<option value="Todos" selected>Todas</option>' + methods.map(h => `<option value="${h}">${h}</option>`).join('');
+                    initTomSelect('histFilterMethod', '');
+                    if (window.tsInstances['histFilterMethod']) {
+                        window.tsInstances['histFilterMethod'].addItem('Todos', true);
+                    }
                 }
             }
         });
@@ -721,7 +767,7 @@ function renderDashboard(container) {
         if (isAdmin) return; // Admins use the multi-picker
         const sel = document.getElementById('dashboardWeek');
         if (!sel) return;
-        const currentVal = sel.value;
+        const currentVal = sel.value || currentWeek.toString();
         sel.innerHTML = '<option value="">Selecciona...</option>';
         (weeks || []).sort((a, b) => b - a).forEach(w => {
             const opt = document.createElement('option');
@@ -822,7 +868,7 @@ function renderDashboard(container) {
             document.getElementById('histFilterDevice').value = 'Todos';
         }
         if (window.tsInstances && window.tsInstances['histFilterMethod']) {
-            window.tsInstances['histFilterMethod'].setValue('Todos');
+            window.tsInstances['histFilterMethod'].setValue(['Todos']);
         } else {
             document.getElementById('histFilterMethod').value = 'Todos';
         }
@@ -843,7 +889,7 @@ function renderDashboard(container) {
                 { id: 'histFilterWeek', data: af.weeks, label: 'Todas' },
                 { id: 'histFilterAccount', data: af.accounts, label: 'Todas' },
                 { id: 'histFilterDevice', data: af.devices, label: 'Todos' },
-                { id: 'histFilterMethod', data: af.methods, label: 'Todos' }
+                { id: 'histFilterMethod', data: af.methods, label: 'Todas' }
             ];
             
             selectors.forEach(s => {
@@ -852,7 +898,8 @@ function renderDashboard(container) {
                 
                 let currentVal = el.value;
                 if (window.tsInstances && window.tsInstances[s.id]) {
-                    currentVal = window.tsInstances[s.id].getValue();
+                    const tsVal = window.tsInstances[s.id].getValue();
+                    currentVal = Array.isArray(tsVal) ? [...tsVal] : tsVal;
                     const ts = window.tsInstances[s.id];
                     
                     // Update options dynamically without destroying the instance
@@ -864,13 +911,24 @@ function renderDashboard(container) {
                         if (isAdmin) {
                             masterDevices.forEach(d => {
                                 const hasData = reported.has(d);
-                                ts.addOption({value: d.toString(), text: hasData ? d : d + ' (Sin datos)'});
+                                ts.addOption({value: d.toString(), text: hasData ? d : d + ' (Sin datos)', disabled: !hasData});
                             });
                         } else {
                             s.data.sort().forEach(d => ts.addOption({value: d.toString(), text: d}));
                         }
                     } else if (s.id === 'histFilterMethod') {
                         s.data.forEach(v => ts.addOption({value: v.toString(), text: v}));
+                    }
+                    
+                    if (Array.isArray(currentVal)) {
+                        currentVal.forEach(v => {
+                            if (v !== 'Todos' && !s.data.includes(v)) {
+                                ts.addOption({value: v.toString(), text: v.toString()});
+                            }
+                        });
+                        if (currentVal.length === 0) currentVal = ['Todos'];
+                    } else if (!currentVal) {
+                        currentVal = 'Todos';
                     }
                     
                     ts.setValue(currentVal, true); // true = silent
@@ -894,13 +952,16 @@ function renderDashboard(container) {
                         el.innerHTML = opts;
                         initTomSelect('histFilterDevice', 'Busca dispositivo...');
                     } else if (s.id === 'histFilterMethod') {
-                        const isTodosSel = Array.isArray(currentVal) ? currentVal.includes('Todos') : currentVal === 'Todos';
+                        const isTodosSel = (!currentVal || currentVal.length === 0 || (Array.isArray(currentVal) ? currentVal.includes('Todos') : currentVal === 'Todos'));
                         el.innerHTML = `<option value="Todos" ${isTodosSel ? 'selected' : ''}>${s.label}</option>` + 
                             s.data.map(v => {
                                 const isSel = Array.isArray(currentVal) ? currentVal.includes(v.toString()) : v.toString() === currentVal;
                                 return `<option value="${v}" ${isSel ? 'selected' : ''}>${v}</option>`;
                             }).join('');
-                        initTomSelect('histFilterMethod', 'Busca metodología...');
+                        initTomSelect('histFilterMethod', '');
+                        if (window.tsInstances['histFilterMethod'] && isTodosSel) {
+                            window.tsInstances['histFilterMethod'].addItem('Todos', true);
+                        }
                     } else {
                         el.innerHTML = `<option value="Todos">${s.label}</option>` + 
                             s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
@@ -914,16 +975,29 @@ function renderDashboard(container) {
     const loadHistory = (force = false) => {
         // Al cargar historial, respetamos si el admin seleccionó un trainer específico ABRAZO
         const target = isAdmin ? (document.getElementById('histFilterTrainer')?.value || 'Total') : currentUser;
-        const week = document.getElementById('histFilterWeek')?.value || "";
-        const month = document.getElementById('histFilterMonth')?.value || "Todos";
+        let week = document.getElementById('histFilterWeek')?.value || "";
+        let month = document.getElementById('histFilterMonth')?.value || "Todos";
         const account = document.getElementById('histFilterAccount')?.value || "Todos";
         const device = document.getElementById('histFilterDevice')?.value || "Todos";
         const q = document.getElementById('historySearch')?.value || "";
         
+        const dateStart = document.getElementById('histFilterDateStart')?.value || "";
+        const dateEnd = document.getElementById('histFilterDateEnd')?.value || "";
+        const useRange = document.getElementById('histRangeStart')?.style.display !== 'none';
+
+        if (useRange) {
+            week = "";
+            month = "Todos";
+        }
+
         let methods = [];
         if (window.tsInstances && window.tsInstances['histFilterMethod']) {
             const val = window.tsInstances['histFilterMethod'].getValue();
-            methods = Array.isArray(val) ? val : (val ? [val] : []);
+            if (Array.isArray(val)) {
+                methods = val;
+            } else if (typeof val === 'string') {
+                methods = val.split(',').filter(Boolean);
+            }
         } else {
             const el = document.getElementById('histFilterMethod');
             if (el) {
@@ -951,6 +1025,7 @@ function renderDashboard(container) {
                            (account !== "Todos") || 
                            (device !== "Todos") || 
                            (!isMethodTodos) || 
+                           (useRange && (dateStart || dateEnd)) ||
                            (q.trim() !== "");
 
         const historyParams = { 
@@ -961,12 +1036,9 @@ function renderDashboard(container) {
             device: device,
             methodology: "Todos", // Send Todos to bypass backend filtering, we filter client-side
             q: q,
-            refresh: force
+            refresh: force,
+            limit: isFiltered ? 9999 : 25
         };
-
-        if (!isFiltered) {
-            historyParams.limit = 25;
-        }
 
         api.getReportsHistory(historyParams).then(res => {
             if(res.status === 'success' && res.availableFilters) {
@@ -976,10 +1048,27 @@ function renderDashboard(container) {
             if (!body) return; // FIX: Guard if user navigated away
 
             if(res.status === 'success' && res.data.length > 0) {
-                // Client-side methodology filtering
+                // Client-side filtering (methodology & dates)
                 let filteredData = res.data;
                 if (!isMethodTodos) {
-                    filteredData = res.data.filter(r => methods.includes(r.metodologia));
+                    const normalizeStr = (s) => String(s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+                    const methodsLower = methods.map(normalizeStr);
+                    filteredData = filteredData.filter(r => {
+                        const rowMethod = normalizeStr(r.metodologia);
+                        return methodsLower.includes(rowMethod);
+                    });
+                }
+                
+                if (useRange) {
+                    if (dateStart) {
+                        const dStart = new Date(dateStart).getTime();
+                        filteredData = filteredData.filter(r => new Date(r.fecha).getTime() >= dStart);
+                    }
+                    if (dateEnd) {
+                        const dEnd = new Date(dateEnd);
+                        dEnd.setHours(23, 59, 59, 999);
+                        filteredData = filteredData.filter(r => new Date(r.fecha).getTime() <= dEnd.getTime());
+                    }
                 }
 
                 window.dashboardHistoryData = filteredData;
@@ -1194,7 +1283,7 @@ function renderDashboard(container) {
             if(el) {
                 el.value = 'Todos';
                 if ((id === 'histFilterDevice' || id === 'histFilterMethod') && window.tsInstances && window.tsInstances[id]) {
-                    window.tsInstances[id].setValue('Todos');
+                    window.tsInstances[id].setValue(id === 'histFilterMethod' ? ['Todos'] : 'Todos');
                 }
             }
         });

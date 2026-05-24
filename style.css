@@ -1226,11 +1226,33 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-main) !important;
     border: 1px solid var(--border-main) !important;
     border-radius: var(--border-radius-sm) !important;
-    padding: 12px 16px !important;
+    padding: 6px 12px !important;
     font-family: inherit !important;
-    font-size: 0.95rem !important;
+    font-size: 0.85rem !important;
     transition: all 0.3s ease !important;
     box-shadow: var(--shadow-sm) !important;
+    min-height: 42px !important;
+}
+.ts-wrapper.multi .ts-control {
+    padding: 4px 8px 0px 8px !important;
+}
+.ts-wrapper.multi .ts-control > div.item {
+    padding: 2px 6px !important;
+    margin: 0px 4px 4px 0px !important;
+    font-size: 0.8rem !important;
+    border-radius: 4px !important;
+    line-height: 1.2 !important;
+}
+.ts-wrapper.multi .ts-control > input {
+    margin: 0px 4px 4px 0px !important;
+    height: 20px !important;
+    min-width: 0 !important;
+}
+.ts-wrapper.multi.has-items:not(.focus) .ts-control > input {
+    width: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    opacity: 0 !important;
 }
 .ts-wrapper.focus .ts-control {
     border-color: var(--xiaomi-orange) !important;
