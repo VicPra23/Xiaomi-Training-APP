@@ -438,7 +438,7 @@ function renderDashboard(container) {
         
         if (sorted.length === weeksList.length) {
             mWeekCont.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Todas</span>';
-            if(sW) sW.value = ""; // Mandar vacío para que el backend entienda "Todas" sin filtrar
+            if(sW) sW.value = sorted.join(',');
         } else if (sorted.length > 8) {
             mWeekCont.innerHTML = `<span class="badge badge-extra" style="font-size: 0.75rem; padding: 4px 8px; margin: 2px;">${sorted.length} Semanas</span>`;
             if(sW) sW.value = sorted.join(',');
