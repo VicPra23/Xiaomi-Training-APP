@@ -304,6 +304,7 @@ function renderReport(container, editData = null) {
                     <label class="form-label" for="perfil">Perfil de asistentes</label>
                     <select id="perfil" name="perfil" class="form-control" required>
                         <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona perfil...</option>
+                        <option value="Cliente Final" ${editData && editData.perfil === 'Cliente Final' ? 'selected' : ''}>Cliente Final</option>
                         <option value="Interno" ${editData && editData.perfil === 'Interno' ? 'selected' : ''}>Interno</option>
                         <option value="Promotor" ${editData && editData.perfil === 'Promotor' ? 'selected' : ''}>Promotor</option>
                         <option value="Teleoperador" ${editData && editData.perfil === 'Teleoperador' ? 'selected' : ''}>Teleoperador</option>
