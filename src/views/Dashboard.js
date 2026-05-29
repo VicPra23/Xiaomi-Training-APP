@@ -635,6 +635,37 @@ function renderDashboard(container) {
         };
     }
 
+    // Toggle para Historial
+    const btnToggleHist = document.getElementById('btnToggleHistoryRange');
+    const histPeriodMonth = document.getElementById('histPeriodMonth');
+    const histPeriodWeek = document.getElementById('histPeriodWeek');
+    const histRangeStart = document.getElementById('histRangeStart');
+    const histRangeEnd = document.getElementById('histRangeEnd');
+    window.isHistoryRangeMode = false;
+
+    if(btnToggleHist && histPeriodMonth && histRangeStart) {
+        btnToggleHist.onclick = () => {
+            window.isHistoryRangeMode = !window.isHistoryRangeMode;
+            if(window.isHistoryRangeMode) {
+                if(histPeriodMonth) histPeriodMonth.style.display = 'none';
+                if(histPeriodWeek) histPeriodWeek.style.display = 'none';
+                if(histRangeStart) histRangeStart.style.display = 'block';
+                if(histRangeEnd) histRangeEnd.style.display = 'block';
+                btnToggleHist.innerHTML = '<i data-lucide="list-filter" style="width:20px;"></i>';
+                btnToggleHist.title = "Cambiar a Filtro por Periodos";
+            } else {
+                if(histPeriodMonth) histPeriodMonth.style.display = 'block';
+                if(histPeriodWeek) histPeriodWeek.style.display = 'block';
+                if(histRangeStart) histRangeStart.style.display = 'none';
+                if(histRangeEnd) histRangeEnd.style.display = 'none';
+                btnToggleHist.innerHTML = '<i data-lucide="calendar" style="width:20px;"></i>';
+                btnToggleHist.title = "Cambiar a Rango de Fechas";
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            // Optional: loadHistory() to trigger refresh automatically if desired
+        };
+    }
+
     window.onDashboardYearChange = () => {
         const dM = document.getElementById('dashboardMonth');
         if(dM) dM.value = "Todos";
