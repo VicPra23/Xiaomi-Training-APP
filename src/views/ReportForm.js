@@ -183,6 +183,7 @@ function renderReport(container, editData = null) {
                         <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona...</option>
                         <option value="Backoffice" ${editData && editData.metodologia === 'Backoffice' ? 'selected' : ''}>Backoffice</option>
                         <option value="Classroom" ${editData && editData.metodologia === 'Classroom' ? 'selected' : ''}>Classroom</option>
+                        <option value="Evento" ${editData && editData.metodologia === 'Evento' ? 'selected' : ''}>Evento</option>
                         <option value="Hospitality" ${editData && editData.metodologia === 'Hospitality' ? 'selected' : ''}>Hospitality</option>
                         <option value="Live" ${editData && editData.metodologia === 'Live' ? 'selected' : ''}>Live</option>
                         <option value="POS" ${editData && editData.metodologia === 'POS' ? 'selected' : ''}>POS</option>
@@ -197,6 +198,7 @@ function renderReport(container, editData = null) {
                     <label class="form-label" for="cuenta">Cuenta *</label>
                     <select id="cuenta" name="cuenta" class="form-control" required>
                         <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona la cuenta...</option>
+                        <option value="Evento Xiaomi" ${editData && editData.cuenta === 'Evento Xiaomi' ? 'selected' : ''}>Evento Xiaomi</option>
                         <option value="Internal Training" ${editData && editData.cuenta === 'Internal Training' ? 'selected' : ''}>Internal Training</option>
                         <option value="MediaMarkt" ${editData && editData.cuenta === 'MediaMarkt' ? 'selected' : ''}>MediaMarkt</option>
                         <option value="ECI" ${editData && editData.cuenta === 'ECI' ? 'selected' : ''}>ECI</option>
@@ -306,6 +308,7 @@ function renderReport(container, editData = null) {
                         <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona perfil...</option>
                         <option value="Cliente Final" ${editData && editData.perfil === 'Cliente Final' ? 'selected' : ''}>Cliente Final</option>
                         <option value="Interno" ${editData && editData.perfil === 'Interno' ? 'selected' : ''}>Interno</option>
+                        <option value="Prensa" ${editData && editData.perfil === 'Prensa' ? 'selected' : ''}>Prensa</option>
                         <option value="Promotor" ${editData && editData.perfil === 'Promotor' ? 'selected' : ''}>Promotor</option>
                         <option value="Teleoperador" ${editData && editData.perfil === 'Teleoperador' ? 'selected' : ''}>Teleoperador</option>
                         <option value="Trainer" ${editData && editData.perfil === 'Trainer' ? 'selected' : ''}>Trainer</option>
