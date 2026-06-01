@@ -229,6 +229,7 @@ function renderReport(container, editData = null) {
                     <select id="provincia" name="provincia" class="form-control" required>
                         <option value="" disabled ${!editData ? 'selected' : ''}>Selecciona provincia...</option>
                         <option value="COLOMBIA" ${editData && editData.provincia === 'COLOMBIA' ? 'selected' : ''}>COLOMBIA</option>
+                        <option value="EUROPA" ${editData && editData.provincia === 'EUROPA' ? 'selected' : ''}>EUROPA</option>
                         <option value="PORTUGAL" ${editData && editData.provincia === 'PORTUGAL' ? 'selected' : ''}>PORTUGAL</option>
                         <optgroup label="España">
                             <option value="Álava" ${editData && editData.provincia === 'Álava' ? 'selected' : ''}>Álava</option>

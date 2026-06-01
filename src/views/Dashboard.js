@@ -429,24 +429,27 @@ function renderDashboard(container) {
     const hW = document.getElementById('histFilterWeek');
     const mWeekCont = document.getElementById('multiWeekContainer');
     
-    // El usuario ha pedido que siempre arranque con la semana actual
+    // El usuario ha pedido cambiar el filtro base para que arranque con la semana actual de nuevo,
+    // pero manteniendo el mes actual para la gráfica de tendencia semanal.
     let selectedWeeksSet = new Set([currentWeek]);
 
     const updateMultiWeekUI = () => {
         if (!mWeekCont) return;
         const sorted = Array.from(selectedWeeksSet).sort((a,b)=>a-b);
         
-        if (sorted.length === weeksList.length) {
+        if (sorted.length === weeksList.length || sorted.length === 0) {
             mWeekCont.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Todas</span>';
-            if(sW) sW.value = sorted.join(',');
+            if(sW) sW.value = "";
         } else if (sorted.length > 8) {
             mWeekCont.innerHTML = `<span class="badge badge-extra" style="font-size: 0.75rem; padding: 4px 8px; margin: 2px;">${sorted.length} Semanas</span>`;
             if(sW) sW.value = sorted.join(',');
         } else {
-            mWeekCont.innerHTML = sorted.length ? sorted.map(w => `<span class="badge badge-extra" style="font-size: 0.65rem; padding: 2px 6px; margin: 2px;">Sem ${w}</span>`).join('') : '<span style="color: #94a3b8; font-size: 0.8rem; padding: 4px;">Selecciona periodo...</span>';
+            mWeekCont.innerHTML = sorted.map(w => `<span class="badge badge-extra" style="font-size: 0.65rem; padding: 2px 6px; margin: 2px;">Sem ${w}</span>`).join('');
             if(sW) sW.value = sorted.join(',');
         }
     };
+    // Inicializar UI de semanas
+    updateMultiWeekUI();
 
     const injectWeeks = (select, list, selected = null) => {
         if (!select) return;
@@ -460,16 +463,15 @@ function renderDashboard(container) {
             select.appendChild(opt);
         });
     };
-
     // Lógica de Multi-Selección de Meses (Pop-up)
     const mMonthCont = document.getElementById('multiMonthContainer');
     const sMonthInput = document.getElementById('dashboardMonth');
-    let selectedMonthsSet = new Set(); // Vacío equivale a "Todos"
     const allMonthsList = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    let selectedMonthsSet = new Set([allMonthsList[new Date().getMonth()]]); // Arranca en el mes actual
 
     const updateMultiMonthUI = () => {
         if (!mMonthCont) return;
-        if (selectedMonthsSet.size === 0) {
+        if (selectedMonthsSet.size === 0 || selectedMonthsSet.size === 12) {
             mMonthCont.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Todos</span>';
             if(sMonthInput) sMonthInput.value = "Todos";
         } else {
@@ -478,6 +480,7 @@ function renderDashboard(container) {
             if(sMonthInput) sMonthInput.value = sorted.join(',');
         }
     };
+    updateMultiMonthUI();
     window.updateMultiMonthUI = updateMultiMonthUI;
 
     if(isAdmin && mMonthCont) {
@@ -868,7 +871,7 @@ function renderDashboard(container) {
         if(isAdmin) {
             document.getElementById('dashboardTarget').value = 'Total';
             document.getElementById('dashboardYear').value = 'Todos';
-            document.getElementById('dashboardMonth').value = 'Todos';
+            document.getElementById('dashboardMonth').value = allMonthsList[new Date().getMonth()];
             if (window.tsInstances && window.tsInstances['dashboardDevice']) {
                 window.tsInstances['dashboardDevice'].setValue('Todos');
             } else {
@@ -878,7 +881,7 @@ function renderDashboard(container) {
             if(document.getElementById('dashboardDateStart')) document.getElementById('dashboardDateStart').value = '';
             if(document.getElementById('dashboardDateEnd')) document.getElementById('dashboardDateEnd').value = '';
             
-            selectedMonthsSet.clear();
+            selectedMonthsSet = new Set([allMonthsList[new Date().getMonth()]]);
             if(window.updateMultiMonthUI) window.updateMultiMonthUI();
             
             if(isRangeMode && btnToggle) btnToggle.click();
@@ -917,7 +920,7 @@ function renderDashboard(container) {
         try {
             const selectors = [
                 { id: 'histFilterMonth', data: af.months, label: 'Todos' },
-                { id: 'histFilterWeek', data: af.weeks, label: 'Todas' },
+                { id: 'histFilterWeek', data: (af.weeks && af.weeks.length > 0) ? af.weeks : [...weeksList].sort((a,b)=>b-a), label: 'Todas' },
                 { id: 'histFilterAccount', data: af.accounts, label: 'Todas' },
                 { id: 'histFilterDevice', data: af.devices, label: 'Todos' },
                 { id: 'histFilterMethod', data: af.methods, label: 'Todas' }
@@ -993,6 +996,9 @@ function renderDashboard(container) {
                         if (window.tsInstances['histFilterMethod'] && isTodosSel) {
                             window.tsInstances['histFilterMethod'].addItem('Todos', true);
                         }
+                    } else if (s.id === 'histFilterWeek') {
+                        el.innerHTML = `<option value="Todos">Todas</option>` + 
+                            s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>Semana ${v}</option>`).join('');
                     } else {
                         el.innerHTML = `<option value="Todos">${s.label}</option>` + 
                             s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
@@ -1068,7 +1074,7 @@ function renderDashboard(container) {
             methodology: "Todos", // Send Todos to bypass backend filtering, we filter client-side
             q: q,
             refresh: force,
-            limit: isFiltered ? 9999 : 25
+            limit: 9999
         };
 
         api.getReportsHistory(historyParams).then(res => {
