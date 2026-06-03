@@ -439,7 +439,7 @@ function renderDashboard(container) {
         
         if (sorted.length === weeksList.length || sorted.length === 0) {
             mWeekCont.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Todas</span>';
-            if(sW) sW.value = "";
+            if(sW) sW.value = weeksList.join(',');
         } else if (sorted.length > 8) {
             mWeekCont.innerHTML = `<span class="badge badge-extra" style="font-size: 0.75rem; padding: 4px 8px; margin: 2px;">${sorted.length} Semanas</span>`;
             if(sW) sW.value = sorted.join(',');
@@ -802,7 +802,7 @@ function renderDashboard(container) {
         const sel = document.getElementById('dashboardWeek');
         if (!sel) return;
         const currentVal = sel.value || currentWeek.toString();
-        sel.innerHTML = '<option value="">Selecciona...</option>';
+        sel.innerHTML = `<option value="${weeksList.join(',')}">Todas</option>`;
         (weeks || []).sort((a, b) => b - a).forEach(w => {
             const opt = document.createElement('option');
             opt.value = w;
