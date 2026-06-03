@@ -1,4 +1,4 @@
-const CACHE_NAME = 'xiaomi-trainer-v40.64';
+const CACHE_NAME = 'xiaomi-trainer-v40.67';
 const ASSETS = [
   './',
   './index.html',
