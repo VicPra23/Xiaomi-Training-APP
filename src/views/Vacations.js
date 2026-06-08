@@ -665,22 +665,24 @@ function renderVacations(container) {
             
         const uContainer = document.getElementById('adminUserTableContainer');
         uContainer.innerHTML = adminData.allUsers.map(u => `
-            <div class="glass-card" style="padding: 0.8rem; margin-bottom: 0.6rem; border-radius: 12px; border: 1px solid var(--border-main); display: flex; flex-direction: column; gap: 8px;">
-                <div style="font-weight:700; font-size:0.85rem; color:var(--text-main); border-bottom: 1px solid var(--border-main); padding-bottom: 4px;">${u.name}</div>
+            <div class="glass-card" style="padding: 0.8rem; margin-bottom: 0.6rem; border-radius: 12px; border: 1px solid var(--border-main); display: flex; flex-direction: column; gap: 10px;">
+                <div style="font-weight:700; font-size:0.95rem; color:var(--text-main); border-bottom: 1px solid var(--border-main); padding-bottom: 4px;">${u.name}</div>
                 
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">VAC: <b id="base-${u.user}" style="color:var(--xiaomi-orange); font-size:1rem;">${u.baseAvail}</b></div>
-                    <div style="display:flex; gap:3px;">
-                        <button class="btn-secondary btn-compact" style="width:24px; height:24px; font-size:0.8rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyBase('${u.user}', -1)">-</button>
-                        <button class="btn-secondary btn-compact" style="width:24px; height:24px; font-size:0.8rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyBase('${u.user}', 1)">+</button>
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600; width: 45px;">VAC:</div>
+                    <b id="base-${u.user}" style="color:var(--xiaomi-orange); font-size:1.1rem; width: 25px; text-align: center;">${u.baseAvail}</b>
+                    <div style="display:flex; gap:4px;">
+                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyBase('${u.user}', -1)">-</button>
+                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyBase('${u.user}', 1)">+</button>
                     </div>
                 </div>
 
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">EXT: <b id="extra-${u.user}" style="color:#2196f3; font-size:1rem;">${u.extraAvail}</b></div>
-                    <div style="display:flex; gap:3px;">
-                        <button class="btn-secondary btn-compact" style="width:24px; height:24px; font-size:0.8rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyExtra('${u.user}', -1)">-</button>
-                        <button class="btn-secondary btn-compact" style="width:24px; height:24px; font-size:0.8rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyExtra('${u.user}', 1)">+</button>
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600; width: 45px;">EXT:</div>
+                    <b id="extra-${u.user}" style="color:#2196f3; font-size:1.1rem; width: 25px; text-align: center;">${u.extraAvail}</b>
+                    <div style="display:flex; gap:4px;">
+                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyExtra('${u.user}', -1)">-</button>
+                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyExtra('${u.user}', 1)">+</button>
                     </div>
                 </div>
             </div>
