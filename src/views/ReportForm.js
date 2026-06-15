@@ -393,7 +393,8 @@ function renderReport(container, editData = null) {
     let tsTienda = null;
     const tsCue = new TomSelect("#cuenta", { 
         placeholder: "Busca cuenta...",
-        sortField: { field: "text", direction: "asc" }
+        sortField: { field: "text", direction: "asc" },
+        maxOptions: null
     });
 
     const updateTiendas = (val) => {
@@ -421,7 +422,8 @@ function renderReport(container, editData = null) {
             tsTienda = new TomSelect("#distribuidor", {
                 create: true,
                 placeholder: "Escribe para buscar o añadir...",
-                sortField: { field: "text", direction: "asc" }
+                sortField: { field: "text", direction: "asc" },
+                maxOptions: null
             });
 
             if(editData && editData.distribuidor) {
