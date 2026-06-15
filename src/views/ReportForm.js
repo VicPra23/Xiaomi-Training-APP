@@ -18,7 +18,7 @@ function renderReport(container, editData = null) {
             "MediaMarkt Albacete", "MediaMarkt Alicante", "MediaMarkt Elche", "MediaMarkt Finestrat", "MediaMarkt La Zenia", 
             "MediaMarkt Castellón", "MediaMarkt Vinaròs", "MediaMarkt Cartagena", "MediaMarkt Lorca", "MediaMarkt Nueva Condomina", 
             "MediaMarkt Ronda Sur", "MediaMarkt Alfafar", "MediaMarkt Valencia - Aqua", "MediaMarkt Valencia - Colón", 
-            "MediaMarkt Gandía", "MediaMarkt Massalfassar", "MediaMarkt Valencia - Palacio de Congresos", "MediaMarkt Quart de Poblet", 
+            "MediaMarkt Gandía", "MediaMarkt Puerto Sagunto", "MediaMarkt Valencia - Palacio de Congresos", "MediaMarkt Quart de Poblet", 
             "MediaMarkt - Toledo", "MediaMarkt Ciudad Real", "MediaMarkt Alcalá de Henares", "MediaMarkt Alcorcón", 
             "MediaMarkt Benlliure - Goya", "MediaMarkt Castellana", "MediaMarkt Collado Villalba", "MediaMarkt Fuenlabrada", 
             "MediaMarkt Getafe", "MediaMarkt Isazul", "MediaMarkt Leganés", "MediaMarkt Majadahonda", "MediaMarkt Plaza del Carmen", 
@@ -393,8 +393,7 @@ function renderReport(container, editData = null) {
     let tsTienda = null;
     const tsCue = new TomSelect("#cuenta", { 
         placeholder: "Busca cuenta...",
-        sortField: { field: "text", direction: "asc" },
-        dropdownParent: 'body'
+        sortField: { field: "text", direction: "asc" }
     });
 
     const updateTiendas = (val) => {
@@ -422,8 +421,7 @@ function renderReport(container, editData = null) {
             tsTienda = new TomSelect("#distribuidor", {
                 create: true,
                 placeholder: "Escribe para buscar o añadir...",
-                sortField: { field: "text", direction: "asc" },
-                dropdownParent: 'body'
+                sortField: { field: "text", direction: "asc" }
             });
 
             if(editData && editData.distribuidor) {
@@ -443,14 +441,12 @@ function renderReport(container, editData = null) {
 
     const tsCiudad = new TomSelect("#ciudad", { 
         create: true, 
-        placeholder: "Escribe...",
-        dropdownParent: 'body'
+        placeholder: "Escribe..."
     });
     const tsM = new TomSelect("#dispositivos", { 
         plugins: ['remove_button'], 
         create: true, 
         placeholder: "Móviles...",
-        dropdownParent: 'body',
         onItemAdd: function() {
             this.setTextboxValue('');
             this.refreshOptions();
@@ -461,7 +457,6 @@ function renderReport(container, editData = null) {
         plugins: ['remove_button'], 
         create: true, 
         placeholder: "Ecosistema...",
-        dropdownParent: 'body',
         onItemAdd: function() {
             this.setTextboxValue('');
             this.refreshOptions();
