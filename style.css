@@ -303,7 +303,8 @@ h1, h2, h3, h4, h5, h6 {
 .badge-extra { background: var(--status-extra-bg); color: var(--status-extra-text); }
 
 /* FIX z-index of TomSelect Dropdown escaping glass-cards */
-.ts-wrapper { position: relative; z-index: 99; }
+.ts-wrapper { position: relative; z-index: 10; }
+.ts-wrapper.focus, .ts-wrapper.dropdown-active { z-index: 9999; }
 .ts-dropdown { z-index: 9999 !important; }
 .dash-module .glass-card { overflow: visible !important; }
 

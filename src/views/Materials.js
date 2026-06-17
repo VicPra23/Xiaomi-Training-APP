@@ -196,6 +196,33 @@ function renderMaterials(container) {
                     ]
                 }
             ]
+        },
+        {
+            id: 'lifestyle',
+            title: 'Lifestyle',
+            icon: 'star',
+            subcategories: [
+                {
+                    name: 'Básculas',
+                    items: [
+                        { name: 'Mi Body Composition Scale 2', link: 'https://drive.google.com/drive/folders/1bjqxbM_xNtzyJyo3gbNDmPYcjQ_J2xJx?usp=drive_link' },
+                        { name: 'Smart Scale S200', link: 'https://drive.google.com/drive/folders/1LSOmYiim1bM-oedlxm9lbUBPMPrfypgQ?usp=drive_link' },
+                        { name: 'Xiaomi Body Composition Scale S400', link: 'https://drive.google.com/drive/folders/1hMqP_TzISYHmJUEMlenjsFDFQ5jzxEi-?usp=drive_link' }
+                    ]
+                },
+                {
+                    name: 'Compresores',
+                    items: [
+                        { name: 'Materiales Compresores', link: 'https://drive.google.com/drive/folders/1msTErAV67Ggby-VgEIU-0bV9Zaq7j9B_?usp=drive_link' }
+                    ]
+                },
+                {
+                    name: 'Destornilladores',
+                    items: [
+                        { name: 'Materiales Destornilladores', link: 'https://drive.google.com/drive/folders/1yNCbypmAHxgvgxU6St1KmaPwvetWTXKR?usp=drive_link' }
+                    ]
+                }
+            ]
         }
     ];
 
@@ -236,9 +263,9 @@ function renderMaterials(container) {
                     </a>
                 </div>
 
-                <div class="mat-tabs-header" style="margin-bottom: 3rem; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                <div class="mat-tabs-header" style="margin-bottom: 3rem; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; flex-wrap: nowrap; scrollbar-width: none;">
                     ${categories.map(c => `
-                        <div class="mat-tab-btn ${c.id === activeCatId ? 'active' : ''}" data-id="${c.id}" style="min-width: 140px; padding: 1rem; border-radius: 16px;">
+                        <div class="mat-tab-btn ${c.id === activeCatId ? 'active' : ''}" data-id="${c.id}" style="flex: 0 0 auto; min-width: 130px; padding: 1rem 0.5rem; border-radius: 16px;">
                             <i data-lucide="${c.icon}" style="width: 20px; height: 20px;"></i>
                             <span style="font-weight: 600; font-size: 0.9rem;">${c.title}</span>
                         </div>
