@@ -137,6 +137,7 @@ function renderMaterials(container) {
                     items: [
                         { name: 'Xiaomi TV A Pro 2026', link: 'https://drive.google.com/drive/folders/1nGG5ZY6phSw4vnmJYIf-Mixj0irAOZgg?usp=drive_link' },
                         { name: 'Xiaomi TV F 2026', link: 'https://drive.google.com/drive/folders/1XfhvOx1K_tvKxwKIS-9wwcXYDXgAmwF1?usp=drive_link' },
+                        { name: 'Xiaomi TV FX', link: 'https://drive.google.com/drive/folders/1W29eRmRHcF20katIW5AWybnFO39E306j?usp=drive_link' },
                         { name: 'Xiaomi TV S Pro Mini LED 2026', link: 'https://drive.google.com/drive/folders/10JoTZUI_k6vsHa9Juop2hpyaDIt1Xsag?usp=drive_link' },
                         { name: 'Xiaomi TV S Mini LED 2025', link: 'https://drive.google.com/drive/folders/11ExZDUZFANPj1e7iSppck1FwOQ-qb0KU?usp=drive_link' },
                         { name: 'Xiaomi TV Max 100', link: 'https://drive.google.com/drive/folders/1MrTOW8RDVSCiUl4YB0T-rKIJiNGF-QGA?usp=drive_link' }
