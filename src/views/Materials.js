@@ -264,7 +264,7 @@ function renderMaterials(container) {
                     </a>
                 </div>
 
-                <div class="mat-tabs-header" style="margin-bottom: 3rem; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; flex-wrap: nowrap; scrollbar-width: none;">
+                <div class="mat-tabs-header" style="margin-bottom: 3rem; display: flex; gap: 10px; overflow-x: auto; padding: 10px 5px; flex-wrap: nowrap; scrollbar-width: none;">
                     ${categories.map(c => `
                         <div class="mat-tab-btn ${c.id === activeCatId ? 'active' : ''}" data-id="${c.id}" style="flex: 0 0 auto; min-width: 130px; padding: 1rem 0.5rem; border-radius: 16px;">
                             <i data-lucide="${c.icon}" style="width: 20px; height: 20px;"></i>
