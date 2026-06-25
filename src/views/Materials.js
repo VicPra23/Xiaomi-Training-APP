@@ -231,7 +231,7 @@ function renderMaterials(container) {
 
     function renderContent(cat) {
         return `
-            <div class="mat-tab-content-panel fade-in" style="background: transparent; border: none; box-shadow: none; padding: 0;">
+            <div class="mat-tab-content-panel" style="background: transparent; border: none; box-shadow: none; padding: 0;">
                 ${cat.subcategories ? cat.subcategories.map(sub => `
                     <div class="glass-card" style="padding: 2rem; border-radius: 28px; margin-bottom: 2rem;">
                         <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-main);">
@@ -268,12 +268,8 @@ function renderMaterials(container) {
             });
             const contentContainer = container.querySelector('#mat-tab-content-container');
             if (contentContainer) {
-                // Clear and re-trigger fade-in animation
-                contentContainer.innerHTML = '';
-                setTimeout(() => {
-                    contentContainer.innerHTML = renderContent(cat);
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-                }, 10);
+                contentContainer.innerHTML = renderContent(cat);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
             }
             return;
         }
