@@ -229,8 +229,55 @@ function renderMaterials(container) {
 
     let activeCatId = 'smartphones';
 
+    function renderContent(cat) {
+        return `
+            <div class="mat-tab-content-panel fade-in" style="background: transparent; border: none; box-shadow: none; padding: 0;">
+                ${cat.subcategories ? cat.subcategories.map(sub => `
+                    <div class="glass-card" style="padding: 2rem; border-radius: 28px; margin-bottom: 2rem;">
+                        <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-main);">
+                            <div style="width: 6px; height: 20px; background: var(--xiaomi-orange); border-radius: 3px;"></div>
+                            <h4 style="margin:0; font-size: 1.1rem; text-transform: none; letter-spacing: normal;">${sub.name}</h4>
+                        </div>
+                        <div class="mat-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
+                            ${sub.items.length > 0 ? sub.items.map(item => `
+                                <a href="${item.link}" target="_blank" class="mat-link" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.25rem; background: var(--bg-main); border-radius: 16px; text-decoration: none; transition: all 0.2s;">
+                                    <span style="color: var(--text-main); font-weight: 500; font-size: 0.9rem;">${item.name}</span>
+                                    <i data-lucide="chevron-right" style="width: 16px; color: var(--text-muted); opacity: 0.5;"></i>
+                                </a>
+                            `).join('') : '<p style="font-size:0.85rem; color:var(--text-muted); padding: 1rem; text-align: center;">Próximamente...</p>'}
+                        </div>
+                    </div>
+                `).join('') : `
+                    <div class="glass-card" style="text-align: center; padding: 5rem 2rem;">
+                        <i data-lucide="folder-open" style="width: 64px; height: 64px; margin-bottom: 1.5rem; color: var(--border-main);"></i>
+                        <p style="color: var(--text-medium); font-size: 1.1rem;">No hay materiales disponibles en esta categoría.</p>
+                    </div>
+                `}
+            </div>
+        `;
+    }
+
     function updateView() {
         const cat = categories.find(c => c.id === activeCatId);
+        
+        const existingModule = container.querySelector('.materials-module');
+        if (existingModule) {
+            container.querySelectorAll('.mat-tab-btn').forEach(btn => {
+                if (btn.dataset.id === activeCatId) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            const contentContainer = container.querySelector('#mat-tab-content-container');
+            if (contentContainer) {
+                // Clear and re-trigger fade-in animation
+                contentContainer.innerHTML = '';
+                setTimeout(() => {
+                    contentContainer.innerHTML = renderContent(cat);
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }, 10);
+            }
+            return;
+        }
+
         const html = `
             <div class="materials-module fade-in">
                 <header class="section-header" style="margin-bottom: 3.5rem; text-align: center;">
@@ -274,29 +321,7 @@ function renderMaterials(container) {
                 </div>
 
                 <div id="mat-tab-content-container">
-                    <div class="mat-tab-content-panel" style="background: transparent; border: none; box-shadow: none; padding: 0;">
-                        ${cat.subcategories ? cat.subcategories.map(sub => `
-                            <div class="glass-card" style="padding: 2rem; border-radius: 28px; margin-bottom: 2rem;">
-                                <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-main);">
-                                    <div style="width: 6px; height: 20px; background: var(--xiaomi-orange); border-radius: 3px;"></div>
-                                    <h4 style="margin:0; font-size: 1.1rem; text-transform: none; letter-spacing: normal;">${sub.name}</h4>
-                                </div>
-                                <div class="mat-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
-                                    ${sub.items.length > 0 ? sub.items.map(item => `
-                                        <a href="${item.link}" target="_blank" class="mat-link" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.25rem; background: var(--bg-main); border-radius: 16px; text-decoration: none; transition: all 0.2s;">
-                                            <span style="color: var(--text-main); font-weight: 500; font-size: 0.9rem;">${item.name}</span>
-                                            <i data-lucide="chevron-right" style="width: 16px; color: var(--text-muted); opacity: 0.5;"></i>
-                                        </a>
-                                    `).join('') : '<p style="font-size:0.85rem; color:var(--text-muted); padding: 1rem; text-align: center;">Próximamente...</p>'}
-                                </div>
-                            </div>
-                        `).join('') : `
-                            <div class="glass-card" style="text-align: center; padding: 5rem 2rem;">
-                                <i data-lucide="folder-open" style="width: 64px; height: 64px; margin-bottom: 1.5rem; color: var(--border-main);"></i>
-                                <p style="color: var(--text-medium); font-size: 1.1rem;">No hay materiales disponibles en esta categoría.</p>
-                            </div>
-                        `}
-                    </div>
+                    ${renderContent(cat)}
                 </div>
             </div>
         `;
