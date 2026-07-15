@@ -1025,7 +1025,8 @@ function adminProcessSelection(req) {
     lock.waitLock(10000);
     const action = req.opAction; 
     if (action === 'notify_materials') {
-        notifyAllUsers("Nuevos materiales disponibles en tu repositorio.");
+        const msg = req.mensajeNovedad ? req.mensajeNovedad : "Nuevos materiales disponibles en tu repositorio.";
+        notifyAllUsers(msg);
         return { status: "success" };
     }
 

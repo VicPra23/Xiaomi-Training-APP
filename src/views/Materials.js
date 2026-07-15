@@ -334,22 +334,54 @@ function renderMaterials(container) {
 
         const btnNotify = container.querySelector('#btnNotifyMaterials');
         if (btnNotify) {
-            btnNotify.onclick = async () => {
-                const noveltyText = prompt("¿Qué novedad quieres anunciar en el aviso? (Déjalo en blanco para un aviso general)");
-                if (noveltyText === null) return; // El usuario canceló el prompt
+            btnNotify.onclick = () => {
+                const modalHtml = `
+                    <div id="notifyModal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); z-index: 9999; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease;">
+                        <div class="glass-card fade-in" style="width: 90%; max-width: 400px; padding: 2rem; border-radius: 24px; text-align: center; position: relative; background: var(--bg-main);">
+                            <h3 style="margin-bottom: 1rem; color: var(--text-main);">Enviar Notificación</h3>
+                            <p style="color: var(--text-medium); font-size: 0.9rem; margin-bottom: 1.5rem;">¿Qué novedad quieres anunciar en el aviso? (Déjalo en blanco para un aviso general)</p>
+                            <input type="text" id="notifyInput" placeholder="Ej: Nuevos Redmi Note 17 añadidos..." style="width: 100%; padding: 0.8rem 1rem; border-radius: 12px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main); margin-bottom: 1.5rem; outline: none;">
+                            <div style="display: flex; gap: 10px; justify-content: center;">
+                                <button id="cancelNotifyBtn" class="btn-secondary" style="padding: 0.6rem 1.5rem; border-radius: 12px;">Cancelar</button>
+                                <button id="confirmNotifyBtn" class="btn-primary" style="padding: 0.6rem 1.5rem; border-radius: 12px;">Enviar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                const modal = document.getElementById('notifyModal');
+                const input = document.getElementById('notifyInput');
+                const cancelBtn = document.getElementById('cancelNotifyBtn');
+                const confirmBtn = document.getElementById('confirmNotifyBtn');
 
-                btnNotify.disabled = true;
-                const oldHtml = btnNotify.innerHTML;
-                btnNotify.innerText = "Enviando...";
-                await sendPost('adminProcessSelection', { 
-                    opAction: 'notify_materials',
-                    mensajeNovedad: noveltyText 
-                });
-                btnNotify.innerText = "¡Notificado!";
-                setTimeout(() => { 
-                    btnNotify.disabled = false; 
-                    btnNotify.innerHTML = oldHtml; 
-                }, 3000);
+                // Animar entrada
+                setTimeout(() => modal.style.opacity = '1', 10);
+                input.focus();
+
+                const closeModal = () => {
+                    modal.style.opacity = '0';
+                    setTimeout(() => modal.remove(), 300);
+                };
+
+                cancelBtn.onclick = closeModal;
+
+                confirmBtn.onclick = async () => {
+                    const noveltyText = input.value.trim();
+                    closeModal();
+
+                    btnNotify.disabled = true;
+                    const oldHtml = btnNotify.innerHTML;
+                    btnNotify.innerText = "Enviando...";
+                    await sendPost('adminProcessSelection', { 
+                        opAction: 'notify_materials',
+                        mensajeNovedad: noveltyText 
+                    });
+                    btnNotify.innerText = "¡Notificado!";
+                    setTimeout(() => { 
+                        btnNotify.disabled = false; 
+                        btnNotify.innerHTML = oldHtml; 
+                    }, 3000);
+                };
             };
         }
     }
