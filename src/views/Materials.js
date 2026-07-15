@@ -17,6 +17,7 @@ function renderMaterials(container) {
                 {
                     name: 'Redmi Note Series',
                     items: [
+                        { name: 'Redmi Note 17 Series', link: 'https://drive.google.com/drive/folders/1R-JL3LKby_kCDLBf1eRaQ-OY96dGY18c' },
                         { name: 'Redmi Note 15 Series', link: 'https://drive.google.com/drive/folders/1tVzbAPPJ2sKTIQfSDIj_lZ3DnSZ2DeDO?usp=drive_link' },
                         { name: 'Redmi Note 14 Series', link: 'https://drive.google.com/drive/folders/158tzCM-AN6eZQaDXvgIded_EaElHvDtx?usp=drive_link' }
                     ]
