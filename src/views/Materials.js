@@ -17,7 +17,7 @@ function renderMaterials(container) {
                 {
                     name: 'Redmi Note Series',
                     items: [
-                        { name: 'Redmi Note 17 Series', link: 'https://drive.google.com/drive/folders/1R-JL3LKby_kCDLBf1eRaQ-OY96dGY18c' },
+                        { name: 'Redmi Note 17 Series', link: 'https://drive.google.com/drive/folders/1R-JL3LKby_kCDLBf1eRaQ-OY96dGY18c', isNew: true },
                         { name: 'Redmi Note 15 Series', link: 'https://drive.google.com/drive/folders/1tVzbAPPJ2sKTIQfSDIj_lZ3DnSZ2DeDO?usp=drive_link' },
                         { name: 'Redmi Note 14 Series', link: 'https://drive.google.com/drive/folders/158tzCM-AN6eZQaDXvgIded_EaElHvDtx?usp=drive_link' }
                     ]
@@ -242,7 +242,10 @@ function renderMaterials(container) {
                         <div class="mat-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
                             ${sub.items.length > 0 ? sub.items.map(item => `
                                 <a href="${item.link}" target="_blank" class="mat-link" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.25rem; background: var(--bg-main); border-radius: 16px; text-decoration: none; transition: all 0.2s;">
-                                    <span style="color: var(--text-main); font-weight: 500; font-size: 0.9rem;">${item.name}</span>
+                                    <span style="color: var(--text-main); font-weight: 500; font-size: 0.9rem;">
+                                        ${item.name}
+                                        ${item.isNew ? '<span class="badge-new" style="background: var(--xiaomi-orange); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 8px;">NEW</span>' : ''}
+                                    </span>
                                     <i data-lucide="chevron-right" style="width: 16px; color: var(--text-muted); opacity: 0.5;"></i>
                                 </a>
                             `).join('') : '<p style="font-size:0.85rem; color:var(--text-muted); padding: 1rem; text-align: center;">Próximamente...</p>'}
@@ -334,54 +337,16 @@ function renderMaterials(container) {
 
         const btnNotify = container.querySelector('#btnNotifyMaterials');
         if (btnNotify) {
-            btnNotify.onclick = () => {
-                const modalHtml = `
-                    <div id="notifyModal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); z-index: 9999; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease;">
-                        <div class="glass-card fade-in" style="width: 90%; max-width: 400px; padding: 2rem; border-radius: 24px; text-align: center; position: relative; background: var(--bg-main);">
-                            <h3 style="margin-bottom: 1rem; color: var(--text-main);">Enviar Notificación</h3>
-                            <p style="color: var(--text-medium); font-size: 0.9rem; margin-bottom: 1.5rem;">¿Qué novedad quieres anunciar en el aviso? (Déjalo en blanco para un aviso general)</p>
-                            <input type="text" id="notifyInput" placeholder="Ej: Nuevos Redmi Note 17 añadidos..." style="width: 100%; padding: 0.8rem 1rem; border-radius: 12px; border: 1px solid var(--border-main); background: var(--bg-body); color: var(--text-main); margin-bottom: 1.5rem; outline: none;">
-                            <div style="display: flex; gap: 10px; justify-content: center;">
-                                <button id="cancelNotifyBtn" class="btn-secondary" style="padding: 0.6rem 1.5rem; border-radius: 12px;">Cancelar</button>
-                                <button id="confirmNotifyBtn" class="btn-primary" style="padding: 0.6rem 1.5rem; border-radius: 12px;">Enviar</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', modalHtml);
-                const modal = document.getElementById('notifyModal');
-                const input = document.getElementById('notifyInput');
-                const cancelBtn = document.getElementById('cancelNotifyBtn');
-                const confirmBtn = document.getElementById('confirmNotifyBtn');
-
-                // Animar entrada
-                setTimeout(() => modal.style.opacity = '1', 10);
-                input.focus();
-
-                const closeModal = () => {
-                    modal.style.opacity = '0';
-                    setTimeout(() => modal.remove(), 300);
-                };
-
-                cancelBtn.onclick = closeModal;
-
-                confirmBtn.onclick = async () => {
-                    const noveltyText = input.value.trim();
-                    closeModal();
-
-                    btnNotify.disabled = true;
-                    const oldHtml = btnNotify.innerHTML;
-                    btnNotify.innerText = "Enviando...";
-                    await sendPost('adminProcessSelection', { 
-                        opAction: 'notify_materials',
-                        mensajeNovedad: noveltyText 
-                    });
-                    btnNotify.innerText = "¡Notificado!";
-                    setTimeout(() => { 
-                        btnNotify.disabled = false; 
-                        btnNotify.innerHTML = oldHtml; 
-                    }, 3000);
-                };
+            btnNotify.onclick = async () => {
+                btnNotify.disabled = true;
+                const oldHtml = btnNotify.innerHTML;
+                btnNotify.innerText = "Enviando...";
+                await sendPost('adminProcessSelection', { opAction: 'notify_materials' });
+                btnNotify.innerText = "¡Notificado!";
+                setTimeout(() => { 
+                    btnNotify.disabled = false; 
+                    btnNotify.innerHTML = oldHtml; 
+                }, 3000);
             };
         }
     }
