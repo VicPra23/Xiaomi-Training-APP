@@ -335,10 +335,16 @@ function renderMaterials(container) {
         const btnNotify = container.querySelector('#btnNotifyMaterials');
         if (btnNotify) {
             btnNotify.onclick = async () => {
+                const noveltyText = prompt("¿Qué novedad quieres anunciar en el aviso? (Déjalo en blanco para un aviso general)");
+                if (noveltyText === null) return; // El usuario canceló el prompt
+
                 btnNotify.disabled = true;
                 const oldHtml = btnNotify.innerHTML;
                 btnNotify.innerText = "Enviando...";
-                await sendPost('adminProcessSelection', { opAction: 'notify_materials' });
+                await sendPost('adminProcessSelection', { 
+                    opAction: 'notify_materials',
+                    mensajeNovedad: noveltyText 
+                });
                 btnNotify.innerText = "¡Notificado!";
                 setTimeout(() => { 
                     btnNotify.disabled = false; 
