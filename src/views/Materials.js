@@ -17,7 +17,7 @@ function renderMaterials(container) {
                 {
                     name: 'Redmi Note Series',
                     items: [
-                        { name: 'Redmi Note 17 Series', link: 'https://drive.google.com/drive/folders/1R-JL3LKby_kCDLBf1eRaQ-OY96dGY18c', isNew: true },
+                        { name: 'Redmi Note 17 Series', link: 'https://drive.google.com/drive/folders/1R-JL3LKby_kCDLBf1eRaQ-OY96dGY18c' },
                         { name: 'Redmi Note 15 Series', link: 'https://drive.google.com/drive/folders/1tVzbAPPJ2sKTIQfSDIj_lZ3DnSZ2DeDO?usp=drive_link' },
                         { name: 'Redmi Note 14 Series', link: 'https://drive.google.com/drive/folders/158tzCM-AN6eZQaDXvgIded_EaElHvDtx?usp=drive_link' }
                     ]
@@ -25,6 +25,7 @@ function renderMaterials(container) {
                 {
                     name: 'Redmi Series',
                     items: [
+                        { name: 'Redmi 17 Series', link: 'https://drive.google.com/drive/folders/1RlkMdkqO1G9lgDSFigpktMMe73Rjm6eg?usp=drive_link', isNew: true },
                         { name: 'Redmi A7 Pro', link: 'https://drive.google.com/drive/folders/1sGoos4L8TYb3cWfU-BgqWRJIGiuJVx-Z?usp=drive_link' },
                         { name: 'Redmi 15C Series', link: 'https://drive.google.com/drive/folders/1nI5668YtZ80KbzlWVq9G6W-TdmUYKL-O?usp=drive_link' },
                         { name: 'Redmi 15 Series', link: 'https://drive.google.com/drive/folders/1jKz2q1GtlRoUV1vU_IMAOme6VmzOoDvG?usp=drive_link' }
