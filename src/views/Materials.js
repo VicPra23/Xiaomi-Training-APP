@@ -312,12 +312,16 @@ function renderMaterials(container) {
                 </div>
 
                 <div class="mat-tabs-header" style="margin-bottom: 3rem; display: flex; gap: 10px; overflow-x: auto; padding: 10px 5px; flex-wrap: nowrap; scrollbar-width: none;">
-                    ${categories.map(c => `
-                        <div class="mat-tab-btn ${c.id === activeCatId ? 'active' : ''}" data-id="${c.id}" style="flex: 0 0 auto; min-width: 130px; padding: 1rem 0.5rem; border-radius: 16px;">
+                    ${categories.map(c => {
+                        const hasNew = c.subcategories && c.subcategories.some(sub => sub.items && sub.items.some(item => item.isNew));
+                        return `
+                        <div class="mat-tab-btn ${c.id === activeCatId ? 'active' : ''}" data-id="${c.id}" style="flex: 0 0 auto; min-width: 130px; padding: 1rem 0.5rem; border-radius: 16px; position: relative;">
+                            ${hasNew ? '<span class="badge-new" style="position: absolute; top: -5px; right: -5px; margin: 0; padding: 2px 5px; font-size: 0.65rem;">NEW</span>' : ''}
                             <i data-lucide="${c.icon}" style="width: 20px; height: 20px;"></i>
                             <span style="font-weight: 600; font-size: 0.9rem;">${c.title}</span>
                         </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
 
                 <div id="mat-tab-content-container">
