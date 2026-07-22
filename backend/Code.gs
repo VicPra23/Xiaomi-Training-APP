@@ -1322,18 +1322,41 @@ function generateWeeklyPDFReport() {
   }
 
   // --- CHART GENERATION FUNCTION ---
-  function createColumnChart(title, currentLabel, currentVal, pastLabel, pastVal) {
+  function createVersusChart(title, currentLabel, currentSes, currentAlu, pastLabel, pastSes, pastAlu) {
       const dataTable = Charts.newDataTable()
           .addColumn(Charts.ColumnType.STRING, "Periodo")
-          .addColumn(Charts.ColumnType.NUMBER, "Formaciones")
-          .addRow([pastLabel, pastVal])
-          .addRow([currentLabel, currentVal])
+          .addColumn(Charts.ColumnType.NUMBER, "Sesiones")
+          .addColumn(Charts.ColumnType.NUMBER, "Alumnos")
+          .addRow([pastLabel + "\n(Ses: " + pastSes + " | Alu: " + pastAlu + ")", pastSes, pastAlu])
+          .addRow([currentLabel + "\n(Ses: " + currentSes + " | Alu: " + currentAlu + ")", currentSes, currentAlu])
           .build();
       const chart = Charts.newColumnChart()
           .setDataTable(dataTable)
           .setTitle(title)
-          .setDimensions(350, 250)
-          .setColors(['#ff6700'])
+          .setDimensions(400, 250)
+          .setColors(['#ff6700', '#2196F3'])
+          .setLegendPosition(Charts.Position.BOTTOM)
+          .build();
+      return Utilities.base64Encode(chart.getAs('image/png').getBytes());
+  }
+
+  function createTrainersImpactChart(title, cwData) {
+      const dataTable = Charts.newDataTable()
+          .addColumn(Charts.ColumnType.STRING, "Formador")
+          .addColumn(Charts.ColumnType.NUMBER, "Personas Impactadas");
+      
+      let added = false;
+      for (const t in cwData.byTrainer) {
+          dataTable.addRow([t + " (" + cwData.byTrainer[t].alumnos + ")", cwData.byTrainer[t].alumnos]);
+          added = true;
+      }
+      if (!added) dataTable.addRow(["Sin datos", 0]);
+
+      const chart = Charts.newColumnChart()
+          .setDataTable(dataTable.build())
+          .setTitle(title)
+          .setDimensions(500, 250)
+          .setColors(['#4CAF50'])
           .setLegendPosition(Charts.Position.NONE)
           .build();
       return Utilities.base64Encode(chart.getAs('image/png').getBytes());
@@ -1356,8 +1379,9 @@ function generateWeeklyPDFReport() {
   }
 
   // Generate charts for YoY and WoW
-  const chartYoY_Ses = createColumnChart("Formaciones vs Año Anterior", "Sem. Analizada", cw.sesiones, "Año Pasado", ly.sesiones);
-  const chartWoW_Ses = createColumnChart("Formaciones vs Sem. Anterior", "Sem. Analizada", cw.sesiones, "Sem. Anterior", pw.sesiones);
+  const chartYoY_Ses = createVersusChart("Sesiones y Alumnos vs Año Anterior", "Sem. Analizada", cw.sesiones, cw.alumnos, "Año Pasado", ly.sesiones, ly.alumnos);
+  const chartWoW_Ses = createVersusChart("Sesiones y Alumnos vs Sem. Anterior", "Sem. Analizada", cw.sesiones, cw.alumnos, "Sem. Anterior", pw.sesiones, pw.alumnos);
+  const chartTrainersImpact = createTrainersImpactChart("Impacto por Formador", cw);
 
   // HTML helpers
   const td = (val) => `<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; color: #555;">${val}</td>`;
@@ -1526,6 +1550,9 @@ function generateWeeklyPDFReport() {
         </tr>
         ${trainerHtml}
       </table>
+      <div style="text-align: center; margin-bottom: 50px;">
+          <img src="data:image/png;base64,${chartTrainersImpact}" style="width: 500px; height: auto;" />
+      </div>
       
       <!-- 7. INDIVIDUAL TRAINER PAGES -->
       ${trainerPagesHtml}
