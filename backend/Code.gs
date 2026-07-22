@@ -1544,6 +1544,6 @@ function generateWeeklyPDFReport() {
   const link = pdfFile.getUrl();
   const msgText = "📊 ¡El reporte automatizado (Semana " + formatD(lastWeekStart) + " al " + formatD(lastWeekEnd) + ") ya está listo! Visualízalo y descárgalo aquí: " + link;
   
-  const targetRoles = ["Training Manager", "Training Creator", "Training Coordinator"];
-  targetRoles.forEach(role => notifyUser(role, msgText, "System"));
+  // Specific users required (all admins)
+  notifyUser("Admin", msgText, "System");
 }
