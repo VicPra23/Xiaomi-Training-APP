@@ -1223,3 +1223,327 @@ function onManualSheetChange(e) {
   // Limpia la caché de los reportes automáticamente si alguien borra o edita una fila a mano
   CacheService.getScriptCache().remove(CONFIG.REPORTES_SS_ID + "_" + CONFIG.REPORTES_SHEET_NAME);
 }
+
+// --- AUTOMATED WEEKLY PDF REPORT (V5.7) ---
+function setupWeeklyTrigger() {
+  const functionName = "generateWeeklyPDFReport";
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === functionName) ScriptApp.deleteTrigger(t);
+  });
+  // Se ejecutará todos los lunes a las 09:30 AM aprox.
+  ScriptApp.newTrigger(functionName)
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.MONDAY)
+    .atHour(9)
+    .nearMinute(30)
+    .create();
+}
+
+function testGeneratePDF() {
+  generateWeeklyPDFReport();
+  Logger.log("Reporte generado con éxito.");
+}
+
+function generateWeeklyPDFReport() {
+  const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
+  const s = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+  const colMap = _getColMap(s);
+  const data = s.getDataRange().getValues();
+
+  // Fechas: Suponiendo que corre un Lunes.
+  const today = new Date();
+  const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
+  const lastWeekEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayOfWeek); // Domingo
+  lastWeekEnd.setHours(23, 59, 59, 999);
+  
+  const lastWeekStart = new Date(lastWeekEnd);
+  lastWeekStart.setDate(lastWeekEnd.getDate() - 6); // Lunes
+  lastWeekStart.setHours(0, 0, 0, 0);
+
+  // Prev Week (WoW)
+  const prevWeekStart = new Date(lastWeekStart);
+  prevWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const prevWeekEnd = new Date(lastWeekEnd);
+  prevWeekEnd.setDate(lastWeekEnd.getDate() - 7);
+  prevWeekEnd.setHours(23, 59, 59, 999);
+
+  // YTD (Year to date)
+  const ytdStart = new Date(lastWeekEnd.getFullYear(), 0, 1);
+  ytdStart.setHours(0, 0, 0, 0);
+
+  // Semana anterior del AÑO PASADO (52 semanas atrás)
+  const lastYearStart = new Date(lastWeekStart);
+  lastYearStart.setFullYear(lastWeekStart.getFullYear() - 1);
+  const lastYearEnd = new Date(lastWeekEnd);
+  lastYearEnd.setFullYear(lastWeekEnd.getFullYear() - 1);
+
+  let cw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {}, byTrainer: {} };
+  let pw = { sesiones: 0, alumnos: 0, horas: 0 };
+  let ly = { sesiones: 0, alumnos: 0, horas: 0 };
+  let yt = { sesiones: 0, alumnos: 0, horas: 0 };
+
+  for (let i = 1; i < data.length; i++) {
+    const fVal = colMap.FECHA !== undefined ? data[i][colMap.FECHA] : data[i][2];
+    const tVal = colMap.TRAINER !== undefined ? data[i][colMap.TRAINER] : data[i][1];
+    if (!fVal || !tVal) continue;
+    const dO = parseDateStable(fVal);
+    if (!dO) continue;
+    
+    const dTime = dO.getTime();
+    const ses = parseFloat(data[i][colMap.SESIONES] || data[i][6]) || 0;
+    const alu = parseFloat(data[i][colMap.ALUMNOS] || data[i][8]) || 0;
+    const hor = _parseDur(data[i][colMap.HORAS] || data[i][9]);
+    const trainer = tVal.toString().trim();
+    const account = (data[i][colMap.CUENTA] || "Otros").toString().trim() || "Otros";
+    const method = (data[i][colMap.METODOLOGIA] || "Otros").toString().trim() || "Otros";
+
+    // YTD
+    if (dTime >= ytdStart.getTime() && dTime <= lastWeekEnd.getTime()) {
+      yt.sesiones += ses; yt.alumnos += alu; yt.horas += hor;
+    }
+    // Current Week
+    if (dTime >= lastWeekStart.getTime() && dTime <= lastWeekEnd.getTime()) {
+      cw.sesiones += ses; cw.alumnos += alu; cw.horas += hor;
+      if (!cw.byAccount[account]) cw.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
+      cw.byAccount[account].sesiones += ses; cw.byAccount[account].alumnos += alu; cw.byAccount[account].horas += hor;
+      if (!cw.byTrainer[trainer]) cw.byTrainer[trainer] = { sesiones: 0, alumnos: 0, horas: 0, byMethod: {} };
+      cw.byTrainer[trainer].sesiones += ses; cw.byTrainer[trainer].alumnos += alu; cw.byTrainer[trainer].horas += hor;
+      if (!cw.byTrainer[trainer].byMethod[method]) cw.byTrainer[trainer].byMethod[method] = 0;
+      cw.byTrainer[trainer].byMethod[method] += hor;
+    }
+    // Prev Week (WoW)
+    if (dTime >= prevWeekStart.getTime() && dTime <= prevWeekEnd.getTime()) {
+      pw.sesiones += ses; pw.alumnos += alu; pw.horas += hor;
+    }
+    // Last Year
+    if (dTime >= lastYearStart.getTime() && dTime <= lastYearEnd.getTime()) {
+      ly.sesiones += ses; ly.alumnos += alu; ly.horas += hor;
+    }
+  }
+
+  // --- CHART GENERATION FUNCTION ---
+  function createColumnChart(title, currentLabel, currentVal, pastLabel, pastVal) {
+      const dataTable = Charts.newDataTable()
+          .addColumn(Charts.ColumnType.STRING, "Periodo")
+          .addColumn(Charts.ColumnType.NUMBER, "Formaciones")
+          .addRow([pastLabel, pastVal])
+          .addRow([currentLabel, currentVal])
+          .build();
+      const chart = Charts.newColumnChart()
+          .setDataTable(dataTable)
+          .setTitle(title)
+          .setDimensions(350, 250)
+          .setColors(['#ff6700'])
+          .setLegendPosition(Charts.Position.NONE)
+          .build();
+      return Utilities.base64Encode(chart.getAs('image/png').getBytes());
+  }
+
+  function createPieChart(title, dataObj) {
+      const dataTable = Charts.newDataTable()
+          .addColumn(Charts.ColumnType.STRING, "Categoría")
+          .addColumn(Charts.ColumnType.NUMBER, "Horas");
+      let added = false;
+      for (let key in dataObj) { dataTable.addRow([key, dataObj[key]]); added = true; }
+      if (!added) dataTable.addRow(["Sin datos", 1]); // fallback
+      const chart = Charts.newPieChart()
+          .setDataTable(dataTable.build())
+          .setTitle(title)
+          .setDimensions(400, 300)
+          .set3D()
+          .build();
+      return Utilities.base64Encode(chart.getAs('image/png').getBytes());
+  }
+
+  // Generate charts for YoY and WoW
+  const chartYoY_Ses = createColumnChart("Formaciones vs Año Anterior", "Sem. Analizada", cw.sesiones, "Año Pasado", ly.sesiones);
+  const chartWoW_Ses = createColumnChart("Formaciones vs Sem. Anterior", "Sem. Analizada", cw.sesiones, "Sem. Anterior", pw.sesiones);
+
+  // HTML helpers
+  const td = (val) => `<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; color: #555;">${val}</td>`;
+  const th = (val) => `<th style="padding: 12px; border: 1px solid #ff6700; background-color: #ff6700; color: white; text-align: center; font-weight: bold;">${val}</th>`;
+  const formatD = (d) => Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yy");
+  const getTrend = (current, past) => {
+      if (past === 0) return current > 0 ? "<span style='color: #4CAF50;'>📈 +100%</span>" : "<span style='color: #888;'>➖ 0%</span>";
+      const diff = ((current - past) / past) * 100;
+      if (diff > 0) return "<span style='color: #4CAF50;'>📈 +" + diff.toFixed(1) + "%</span>";
+      if (diff < 0) return "<span style='color: #F44336;'>📉 " + diff.toFixed(1) + "%</span>";
+      return "<span style='color: #888;'>➖ 0%</span>";
+  };
+
+  // Build Accounts Table
+  let accountHtml = "";
+  for (const acc in cw.byAccount) {
+      accountHtml += `<tr>
+        <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${acc}</td>
+        ${td(cw.byAccount[acc].sesiones)}
+        ${td(cw.byAccount[acc].alumnos)}
+        ${td(cw.byAccount[acc].horas.toFixed(1))}
+      </tr>`;
+  }
+  if (!accountHtml) accountHtml = "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #888;'>Sin datos reportados esta semana.</td></tr>";
+
+  // Build Trainer Summary Table
+  let trainerHtml = "";
+  for (const t in cw.byTrainer) {
+      trainerHtml += `<tr>
+        <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${t}</td>
+        ${td(cw.byTrainer[t].sesiones)}
+        ${td(cw.byTrainer[t].alumnos)}
+        ${td(cw.byTrainer[t].horas.toFixed(1))}
+      </tr>`;
+  }
+  if (!trainerHtml) trainerHtml = "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #888;'>Sin formadores reportados.</td></tr>";
+
+  // Build Individual Trainer Pages
+  let trainerPagesHtml = "";
+  for (const t in cw.byTrainer) {
+      const d = cw.byTrainer[t];
+      const pieB64 = createPieChart("Horas por Metodología", d.byMethod);
+      trainerPagesHtml += `
+      <div style="page-break-before: always;"></div>
+      <div style="padding-top: 40px;">
+          <h2 style="color: #ff6700; border-bottom: 2px solid #ff6700; padding-bottom: 10px; font-size: 26px;">Informe Individual: <span style="color: #333;">${t}</span></h2>
+          <p style="color: #888;">Semana Analizada: <strong>${formatD(lastWeekStart)} - ${formatD(lastWeekEnd)}</strong></p>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-top: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+            <tr>
+              ${th("Formaciones Dadas")}
+              ${th("Personas Impactadas")}
+              ${th("Horas Trabajadas")}
+            </tr>
+            <tr>
+              ${td(d.sesiones)}
+              ${td(d.alumnos)}
+              ${td(d.horas.toFixed(1))}
+            </tr>
+          </table>
+
+          <div style="text-align: center; margin-top: 60px;">
+              <h3 style="color: #444; font-size: 20px;">Desglose de Horas por Metodología</h3>
+              <img src="data:image/png;base64,${pieB64}" style="width: 450px; height: auto;" />
+          </div>
+      </div>
+      `;
+  }
+
+  // Final HTML Assembly
+  const htmlContent = `
+    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; background: white; padding: 30px;">
+      
+      <!-- HERO HEADER -->
+      <div style="text-align: center; border-bottom: 3px solid #ff6700; padding-bottom: 20px; margin-bottom: 30px;">
+        <h1 style="color: #ff6700; margin: 0; font-size: 34px;">REPORTE SEMANAL</h1>
+        <h2 style="color: #333; margin: 5px 0 0 0; font-size: 20px;">XIAOMI TRAINER INTRANET</h2>
+        <p style="color: #888; margin: 10px 0 0 0; font-size: 16px;">Semana Analizada: <strong>${formatD(lastWeekStart)} - ${formatD(lastWeekEnd)}</strong></p>
+      </div>
+      
+      <!-- 1. HERO METRICS -->
+      <table style="width: 100%; text-align: center; margin-bottom: 40px; border-spacing: 15px 0;">
+        <tr>
+            <td style="padding: 20px 10px; background-color: #fff8f2; border-radius: 12px; border: 2px solid #ffccaa; width: 33%;">
+                <h3 style="margin: 0; color: #ff6700; font-size: 42px;">${cw.sesiones}</h3>
+                <p style="margin: 5px 0 0 0; color: #555; font-weight: bold; font-size: 14px; text-transform: uppercase;">Sesiones</p>
+            </td>
+            <td style="padding: 20px 10px; background-color: #fff8f2; border-radius: 12px; border: 2px solid #ffccaa; width: 33%;">
+                <h3 style="margin: 0; color: #ff6700; font-size: 42px;">${cw.alumnos}</h3>
+                <p style="margin: 5px 0 0 0; color: #555; font-weight: bold; font-size: 14px; text-transform: uppercase;">Impactados</p>
+            </td>
+            <td style="padding: 20px 10px; background-color: #fff8f2; border-radius: 12px; border: 2px solid #ffccaa; width: 33%;">
+                <h3 style="margin: 0; color: #ff6700; font-size: 42px;">${cw.horas.toFixed(1)}</h3>
+                <p style="margin: 5px 0 0 0; color: #555; font-weight: bold; font-size: 14px; text-transform: uppercase;">Horas</p>
+            </td>
+        </tr>
+      </table>
+
+      <!-- 2. DESGLOSE POR CUENTA -->
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">1. Desglose por Cuenta (Semana Analizada)</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <tr>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Cuenta</th>
+            ${th("Formaciones")}${th("Impactados")}${th("Horas")}
+        </tr>
+        ${accountHtml}
+      </table>
+
+      <!-- 3. VERSUS AÑO ANTERIOR -->
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">2. Versus Año Anterior</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <tr>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Métrica</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">Semana Analizada</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">Mismo periodo (Año Pasado)</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #333; color: white; text-align: center;">Tendencia</th>
+        </tr>
+        <tr>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Formaciones</td>
+            ${td(cw.sesiones)}${td(ly.sesiones)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.sesiones, ly.sesiones)}</td>
+        </tr>
+        <tr>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Alumnos Impactados</td>
+            ${td(cw.alumnos)}${td(ly.alumnos)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.alumnos, ly.alumnos)}</td>
+        </tr>
+      </table>
+      <div style="text-align: center; margin-bottom: 50px;">
+          <img src="data:image/png;base64,${chartYoY_Ses}" style="width: 400px; height: auto;" />
+      </div>
+
+      <!-- 4. VERSUS SEMANA ANTERIOR (WoW) -->
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">3. Versus Semana Anterior</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <tr>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Métrica</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">Semana Analizada</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">Semana Previa</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #333; color: white; text-align: center;">Tendencia</th>
+        </tr>
+        <tr>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Formaciones</td>
+            ${td(cw.sesiones)}${td(pw.sesiones)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.sesiones, pw.sesiones)}</td>
+        </tr>
+        <tr>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Alumnos Impactados</td>
+            ${td(cw.alumnos)}${td(pw.alumnos)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.alumnos, pw.alumnos)}</td>
+        </tr>
+      </table>
+      <div style="text-align: center; margin-bottom: 50px;">
+          <img src="data:image/png;base64,${chartWoW_Ses}" style="width: 400px; height: auto;" />
+      </div>
+
+      <!-- 5. RESUMEN YTD -->
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">4. Resumen Anual (YTD)</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <tr>${th("Formaciones Acumuladas")}${th("Alumnos Acumulados")}${th("Horas Acumuladas")}</tr>
+        <tr>${td(yt.sesiones)}${td(yt.alumnos)}${td(yt.horas.toFixed(1))}</tr>
+      </table>
+
+      <!-- 6. DESGLOSE POR FORMADOR GLOBAL -->
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">5. Desglose Global por Formador</h3>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <tr>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Formador</th>
+            ${th("Formaciones")}${th("Alumnos")}${th("Horas")}
+        </tr>
+        ${trainerHtml}
+      </table>
+      
+      <!-- 7. INDIVIDUAL TRAINER PAGES -->
+      ${trainerPagesHtml}
+
+    </div>
+  `;
+
+  // Create PDF
+  const blob = Utilities.newBlob(htmlContent, MimeType.HTML);
+  const pdfBlob = blob.getAs(MimeType.PDF);
+  pdfBlob.setName("Reporte_Semanal_" + formatD(lastWeekStart).replace(/\//g,'-') + ".pdf");
+  
+  const folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
+  const pdfFile = folder.createFile(pdfBlob);
+
+  const link = pdfFile.getUrl();
+  const msgText = "📊 ¡El reporte automatizado (Semana " + formatD(lastWeekStart) + " al " + formatD(lastWeekEnd) + ") ya está listo! Visualízalo y descárgalo aquí: " + link;
+  
+  const targetRoles = ["Training Manager", "Training Creator", "Training Coordinator"];
+  targetRoles.forEach(role => notifyUser(role, msgText, "System"));
+}

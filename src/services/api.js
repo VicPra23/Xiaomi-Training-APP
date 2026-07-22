@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbyhUn1tAK32ZvNOYKi29GxXCHgbpPJsmDjf6WeirO0N8kH7_oOyMpo-CKMZSDzDyo3jlw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwgaKzpPOj-93fGrVOF_-fsr3Yw05V6oxLo3vwbfFNBBQY70SJMxrVUq05DdZYfIJjC-g/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
