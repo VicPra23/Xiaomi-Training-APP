@@ -1387,6 +1387,7 @@ function generateWeeklyPDFReport() {
   const td = (val) => `<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; color: #555;">${val}</td>`;
   const th = (val) => `<th style="padding: 12px; border: 1px solid #ff6700; background-color: #ff6700; color: white; text-align: center; font-weight: bold;">${val}</th>`;
   const formatD = (d) => Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yy");
+  const weekNumber = Utilities.formatDate(lastWeekStart, Session.getScriptTimeZone(), "w");
   const getTrend = (current, past) => {
       if (past === 0) return current > 0 ? "<span style='color: #4CAF50;'>📈 +100%</span>" : "<span style='color: #888;'>➖ 0%</span>";
       const diff = ((current - past) / past) * 100;
@@ -1428,7 +1429,7 @@ function generateWeeklyPDFReport() {
       <div style="page-break-before: always;"></div>
       <div style="padding-top: 40px;">
           <h2 style="color: #ff6700; border-bottom: 2px solid #ff6700; padding-bottom: 10px; font-size: 26px;">Informe Individual: <span style="color: #333;">${t}</span></h2>
-          <p style="color: #888;">Semana Analizada: <strong>${formatD(lastWeekStart)} - ${formatD(lastWeekEnd)}</strong></p>
+          <p style="color: #888;">Semana Analizada: <strong>Semana ${weekNumber} (${formatD(lastWeekStart)} - ${formatD(lastWeekEnd)})</strong></p>
           
           <table style="width: 100%; border-collapse: collapse; margin-top: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
             <tr>
@@ -1459,7 +1460,7 @@ function generateWeeklyPDFReport() {
       <div style="text-align: center; border-bottom: 3px solid #ff6700; padding-bottom: 20px; margin-bottom: 30px;">
         <h1 style="color: #ff6700; margin: 0; font-size: 34px;">REPORTE SEMANAL</h1>
         <h2 style="color: #333; margin: 5px 0 0 0; font-size: 20px;">XIAOMI TRAINER INTRANET</h2>
-        <p style="color: #888; margin: 10px 0 0 0; font-size: 16px;">Semana Analizada: <strong>${formatD(lastWeekStart)} - ${formatD(lastWeekEnd)}</strong></p>
+        <p style="color: #888; margin: 10px 0 0 0; font-size: 16px;">Semana Analizada: <strong>Semana ${weekNumber} (${formatD(lastWeekStart)} - ${formatD(lastWeekEnd)})</strong></p>
       </div>
       
       <!-- 1. HERO METRICS -->
