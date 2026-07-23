@@ -47,15 +47,21 @@ function renderMessages(container) {
         if (res.status === 'success' && res.data.length > 0) {
             log.innerHTML = res.data.map(m => {
                 const isRead = m.read || (m.id && localReadCache.includes(m.id.toString()));
+                const urlMatch = m.text.match(/https?:\/\/[^\s]+/);
+                const extUrl = urlMatch ? urlMatch[0] : null;
+                // Clean the URL from the text so it looks cleaner
+                const cleanText = extUrl ? m.text.replace(extUrl, '').trim() : m.text;
+
                 const isVac = m.text.toLowerCase().includes('vacacio') || m.text.toLowerCase().includes('extra');
                 const isCal = m.text.toLowerCase().includes('calendario') || m.text.toLowerCase().includes('planifica');
                 const isMat = m.text.toLowerCase().includes('material');
                 const isRep = m.text.toLowerCase().includes('reporte') || m.text.toLowerCase().includes('historial');
+                
                 let targetHash = '';
                 if (isVac) targetHash = '#vacations';
                 else if (isCal) targetHash = '#calendar';
                 else if (isMat) targetHash = '#materials';
-                else if (isRep) targetHash = '#dashboard';
+                else if (isRep && !extUrl) targetHash = '#dashboard';
 
                 return `
                 <article id="msg-${m.id}" class="glass-card fade-in" style="padding: 1.2rem; border-left: 6px solid ${isRead ? 'var(--border-main)' : (m.from === 'Admin' ? 'var(--xiaomi-orange)' : '#10b981')}; position:relative; opacity: ${isRead ? '0.7' : '1'};">
@@ -66,13 +72,15 @@ function renderMessages(container) {
                         </div>
                         ${!isRead ? '<span class="badge" style="background:var(--xiaomi-orange); color:#fff; font-size:0.6rem; padding:4px 10px; border-radius:8px; font-weight:800; letter-spacing:0.05em;">NUEVO</span>' : ''}
                     </div>
-                    <p style="margin:1rem 0 0 0; color:var(--text-medium); line-height:1.6; font-size: 0.95rem;">${m.text}</p>
+                    <p style="margin:1rem 0 0 0; color:var(--text-medium); line-height:1.6; font-size: 0.95rem;">${cleanText}</p>
                     
-                    <div style="display:flex; gap:10px; margin-top:1.2rem;">
-                        ${!isRead ? `<button onclick="markAsRead(${m.id})" class="btn-secondary" style="padding:6px 15px; font-size:0.8rem; margin:0;"><i data-lucide="check" style="width:14px;"></i> Marcar leído</button>` : ''}
-                        ${targetHash ? `
-                            <button onclick="goToSection('${targetHash}', ${m.id})" class="btn-primary" style="padding:6px 15px; font-size:0.8rem; margin:0;"><i data-lucide="arrow-right-circle" style="width:14px;"></i> Ir a sección</button>
-                        ` : ''}
+                    <div style="display:flex; gap:10px; margin-top:1.2rem; flex-wrap: wrap;">
+                        ${!isRead ? `<button onclick="markAsRead(${m.id})" class="btn-secondary" style="padding:6px 15px; font-size:0.8rem; margin:0; display:flex; align-items:center; gap:5px;"><i data-lucide="check" style="width:14px;"></i> Marcar leído</button>` : ''}
+                        ${extUrl ? `
+                            <a href="${extUrl}" target="_blank" onclick="markAsRead(${m.id})" class="btn-primary" style="padding:6px 15px; font-size:0.8rem; margin:0; text-decoration:none; display:flex; align-items:center; gap:5px; border-radius: 8px;"><i data-lucide="external-link" style="width:14px;"></i> Abrir Archivo</a>
+                        ` : (targetHash ? `
+                            <button onclick="goToSection('${targetHash}', ${m.id})" class="btn-primary" style="padding:6px 15px; font-size:0.8rem; margin:0; display:flex; align-items:center; gap:5px;"><i data-lucide="arrow-right-circle" style="width:14px;"></i> Ir a sección</button>
+                        ` : '')}
                     </div>
                 </article>
                 `;
