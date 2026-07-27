@@ -3,6 +3,12 @@ function renderReport(container, editData = null) {
     const currentUser = session ? session.user : '';
     const role = session ? session.role : '';
     let isLoadingEdit = !!editData;
+    if (editData) {
+        editData = Object.fromEntries(Object.entries(editData).map(([key, value]) => [
+            key,
+            typeof value === 'string' && window.escapeHTML ? window.escapeHTML(value) : value
+        ]));
+    }
 
     const distribuidores = {
         "MediaMarkt": [
@@ -158,6 +164,7 @@ function renderReport(container, editData = null) {
         <header class="section-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-main); padding-bottom: 1.5rem;">
             <h2 style="font-size: 1.75rem; margin-bottom: 0.5rem;"><i data-lucide="edit-3" style="color: var(--xiaomi-orange); width: 28px; vertical-align: middle; margin-right: 10px;"></i> ${editData && editData.mode === 'edit' ? 'Editar Reporte' : (editData && editData.mode === 'duplicate' ? 'Duplicar Reporte' : 'Nuevo Reporte de Formación')}</h2>
             <p style="color:var(--text-medium); font-weight: 500;">Registra los detalles de tu última sesión de entrenamiento.</p>
+            <div id="reportDraftStatus" class="report-draft-status" aria-live="polite"><i data-lucide="cloud-check"></i><span>${editData ? 'Edición protegida' : 'Borrador automático activo'}</span></div>
         </header>
 
         <form id="trainingForm" class="glass-card report-form-card">
@@ -353,13 +360,14 @@ function renderReport(container, editData = null) {
             <div class="form-group" style="margin-top: 1.5rem;">
                 <label class="form-label" id="photoLabel">Fotos (0/20)</label>
                 <div id="photoContainer" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px;">
-                    <div class="photo-upload-box" id="photoTrigger" style="width: 100px; height: 100px; border: 2px dashed var(--border-main); border-radius: var(--border-radius-md); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease;">
+                    <button type="button" class="photo-upload-box" id="photoTrigger" aria-describedby="photoHelp" style="width: 100px; height: 100px; border: 2px dashed var(--border-main); border-radius: var(--border-radius-md); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; background:var(--bg-main);">
                         <i data-lucide="camera" style="width: 32px; height: 32px; color: var(--text-muted);"></i>
                         <span style="font-size: 0.65rem; color: var(--text-muted); margin-top: 8px; font-weight: 700;">Añadir</span>
-                    </div>
+                    </button>
                 </div>
                 <input type="file" id="photoInput" style="display: none;" accept="image/*,.heic,.heif" multiple>
                 <input type="hidden" id="photoData" name="photoData">
+                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 10 MB cada una. Se comprimirán antes de enviarse.</p>
             </div>
 
             <div style="margin-top: 3rem; display: flex; gap: 15px;">
@@ -382,8 +390,13 @@ function renderReport(container, editData = null) {
             if(res.status === 'success') {
                 const s = document.getElementById('trainer'); 
                 if(s) {
-                    s.innerHTML = '';
-                    res.data.forEach(u => s.innerHTML += `<option value="${u.user || u}">${u.name || u}</option>`);
+                    s.replaceChildren();
+                    res.data.forEach(u => {
+                        const option = document.createElement('option');
+                        option.value = u.user || u;
+                        option.textContent = u.name || u;
+                        s.appendChild(option);
+                    });
                     s.value = editData ? editData.trainer : currentUser;
                 }
             }
@@ -571,10 +584,16 @@ function renderReport(container, editData = null) {
     if(photoTrigger) photoTrigger.onclick = () => photoInput.click();
 
     photoInput.onchange = async (e) => {
-        const files = e.target.files;
+        const files = Array.from(e.target.files || []);
         if(photosArray.length + existingPhotos.length + files.length > 20) { 
             alert("Máximo 20 fotos en total."); 
             return; 
+        }
+        const oversized = files.find(file => file.size > 10 * 1024 * 1024);
+        if (oversized) {
+            alert(`La foto “${oversized.name}” supera 10 MB. Redúcela antes de subirla.`);
+            photoInput.value = "";
+            return;
         }
         
         if(photoTrigger) photoTrigger.innerHTML = '<div class="loader" style="width:20px;height:20px;border-width:2px;border-color:var(--xiaomi-orange) transparent transparent;"></div>';
@@ -582,6 +601,11 @@ function renderReport(container, editData = null) {
         for (let i = 0; i < files.length; i++) {
             try {
                 const compressedBase64 = await compressImage(files[i]);
+                const estimatedBytes = Math.ceil((compressedBase64.length * 3) / 4);
+                const currentBytes = photosArray.reduce((total, photo) => total + Math.ceil((photo.base64Data.length * 3) / 4), 0);
+                if (estimatedBytes > 1.8 * 1024 * 1024 || currentBytes + estimatedBytes > 12 * 1024 * 1024) {
+                    throw new Error("La imagen comprimida supera el límite seguro de envío.");
+                }
                 photosArray.push({
                     name: files[i].name,
                     mimeType: files[i].type,
@@ -590,6 +614,7 @@ function renderReport(container, editData = null) {
                 renderPhotos(); 
             } catch (err) {
                 console.error("Error comprimiendo foto:", err);
+                if (typeof showToast === 'function') showToast("Foto no añadida", `${files[i].name}: ${err.message}`);
             }
         }
         
@@ -615,7 +640,13 @@ function renderReport(container, editData = null) {
             const thumb = idMatch ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w200` : p;
             div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${thumb}) center/cover; position: relative; border: 2px solid #3b82f6; cursor:pointer;`;
             div.title = "Haz clic para ver en Drive";
-            div.onclick = () => window.open(p, '_blank');
+            div.onclick = () => {
+                const safeUrl = window.safeExternalUrl ? window.safeExternalUrl(p) : '';
+                if (safeUrl) {
+                    const opened = window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                    if (opened) opened.opener = null;
+                }
+            };
             div.innerHTML = `<button type="button" style="position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; z-index:10;">×</button>`;
             div.querySelector('button').onclick = (e) => { e.stopPropagation(); existingPhotos.splice(idx, 1); renderPhotos(); };
             photoContainer.insertBefore(div, photoTrigger);
@@ -635,6 +666,71 @@ function renderReport(container, editData = null) {
     }
 
     const form = document.getElementById('trainingForm');
+    const draftKey = `xiaomiReportDraft:${currentUser}`;
+    const draftStatus = document.getElementById('reportDraftStatus');
+    let draftTimer = null;
+    let reportDirty = false;
+
+    const setDraftStatus = text => {
+        if (draftStatus) draftStatus.querySelector('span').textContent = text;
+    };
+    const collectDraft = () => {
+        const values = {};
+        Array.from(form.elements).forEach(field => {
+            if (!field.name || field.type === 'file' || field.type === 'submit' || field.name === 'trainer') return;
+            values[field.name] = field.multiple
+                ? Array.from(field.selectedOptions || []).map(option => option.value)
+                : field.value;
+        });
+        return { values, savedAt: Date.now() };
+    };
+    const saveDraft = () => {
+        if (editData) return;
+        try {
+            localStorage.setItem(draftKey, JSON.stringify(collectDraft()));
+            setDraftStatus(`Borrador guardado · ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`);
+        } catch (error) {
+            setDraftStatus('No se pudo guardar el borrador en este dispositivo');
+        }
+    };
+    const scheduleDraft = () => {
+        reportDirty = true;
+        if (editData) return;
+        setDraftStatus('Guardando borrador…');
+        clearTimeout(draftTimer);
+        draftTimer = setTimeout(saveDraft, 500);
+    };
+
+    form.addEventListener('input', scheduleDraft);
+    form.addEventListener('change', scheduleDraft);
+
+    if (!editData) {
+        try {
+            const draft = JSON.parse(localStorage.getItem(draftKey) || 'null');
+            if (draft?.values) {
+                Object.entries(draft.values).forEach(([name, value]) => {
+                    const field = form.elements.namedItem(name);
+                    if (!field) return;
+                    const nextValue = Array.isArray(value) ? value : String(value ?? '');
+                    if (field.tomselect) field.tomselect.setValue(nextValue, true);
+                    else field.value = nextValue;
+                    field.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+                setDraftStatus(`Borrador recuperado · ${new Date(draft.savedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}`);
+            }
+        } catch (error) {
+            localStorage.removeItem(draftKey);
+        }
+    }
+
+    if (window._reportBeforeUnload) window.removeEventListener('beforeunload', window._reportBeforeUnload);
+    window._reportBeforeUnload = event => {
+        if (!reportDirty) return;
+        event.preventDefault();
+        event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', window._reportBeforeUnload);
+
     form.onsubmit = async (e) => {
         e.preventDefault();
         const btn = document.getElementById('btnSubmit');
@@ -669,6 +765,9 @@ function renderReport(container, editData = null) {
                 : await api.saveReport(data, formattedPhotos);
 
             if(res.status === 'success') {
+                reportDirty = false;
+                localStorage.removeItem(draftKey);
+                window.removeEventListener('beforeunload', window._reportBeforeUnload);
                 showToast("¡Éxito!", (editData && editData.mode === 'edit') ? "Reporte actualizado." : "Reporte enviado correctamente.");
                 navigate('#dashboard');
             } else {

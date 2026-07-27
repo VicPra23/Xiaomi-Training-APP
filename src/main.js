@@ -1,6 +1,17 @@
 const getUser = () => getSessionData();
 const clearSession = () => clearSessionData();
 const navigate = (h) => { window.location.hash = h; };
+window.escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+}[char]));
+window.safeExternalUrl = value => {
+    try {
+        const url = new URL(String(value || ''), window.location.origin);
+        return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    } catch (error) {
+        return '';
+    }
+};
 
 const app = document.getElementById('app');
 const navbar = document.getElementById('navbar');
@@ -22,10 +33,12 @@ window.toggleTheme = () => {
 
 function initApp() {
     setTheme(getTheme());
+    installConnectivityStatus();
     
     window.addEventListener('hashchange', navigateRouter);
     document.getElementById('logoutBtn').addEventListener('click', (e) => {
         e.preventDefault();
+        api.logout().catch(() => {});
         stopPoller();
         clearSession();
         window.location.hash = '';
@@ -41,6 +54,7 @@ function initApp() {
         if (toggle && navLinks) {
             navLinks.classList.toggle('active');
             if (navOverlay) navOverlay.classList.toggle('active');
+            toggle.setAttribute('aria-expanded', navLinks.classList.contains('active') ? 'true' : 'false');
             
             const icon = toggle.querySelector('i');
             if (icon && typeof lucide !== 'undefined') {
@@ -58,6 +72,7 @@ function initApp() {
             // Close mobile menu on click
             if (navLinks) navLinks.classList.remove('active');
             if (navOverlay) navOverlay.classList.remove('active');
+            document.getElementById('menuToggle')?.setAttribute('aria-expanded', 'false');
             
             const toggleIcon = document.querySelector('#menuToggle i');
             if (toggleIcon && typeof lucide !== 'undefined') {
@@ -84,6 +99,7 @@ function initApp() {
         if (isClickOutside || isClickOverlay) {
             if (navLinks) navLinks.classList.remove('active');
             if (navOverlay) navOverlay.classList.remove('active');
+            toggle?.setAttribute('aria-expanded', 'false');
             
             const toggleIcon = toggle.querySelector('i');
             if (toggleIcon && typeof lucide !== 'undefined') {
@@ -91,6 +107,14 @@ function initApp() {
                 lucide.createIcons();
             }
         }
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !navLinks?.classList.contains('active')) return;
+        navLinks.classList.remove('active');
+        document.getElementById('navOverlay')?.classList.remove('active');
+        const toggle = document.getElementById('menuToggle');
+        toggle?.setAttribute('aria-expanded', 'false');
+        toggle?.focus();
     });
     
     if (!document.getElementById('toast-container')) {
@@ -103,15 +127,44 @@ function initApp() {
     startPoller();
 }
 
+function installConnectivityStatus() {
+    let banner = document.getElementById('connectivityStatus');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'connectivityStatus';
+        banner.className = 'connectivity-status';
+        banner.setAttribute('role', 'status');
+        document.body.appendChild(banner);
+    }
+    const update = () => {
+        const offline = !navigator.onLine;
+        banner.classList.toggle('is-visible', offline);
+        banner.textContent = offline ? 'Sin conexión · mostrando la última información disponible' : '';
+    };
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    update();
+}
+
 let hasShownNews = false;
 
 function navigateRouter() {
     let hash = window.location.hash || '#';
+    if (hash !== '#report' && window._reportBeforeUnload) {
+        window.removeEventListener('beforeunload', window._reportBeforeUnload);
+        window._reportBeforeUnload = null;
+    }
     let user = getUser();
     if (!user && hash !== '#') { window.location.hash = '#'; return; }
     if (user && hash === '#') { window.location.hash = '#dashboard'; return; }
 
     navbar.style.display = user ? 'block' : 'none';
+    document.querySelectorAll('.nav-link[href^="#"]').forEach(link => {
+        const active = link.getAttribute('href') === hash;
+        link.classList.toggle('is-current', active);
+        if (active) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+    });
     if (user) {
         document.body.classList.toggle('is-admin', user.role === 'Admin');
         updateNavBadge();
@@ -148,13 +201,20 @@ function navigateRouter() {
         console.error("Router Error:", e);
         renderDashboard(app);
     }
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
 
     // Renderizado de iconos Lucide tras cada navegación
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // CACHE LOCAL PARA EVITAR EFECTO "REBOTE" EN MENSAJES
-let localReadCache = JSON.parse(localStorage.getItem('readCache') || "[]");
+let localReadCache = [];
+try {
+    const storedReadCache = JSON.parse(localStorage.getItem('readCache') || "[]");
+    localReadCache = Array.isArray(storedReadCache) ? storedReadCache : [];
+} catch (error) {
+    localStorage.removeItem('readCache');
+}
 const saveCache = () => localStorage.setItem('readCache', JSON.stringify(localReadCache));
 
 async function updateNavBadge() {
@@ -187,18 +247,38 @@ function showToast(title, msg, targetHash) {
     const container = document.getElementById('toast-container');
     const t = document.createElement('div');
     t.className = 'toast';
-    t.innerHTML = `
-        <div class="toast-title">${title}</div>
-        <div class="toast-body">${msg}</div>
-        <div style="font-size:0.6rem; color: var(--text-muted); margin-top:5px; font-weight:700;">Clic para ver...</div>
-    `;
-    t.onclick = () => { t.classList.add('out'); setTimeout(()=>t.remove(), 300); window.location.hash = targetHash; };
+    t.setAttribute('role', 'status');
+    const toastTitle = document.createElement('div');
+    toastTitle.className = 'toast-title';
+    toastTitle.textContent = String(title || '');
+    const toastBody = document.createElement('div');
+    toastBody.className = 'toast-body';
+    toastBody.textContent = String(msg || '');
+    t.append(toastTitle, toastBody);
+    if (targetHash) {
+        const hint = document.createElement('div');
+        hint.className = 'toast-hint';
+        hint.textContent = 'Pulsa para ver';
+        t.appendChild(hint);
+        t.tabIndex = 0;
+        t.onclick = () => { t.classList.add('out'); setTimeout(()=>t.remove(), 300); window.location.hash = targetHash; };
+        t.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') t.click(); };
+    }
     container.appendChild(t);
     setTimeout(() => { if(t.parentElement) { t.classList.add('out'); setTimeout(()=>t.remove(), 300); } }, 2000);
 }
 
-function startPoller() { if (pollerInterval) clearInterval(pollerInterval); if (getUser()) { updateNavBadge(); pollerInterval = setInterval(updateNavBadge, 60000); } }
+function startPoller() {
+    if (pollerInterval) clearInterval(pollerInterval);
+    if (getUser() && navigator.onLine && !document.hidden) {
+        updateNavBadge().catch(() => {});
+        pollerInterval = setInterval(() => updateNavBadge().catch(() => {}), 60000);
+    }
+}
 function stopPoller() { if (pollerInterval) clearInterval(pollerInterval); pollerInterval = null; }
+document.addEventListener('visibilitychange', () => document.hidden ? stopPoller() : startPoller());
+window.addEventListener('online', startPoller);
+window.addEventListener('offline', stopPoller);
 
 window.onload = initApp;
 window.navigate = (h) => { window.location.hash = h; };

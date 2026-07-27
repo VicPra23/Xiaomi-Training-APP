@@ -1,5 +1,6 @@
 function renderDashboard(container) {
     try {
+        const esc = value => window.escapeHTML ? window.escapeHTML(value) : String(value ?? '');
         let session = getSessionData();
         const role = session ? session.role : 'User';
         const currentUser = session ? session.user : 'Desconocido';
@@ -44,8 +45,9 @@ function renderDashboard(container) {
         window.addEventListener('resize', window._dashResizeHandler);
 
     const filterCard = isAdmin ? `
-        <div class="glass-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
-            <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:center;">
+        <div class="glass-card dashboard-filter-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
+            <button type="button" class="dashboard-filter-toggle" aria-expanded="true"><i data-lucide="sliders-horizontal"></i><span>Filtros del panel<small>Periodo, trainer y dispositivo</small></span><i data-lucide="chevron-down"></i></button>
+            <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:center;">
                 <div class="form-group" style="margin:0; min-width: 130px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Trainer</label>
                     <select id="dashboardTarget" class="form-control">
@@ -63,14 +65,14 @@ function renderDashboard(container) {
                     </div>
                     <div class="form-group" style="margin:0; position: relative; min-width: 120px; flex: 0 1 auto; text-align: center;">
                         <label class="form-label" style="display: block; width: 100%;">Meses (Multi)</label>
-                        <div id="multiMonthContainer" class="form-control" style="height: 42px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; justify-content: center; align-items:center;">
+                        <div id="multiMonthContainer" class="form-control" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Seleccionar meses" style="height: 42px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; justify-content: center; align-items:center;">
                             <span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Todos</span>
                         </div>
                         <input type="hidden" id="dashboardMonth" value="Todos">
                     </div>
                     <div class="form-group" style="margin:0; position: relative; min-width: 180px; flex: 0 1 auto; text-align: center;">
                         <label class="form-label" style="display: block; width: 100%;">Semanas (Multi)</label>
-                        <div id="multiWeekContainer" class="form-control" style="height: 42px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; justify-content: center; align-items:center;">
+                        <div id="multiWeekContainer" class="form-control" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Seleccionar semanas" style="height: 42px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border-main); border-radius: 8px; justify-content: center; align-items:center;">
                             <span style="color: var(--text-muted); font-size: 0.8rem; padding: 4px;">Selecciona periodo...</span>
                         </div>
                         <input type="hidden" id="dashboardWeek" value="">
@@ -101,8 +103,9 @@ function renderDashboard(container) {
                 </div>
             </div>
         </div>` : `
-        <div class="glass-card" style="margin-left: 0; margin-right: auto; margin-bottom: 2rem; max-width: 500px; padding: 0.75rem 1.25rem; position: relative; z-index: 10;">
-            <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
+        <div class="glass-card dashboard-filter-card" style="margin-left: 0; margin-right: auto; margin-bottom: 2rem; max-width: 500px; padding: 0.75rem 1.25rem; position: relative; z-index: 10;">
+            <button type="button" class="dashboard-filter-toggle" aria-expanded="true"><i data-lucide="sliders-horizontal"></i><span>Filtros del panel<small>Semana o rango de fechas</small></span><i data-lucide="chevron-down"></i></button>
+            <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
                 <div id="periodFiltersContainer" style="display:flex; gap:12px;">
                     <div class="form-group" style="margin:0; min-width: 180px; flex: 0 1 auto; text-align: center;">
                         <label class="form-label" style="display: block; width: 100%;">Semana</label>
@@ -177,11 +180,11 @@ function renderDashboard(container) {
             <div class="charts-container">
                 <div class="glass-card">
                     <h3 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2rem; letter-spacing: 0.1em; display: flex; align-items: center; gap: 10px;"><i data-lucide="bar-chart-3" style="width:18px;"></i> Tendencia Semanal</h3>
-                    <div class="chart-wrapper"><canvas id="chartWeekly"></canvas></div>
+                    <div class="chart-wrapper"><canvas id="chartWeekly" role="img" aria-label="Tendencia semanal de actividad"></canvas></div>
                 </div>
                 <div class="glass-card">
                     <h3 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2rem; letter-spacing: 0.1em; display: flex; align-items: center; gap: 10px;"><i data-lucide="pie-chart" style="width:18px;"></i> Distribución por Método</h3>
-                    <div class="chart-wrapper" style="display: flex; justify-content: center;"><canvas id="chartMethods"></canvas></div>
+                    <div class="chart-wrapper" style="display: flex; justify-content: center;"><canvas id="chartMethods" role="img" aria-label="Distribución de actividad por metodología"></canvas></div>
                 </div>
             </div>
 
@@ -210,7 +213,7 @@ function renderDashboard(container) {
                         <i data-lucide="award" style="color: var(--xiaomi-orange); width:18px;"></i>
                         <h3 style="margin:0; font-size: 0.9rem; color: var(--text-medium); text-transform: uppercase; letter-spacing: 0.05em;">Rendimiento Trainers</h3>
                     </div>
-                    <div class="chart-wrapper"><canvas id="chartTrainers"></canvas></div>
+                    <div class="chart-wrapper"><canvas id="chartTrainers" role="img" aria-label="Comparativa de rendimiento entre trainers"></canvas></div>
                 </div>
             </div>
             ` : ''}
@@ -284,12 +287,12 @@ function renderDashboard(container) {
                     <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead style="background: #f8fafc;">
                             <tr>
-                                <th style="padding: 12px; text-align: left; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('fecha')">Fecha <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
-                                ${isAdmin ? `<th style="padding: 12px; text-align: left; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('trainer')">Trainer <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>` : ''}
-                                <th style="padding: 12px; text-align: left; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('cuenta')">Cuenta <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
+                                <th style="padding: 12px; text-align: left; color: var(--text-muted);"><button class="table-sort-button" onclick="window.sortHistory('fecha')">Fecha <i data-lucide="chevrons-up-down"></i></button></th>
+                                ${isAdmin ? `<th style="padding: 12px; text-align: left; color: var(--text-muted);"><button class="table-sort-button" onclick="window.sortHistory('trainer')">Trainer <i data-lucide="chevrons-up-down"></i></button></th>` : ''}
+                                <th style="padding: 12px; text-align: left; color: var(--text-muted);"><button class="table-sort-button" onclick="window.sortHistory('cuenta')">Cuenta <i data-lucide="chevrons-up-down"></i></button></th>
                                 <th style="padding: 12px; text-align: left; color: var(--text-muted);">Metodología</th>
-                                <th style="padding: 12px; text-align: center; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('alumnos')">Alumnos <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
-                                <th style="padding: 12px; text-align: center; color: var(--text-muted); cursor: pointer;" onclick="window.sortHistory('duracion')">Horas <i data-lucide="chevrons-up-down" style="width:12px; vertical-align:middle;"></i></th>
+                                <th style="padding: 12px; text-align: center; color: var(--text-muted);"><button class="table-sort-button" onclick="window.sortHistory('alumnos')">Alumnos <i data-lucide="chevrons-up-down"></i></button></th>
+                                <th style="padding: 12px; text-align: center; color: var(--text-muted);"><button class="table-sort-button" onclick="window.sortHistory('duracion')">Horas <i data-lucide="chevrons-up-down"></i></button></th>
                                 <th style="padding: 12px; text-align: right; color: var(--text-muted);">Acciones</th>
                             </tr>
                         </thead>
@@ -313,6 +316,25 @@ function renderDashboard(container) {
 
     container.innerHTML = html;
     if (typeof lucide !== 'undefined') lucide.createIcons();
+    ['multiMonthContainer', 'multiWeekContainer'].forEach(id => {
+        const control = document.getElementById(id);
+        control?.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                control.click();
+            }
+        });
+    });
+    const dashboardFilterCard = container.querySelector('.dashboard-filter-card');
+    const dashboardFilterToggle = dashboardFilterCard?.querySelector('.dashboard-filter-toggle');
+    if (dashboardFilterCard && window.matchMedia('(max-width: 768px)').matches) {
+        dashboardFilterCard.classList.add('is-collapsed');
+        dashboardFilterToggle?.setAttribute('aria-expanded', 'false');
+    }
+    dashboardFilterToggle?.addEventListener('click', () => {
+        const collapsed = dashboardFilterCard.classList.toggle('is-collapsed');
+        dashboardFilterToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
 
     // Limpiar cualquier instancia previa de TomSelect al iniciar
     window.tsInstances = window.tsInstances || {};
@@ -1118,10 +1140,10 @@ function renderDashboard(container) {
                 body.innerHTML = filteredData.map((r, idx) => `
                     <tr style="border-bottom: 1px solid var(--border-main);">
                         <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${formatDateSafe(r.fecha)}</td>
-                        ${isAdmin ? `<td data-label="Trainer" style="padding: 12px; font-weight: 600; color: var(--xiaomi-orange);">${r.trainer || '-'}</td>` : ''}
-                        <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
-                        <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
-                        <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
+                        ${isAdmin ? `<td data-label="Trainer" style="padding: 12px; font-weight: 600; color: var(--xiaomi-orange);">${esc(r.trainer || '-')}</td>` : ''}
+                        <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${esc(r.cuenta)}</td>
+                        <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${esc(r.metodologia)}</span></td>
+                        <td data-label="Alumnos" style="padding: 12px; text-align: center;">${esc(r.alumnos || '0')}</td>
                         <td data-label="Horas" style="padding: 12px; text-align: center;">${parseDuration(r.duracion).toFixed(1)}h</td>
                         <td data-label="Acciones" style="padding: 12px; text-align: right; white-space: nowrap;">
                             <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
@@ -1205,10 +1227,10 @@ function renderDashboard(container) {
         body.innerHTML = window.dashboardHistoryData.map((r, idx) => `
             <tr style="border-bottom: 1px solid var(--border-main);">
                 <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${formatDateSafe(r.fecha)}</td>
-                ${isAdmin ? `<td data-label="Trainer" style="padding: 12px; font-weight: 600; color: var(--xiaomi-orange);">${r.trainer || '-'}</td>` : ''}
-                <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${r.cuenta}</td>
-                <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${r.metodologia}</span></td>
-                <td data-label="Alumnos" style="padding: 12px; text-align: center;">${r.alumnos || '0'}</td>
+                ${isAdmin ? `<td data-label="Trainer" style="padding: 12px; font-weight: 600; color: var(--xiaomi-orange);">${esc(r.trainer || '-')}</td>` : ''}
+                <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${esc(r.cuenta)}</td>
+                <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${esc(r.metodologia)}</span></td>
+                <td data-label="Alumnos" style="padding: 12px; text-align: center;">${esc(r.alumnos || '0')}</td>
                 <td data-label="Horas" style="padding: 12px; text-align: center;">${pD(r.duracion).toFixed(1)}h</td>
                 <td data-label="Acciones" style="padding: 12px; text-align: right; white-space: nowrap;">
                     <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
@@ -1240,13 +1262,13 @@ function renderDashboard(container) {
             const content = document.getElementById('modalContent');
             content.innerHTML = `
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-bottom: 1px solid var(--border-main); padding-bottom: 15px; margin-bottom: 15px;">
-                    <div><strong style="color:var(--text-muted); font-size:0.75rem; display:block; text-transform:uppercase;">Trainer</strong> <span style="font-weight:700;">${report.trainer}</span></div>
+                    <div><strong style="color:var(--text-muted); font-size:0.75rem; display:block; text-transform:uppercase;">Trainer</strong> <span style="font-weight:700;">${esc(report.trainer)}</span></div>
                     <div><strong style="color:var(--text-muted); font-size:0.75rem; display:block; text-transform:uppercase;">Fecha</strong> <span style="font-weight:700;">${formatDateSafe(report.fecha)}</span></div>
                 </div>
                 <div style="line-height: 1.8;">
-                    <div style="margin-bottom:12px;"><strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase;">Metodología:</strong> <span style="font-weight:600;">${report.metodologia}</span></div>
-                    <div style="margin-bottom:12px;"><strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase;">Cuenta:</strong> <span style="font-weight:600;">${report.cuenta} ${report.distribuidor ? `(${report.distribuidor})` : ''}</span></div>
-                    <div style="margin-bottom:12px;"><strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase;">Ubicación:</strong> <span style="font-weight:600;">${report.ciudad}, ${report.provincia}</span></div>
+                    <div style="margin-bottom:12px;"><strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase;">Metodología:</strong> <span style="font-weight:600;">${esc(report.metodologia)}</span></div>
+                    <div style="margin-bottom:12px;"><strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase;">Cuenta:</strong> <span style="font-weight:600;">${esc(report.cuenta)} ${report.distribuidor ? `(${esc(report.distribuidor)})` : ''}</span></div>
+                    <div style="margin-bottom:12px;"><strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase;">Ubicación:</strong> <span style="font-weight:600;">${esc(report.ciudad)}, ${esc(report.provincia)}</span></div>
                     <hr style="border: 0; border-top: 1px solid var(--border-main); margin: 15px 0;">
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; background:var(--bg-main); padding: 15px; border-radius:12px; margin-bottom:15px; text-align:center;">
                         <div><span style="display:block; font-size:1.25rem; font-weight:800; color:var(--xiaomi-orange);">${report.sesiones}</span><span style="font-size:0.6rem; text-transform:uppercase; color:var(--text-muted);">Sesiones</span></div>
@@ -1254,20 +1276,22 @@ function renderDashboard(container) {
                         <div><span style="display:block; font-size:1.25rem; font-weight:800; color:var(--xiaomi-orange);">${pD(report.duracion).toFixed(1)}h</span><span style="font-size:0.6rem; text-transform:uppercase; color:var(--text-muted);">Duración</span></div>
                     </div>
                     <hr style="border: 0; border-top: 1px solid var(--border-main); margin: 15px 0;">
-                    <p style="margin-bottom:8px;"><strong>Contenidos:</strong> ${report.contenidos}</p>
-                    <p style="margin-bottom:8px;"><strong>Móviles:</strong> ${report.dispositivos || '-'}</p>
-                    <p style="margin-bottom:8px;"><strong>Ecosistema:</strong> ${report.dispositivos_no_movil || '-'}</p>
-                    <p style="margin-bottom:15px;"><strong>Comentarios:</strong><br><span style="color: var(--text-medium); font-style: italic;">${report.comentarios || 'Sin comentarios'}</span></p>
+                    <p style="margin-bottom:8px;"><strong>Contenidos:</strong> ${esc(report.contenidos)}</p>
+                    <p style="margin-bottom:8px;"><strong>Móviles:</strong> ${esc(report.dispositivos || '-')}</p>
+                    <p style="margin-bottom:8px;"><strong>Ecosistema:</strong> ${esc(report.dispositivos_no_movil || '-')}</p>
+                    <p style="margin-bottom:15px;"><strong>Comentarios:</strong><br><span style="color: var(--text-medium); font-style: italic;">${esc(report.comentarios || 'Sin comentarios')}</span></p>
                     <hr style="border: 0; border-top: 1px solid var(--border-main); margin: 15px 0;">
                     <div style="margin-top:10px;">
                         <strong style="color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; display:block; margin-bottom:12px;">FOTOS:</strong>
                         <div style="display: flex; flex-wrap: wrap; gap: 12px;">
                             ${report.photoLinks ? report.photoLinks.split(/[\n,]+/).filter(url => url.trim().startsWith('http')).map((url, i) => {
-                                const p = url.trim();
+                                const p = window.safeExternalUrl ? window.safeExternalUrl(url.trim()) : '';
+                                if (!p) return '';
                                 const idMatch = p.match(/id=([^&]+)/) || p.match(/\/d\/([^/]+)/);
                                 const thumb = idMatch ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w200` : p;
                                 return `
-                                    <a href="${p}" target="_blank" style="display:block; width:85px; height:85px; border-radius:12px; background:url(${thumb}) center/cover; border:2px solid var(--border-main); cursor:pointer; transition: all 0.2s ease; box-shadow: var(--shadow-sm);" onmouseover="this.style.transform='scale(1.08)'; this.style.borderColor='var(--xiaomi-orange)'" onmouseout="this.style.transform='scale(1)'; this.style.borderColor='var(--border-main)'" title="Ver en grande (Google Drive)">
+                                    <a href="${esc(p)}" target="_blank" rel="noopener noreferrer" class="report-photo-link" title="Ver foto ${i + 1} en Google Drive">
+                                        <img src="${esc(thumb)}" loading="lazy" alt="Foto adjunta ${i + 1}">
                                     </a>
                                 `;
                             }).join('') : '<span style="color:var(--text-muted); font-style:italic; font-size:0.8rem;">No hay fotos adjuntas</span>'}

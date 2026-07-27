@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Xiaomi Training APP</title>
+    <link rel="icon" href="./Xiaomi_logo_(2021-).svg.png" type="image/png">
     
     <!-- Google Fonts: Inter & Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,7 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
     
     <!-- Custom Style -->
-    <link rel="stylesheet" href="style.css?v=41.0">
+    <link rel="stylesheet" href="style.css?v=42.3">
     
     <!-- TomSelect (Necesario para ReportForm) -->
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
@@ -43,7 +44,7 @@
             </a>
 
             <!-- Mobile Menu Toggle -->
-            <button class="mobile-menu-btn" id="menuToggle" aria-label="Abrir menú">
+            <button class="mobile-menu-btn" id="menuToggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="navLinks">
                 <i data-lucide="menu"></i>
             </button>
 
@@ -75,15 +76,15 @@
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     
     <!-- Vistas y Lógica -->
-    <script src="src/services/api.js?v=40.98"></script>
-    <script src="src/views/Login.js?v=40.98"></script>
-    <script src="src/views/Dashboard.js?v=40.98"></script>
-    <script src="src/views/ReportForm.js?v=40.98"></script>
-    <script src="src/views/Calendar.js?v=41.0"></script>
-    <script src="src/views/Vacations.js?v=40.98"></script>
-    <script src="src/views/Materials.js?v=40.98"></script>
-    <script src="src/views/Messages.js?v=40.98"></script>
-    <script src="src/main.js?v=40.98"></script>
+    <script src="src/services/api.js?v=42.3"></script>
+    <script src="src/views/Login.js?v=42.3"></script>
+    <script src="src/views/Dashboard.js?v=42.3"></script>
+    <script src="src/views/ReportForm.js?v=42.3"></script>
+    <script src="src/views/Calendar.js?v=42.3"></script>
+    <script src="src/views/Vacations.js?v=42.3"></script>
+    <script src="src/views/Materials.js?v=42.3"></script>
+    <script src="src/views/Messages.js?v=42.3"></script>
+    <script src="src/main.js?v=42.3"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -94,7 +95,15 @@
                         installingWorker.onstatechange = () => {
                             if (installingWorker.state === 'installed') {
                                 if (navigator.serviceWorker.controller) {
-                                    window.location.reload();
+                                    const notice = document.createElement('button');
+                                    notice.type = 'button';
+                                    notice.className = 'app-update-notice';
+                                    notice.textContent = 'Nueva versión disponible · Actualizar';
+                                    notice.onclick = () => {
+                                        installingWorker.postMessage('SKIP_WAITING');
+                                        window.location.reload();
+                                    };
+                                    document.body.appendChild(notice);
                                 }
                             }
                         };

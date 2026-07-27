@@ -13,6 +13,7 @@ const CONFIG = {
   DIAS_EXTRAS_SHEET_NAME: "DIAS EXTRAS",
   MENSAJES_SHEET_NAME: "MENSAJES",
   PLANIFICACION_SHEET_NAME: "PLANIFICACION",
+  MATERIALES_SHEET_NAME: "MATERIALES",
   VERSION: "V5.0",
   ADMINS: ["Training Manager", "Training Coordinator", "Training Creator"]
 };
@@ -108,30 +109,119 @@ function _invalidateCache(ssId, sheetName) {
   CacheService.getScriptCache().remove(ssId + "_" + sheetName);
 }
 
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+function _digest(value) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(value))
+    .map(function(byte) { return ("0" + (byte & 255).toString(16)).slice(-2); })
+    .join("");
+}
+
+function _createSession(user, role) {
+  _cleanupExpiredSessions();
+  const token = Utilities.getUuid() + Utilities.getUuid();
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  const session = { user: user, role: role, expiresAt: expiresAt };
+  const key = "SESSION_" + _digest(token);
+  PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(session));
+  CacheService.getScriptCache().put(key, JSON.stringify(session), 21600);
+  return { token: token, expiresAt: expiresAt };
+}
+
+function _cleanupExpiredSessions() {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  Object.keys(all).forEach(function(key) {
+    if (key.indexOf("SESSION_") !== 0) return;
+    try {
+      const session = JSON.parse(all[key]);
+      if (!session.expiresAt || Date.now() >= session.expiresAt) props.deleteProperty(key);
+    } catch (error) {
+      props.deleteProperty(key);
+    }
+  });
+}
+
+function _getSession(token) {
+  if (!token) return null;
+  const key = "SESSION_" + _digest(token);
+  const cache = CacheService.getScriptCache();
+  const props = PropertiesService.getScriptProperties();
+  const raw = cache.get(key) || props.getProperty(key);
+  if (!raw) return null;
+  try {
+    const session = JSON.parse(raw);
+    if (!session.expiresAt || Date.now() >= session.expiresAt) {
+      cache.remove(key);
+      props.deleteProperty(key);
+      return null;
+    }
+    cache.put(key, raw, Math.min(21600, Math.max(60, Math.floor((session.expiresAt - Date.now()) / 1000))));
+    return session;
+  } catch (error) {
+    return null;
+  }
+}
+
+function _destroySession(token) {
+  if (!token) return;
+  const key = "SESSION_" + _digest(token);
+  CacheService.getScriptCache().remove(key);
+  PropertiesService.getScriptProperties().deleteProperty(key);
+}
+
+function _requireSession(req, adminOnly) {
+  const session = _getSession(req && req.token);
+  if (!session) {
+    const authError = new Error("Tu sesión ha caducado. Vuelve a iniciar sesión.");
+    authError.code = "AUTH_REQUIRED";
+    throw authError;
+  }
+  if (adminOnly && session.role !== "Admin") {
+    const permissionError = new Error("No tienes permiso para realizar esta acción.");
+    permissionError.code = "FORBIDDEN";
+    throw permissionError;
+  }
+  return session;
+}
+
+function _errorResponse(error) {
+  return {
+    status: "error",
+    code: error && error.code ? error.code : "SERVER_ERROR",
+    message: error && error.message ? error.message : String(error)
+  };
+}
+
 function doGet(e) {
   const p = e.parameter || {};
   const action = (p.action || "").toString().trim();
-  const callback = p.callback || "callback";
-  const userParam = (p.user || "").toString().trim();
+  const callback = /^[A-Za-z_$][0-9A-Za-z_$]{0,80}$/.test(p.callback || "") ? p.callback : "callback";
   
   let res = { status: "error", message: "Accion [" + action + "] no encontrada" };
   try {
     const forceRefresh = p._t ? true : false;
-    if (action === "login")             res = attemptLogin(userParam, p.pass);
-    if (action === "getUsersList")      res = getUsersList();
-    if (action === "getVacationData")   res = getVacationData(userParam, forceRefresh);
-    if (action === "getAdminData")      res = getAdminData(forceRefresh);
-    if (action === "getDashboardStats") res = getDashboardStats(p);
-    if (action === "getReportsHistory")  res = getReportsHistory(p);
-    if (action === "getCitiesList")     res = getCitiesList();
-    if (action === "getFilterMetadata") res = getFilterMetadata();
-    if (action === "getMessages")       res = getMessages(p);
-    if (action === "getWeekly")         res = getWeeklySchedule(p);
-    if (action === "updateReport")      res = updateReport(p);
-    if (action === "deleteReport")      res = deleteReport(p);
-  } catch(err) { res = { status: "error", message: "Backend Error: " + err.toString() }; }
+    if (action === "getLoginUsers") {
+      // Endpoint público mínimo para completar el selector de acceso.
+      // No expone contraseña, rol, sede, correo ni ningún otro dato privado.
+      res = getLoginUsers();
+    } else {
+      const session = _requireSession(p, action === "getAdminData");
+      if (session.role !== "Admin") p.targetUser = session.user;
+      if (action === "getUsersList")      res = getUsersList();
+      if (action === "getVacationData")   res = getVacationData(session.role === "Admin" && p.user ? p.user : session.user, forceRefresh);
+      if (action === "getAdminData")      res = getAdminData(forceRefresh);
+      if (action === "getDashboardStats") res = getDashboardStats(p);
+      if (action === "getReportsHistory") res = getReportsHistory(p);
+      if (action === "getCitiesList")     res = getCitiesList();
+      if (action === "getFilterMetadata") res = getFilterMetadata();
+      if (action === "getMaterials")      res = getMaterialsCatalog();
+      if (action === "getMessages")       res = getMessages({ targetUser: session.user });
+      if (action === "getWeekly")         res = getWeeklySchedule(p);
+    }
+  } catch(err) { res = _errorResponse(err); }
   if (p.callback) {
-    return ContentService.createTextOutput(p.callback + "(" + JSON.stringify(res) + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);
+    return ContentService.createTextOutput(callback + "(" + JSON.stringify(res) + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);
   } else {
     return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
   }
@@ -140,20 +230,100 @@ function doGet(e) {
 function doPost(e) {
   try {
     const req = JSON.parse(e.postData.contents);
+    if (req.action === "login") {
+      return ContentService.createTextOutput(JSON.stringify(attemptLogin(req.user, req.pass))).setMimeType(ContentService.MimeType.JSON);
+    }
+    if (req.action === "logout") {
+      _destroySession(req.token);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+    }
+    const adminActions = ["updateRequest", "modifyExtra", "modifyBase", "adminProcessSelection"];
+    const session = _requireSession(req, adminActions.indexOf(req.action) !== -1);
     let res = { status: "error", message: "Accion no encontrada" };
-    if (req.action === "saveReport")      res = handleSaveReport(req.data, req.photos);
-    if (req.action === "updateReport")    res = updateReport(req);
-    if (req.action === "deleteReport")    res = deleteReport(req);
-    if (req.action === "requestVacation") res = handleRequestVacation(req);
+    if (req.action === "saveReport") {
+      if (session.role !== "Admin") req.data.trainer = session.user;
+      res = handleSaveReport(req.data, req.photos);
+    }
+    if (req.action === "updateReport")    res = updateReport(req, session);
+    if (req.action === "deleteReport")    res = deleteReport(req, session);
+    if (req.action === "requestVacation") {
+      req.user = session.user;
+      res = handleRequestVacation(req);
+    }
     if (req.action === "updateRequest")   res = updateRequestStatus(req.id, req.status);
     if (req.action === "modifyExtra")     res = modifyExtraDays(req.user, req.delta);
     if (req.action === "modifyBase")      res = modifyBaseDays(req.user, req.delta);
-    if (req.action === "markMessageRead") res = handleMarkMessageRead(req);
-    if (req.action === "markAllMessagesRead") res = handleMarkAllMessagesRead(req);
-    if (req.action === "saveAssignment")  res = saveWeeklyAssignment(req);
+    if (req.action === "markMessageRead") res = handleMarkMessageRead(req, session);
+    if (req.action === "markAllMessagesRead") {
+      req.user = session.user;
+      res = handleMarkAllMessagesRead(req);
+    }
+    if (req.action === "saveAssignment") {
+      if (session.role !== "Admin") req.user = session.user;
+      req.modifiedBy = session.user;
+      res = saveWeeklyAssignment(req);
+    }
     if (req.action === "adminProcessSelection") res = adminProcessSelection(req);
     return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
-  } catch(err) { return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON); }
+  } catch(err) { return ContentService.createTextOutput(JSON.stringify(_errorResponse(err))).setMimeType(ContentService.MimeType.JSON); }
+}
+
+function getMaterialsCatalog() {
+  try {
+    const rows = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.MATERIALES_SHEET_NAME);
+    if (!rows || rows.length < 2) return { status: "success", data: [] };
+    const headers = rows[0].map(function(value) { return String(value || "").trim().toLowerCase(); });
+    const col = function(names) {
+      for (let i = 0; i < names.length; i++) {
+        const idx = headers.indexOf(names[i]);
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+    const indexes = {
+      categoryId: col(["categoria id", "category id", "id categoria"]),
+      category: col(["categoria", "category"]),
+      icon: col(["icono", "icon"]),
+      subcategory: col(["subcategoria", "subcategory"]),
+      name: col(["nombre", "material", "name"]),
+      link: col(["enlace", "link", "url"]),
+      newUntil: col(["nuevo hasta", "new until"])
+    };
+    if (indexes.category === -1 || indexes.name === -1 || indexes.link === -1) {
+      return { status: "error", message: "La hoja MATERIALES necesita las columnas Categoria, Nombre y Enlace." };
+    }
+    const categoryMap = {};
+    rows.slice(1).forEach(function(row) {
+      const title = String(row[indexes.category] || "").trim();
+      const name = String(row[indexes.name] || "").trim();
+      const link = String(row[indexes.link] || "").trim();
+      if (!title || !name || !/^https:\/\//i.test(link)) return;
+      const id = indexes.categoryId >= 0 && row[indexes.categoryId]
+        ? String(row[indexes.categoryId]).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-")
+        : title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      if (!categoryMap[id]) categoryMap[id] = {
+        id: id,
+        title: title,
+        icon: indexes.icon >= 0 && row[indexes.icon] ? String(row[indexes.icon]).trim() : "folder",
+        subcategories: []
+      };
+      const subName = indexes.subcategory >= 0 && row[indexes.subcategory] ? String(row[indexes.subcategory]).trim() : "General";
+      let sub = categoryMap[id].subcategories.filter(function(item) { return item.name === subName; })[0];
+      if (!sub) {
+        sub = { name: subName, items: [] };
+        categoryMap[id].subcategories.push(sub);
+      }
+      let isNew = false;
+      if (indexes.newUntil >= 0 && row[indexes.newUntil]) {
+        const until = parseDateStable(row[indexes.newUntil]);
+        isNew = Boolean(until && until.getTime() >= new Date().setHours(0, 0, 0, 0));
+      }
+      sub.items.push({ name: name, link: link, isNew: isNew });
+    });
+    return { status: "success", data: Object.keys(categoryMap).map(function(key) { return categoryMap[key]; }) };
+  } catch (error) {
+    return { status: "error", message: error.toString() };
+  }
 }
 
 // --- ADMIN FEATURES ---
@@ -232,6 +402,22 @@ function getUsersList() {
   try {
     const d = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
     const users = d.slice(1).map(r => ({ user: r[0], name: r[1] }));
+    return { status: "success", data: users };
+  } catch(e) { return { status: "error", message: e.toString() }; }
+}
+
+function getLoginUsers() {
+  try {
+    const d = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
+    const users = d.slice(1)
+      .filter(function(row) { return String(row[0] || "").trim(); })
+      .map(function(row) {
+        const user = String(row[0] || "").trim();
+        return { user: user, name: String(row[1] || user).trim() };
+      })
+      .sort(function(a, b) {
+        return (a.name || a.user).localeCompare(b.name || b.user, "es", { sensitivity: "base" });
+      });
     return { status: "success", data: users };
   } catch(e) { return { status: "error", message: e.toString() }; }
 }
@@ -350,6 +536,32 @@ function handleRequestVacation(req) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
+    if (!req.user || !Array.isArray(req.dates) || req.dates.length < 1 || req.dates.length > 60) {
+      return { status: "error", message: "La solicitud no contiene un rango de fechas válido." };
+    }
+    if (["Vacaciones", "Dias Extras"].indexOf(req.type) === -1) {
+      return { status: "error", message: "Tipo de solicitud no válido." };
+    }
+    const uniqueDates = Array.from(new Set(req.dates.map(function(value) { return String(value || "").trim(); }))).sort();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const vacationData = getVacationData(req.user, true);
+    if (vacationData.status !== "success") return vacationData;
+    const holidays = vacationData.festivos || [];
+    for (let i = 0; i < uniqueDates.length; i++) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(uniqueDates[i])) return { status: "error", message: "Fecha no válida." };
+      const date = parseDateStable(uniqueDates[i]);
+      if (!date || date <= today || date.getDay() === 0 || date.getDay() === 6 || holidays.indexOf(uniqueDates[i]) !== -1) {
+        return { status: "error", message: "La solicitud contiene días pasados, festivos o fines de semana." };
+      }
+    }
+    const available = req.type === "Vacaciones"
+      ? vacationData.stats.baseTotal - vacationData.stats.usedBase
+      : vacationData.stats.extraTotal - vacationData.stats.usedExtra;
+    if (uniqueDates.length > available) {
+      return { status: "error", message: "Saldo insuficiente para solicitar " + uniqueDates.length + " días." };
+    }
+    req.dates = uniqueDates;
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
     let sV = ss.getSheetByName(CONFIG.VACACIONES_SHEET_NAME) || ss.insertSheet(CONFIG.VACACIONES_SHEET_NAME);
     const groups = {};
@@ -377,13 +589,46 @@ function formatDateS(iso) {
 }
 
 // --- DASHBOARD / LOGIN ---
+function _hashPassword(password, salt, rounds) {
+  let value = String(password || "") + ":" + String(salt || "");
+  for (let i = 0; i < rounds; i++) value = _digest(value + ":" + salt);
+  return value;
+}
+
+function _verifyPassword(stored, supplied) {
+  const value = String(stored || "");
+  if (value.indexOf("sha256$") !== 0) return value === String(supplied || "").trim();
+  const parts = value.split("$");
+  const rounds = parseInt(parts[1], 10) || 800;
+  return _hashPassword(supplied, parts[2], rounds) === parts[3];
+}
+
 function attemptLogin(u, p) {
   const d = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
   const up = (p || "").toString().trim();
+  const normalizedUser = (u || "").toString().trim().toLowerCase();
   for (let i = 1; i < d.length; i++) {
-    if ((d[i][0] || "").toString().trim().toLowerCase() === u.toLowerCase() && (d[i][3] || "").toString().trim() === up) {
+    const storedPassword = (d[i][3] || "").toString().trim();
+    if ((d[i][0] || "").toString().trim().toLowerCase() === normalizedUser && _verifyPassword(storedPassword, up)) {
       const isAdmin = CONFIG.ADMINS.some(a => d[i][0].toString().toLowerCase() === a.toLowerCase()) || /Manager|Coordinator|Creator/i.test(d[i][0]);
-      return { status: "success", user: d[i][0], name: d[i][1], sede: d[i][2], role: isAdmin ? "Admin" : "User" };
+      if (storedPassword.indexOf("sha256$") !== 0) {
+        const rounds = 800;
+        const salt = Utilities.getUuid().replace(/-/g, "");
+        const upgraded = "sha256$" + rounds + "$" + salt + "$" + _hashPassword(up, salt, rounds);
+        SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID).getSheetByName(CONFIG.USUARIOS_SHEET_NAME).getRange(i + 1, 4).setValue(upgraded);
+        _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
+      }
+      const role = isAdmin ? "Admin" : "User";
+      const auth = _createSession(d[i][0], role);
+      return {
+        status: "success",
+        user: d[i][0],
+        name: d[i][1],
+        sede: d[i][2],
+        role: role,
+        token: auth.token,
+        expiresAt: auth.expiresAt
+      };
     }
   }
   return { status: "error", message: "Credenciales incorrectas" };
@@ -641,12 +886,13 @@ function getReportsHistory(p) {
   } catch(e) { return { status: "error", message: e.toString() }; }
 }
 
-function updateReport(p) {
+function updateReport(p, session) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
     let data = p.data;
     if (typeof data === 'string') data = JSON.parse(data);
+    data = _validateReportData(data);
     const rowIdx = parseInt(p.rowIdx);
     if (!rowIdx || rowIdx < 1) {
         return { status: "error", message: "Error: No se ha recibido un índice de fila válido para actualizar (rowIdx=" + p.rowIdx + ")" };
@@ -657,11 +903,16 @@ function updateReport(p) {
     
     const currentRow = s.getRange(rowIdx, 1, 1, s.getLastColumn()).getValues()[0];
     const existingTrainer = (currentRow[colMap.TRAINER] || currentRow[1] || "").toString().trim().toLowerCase();
-    const incomingTrainer = (data.trainer || "").toString().trim().toLowerCase();
-    const isAdmin = CONFIG.ADMINS.some(a => a.toLowerCase() === incomingTrainer) || /Manager|Coordinator|Creator/i.test(incomingTrainer);
+    let incomingTrainer = (data.trainer || "").toString().trim().toLowerCase();
+    const sessionUser = (session && session.user || "").toString().trim().toLowerCase();
+    const isAdmin = Boolean(session && session.role === "Admin");
     
-    if (existingTrainer !== incomingTrainer && !isAdmin) {
+    if (!isAdmin && existingTrainer !== sessionUser) {
         return { status: "error", message: "No tienes permiso para editar." };
+    }
+    if (!isAdmin) {
+      data.trainer = currentRow[colMap.TRAINER] || currentRow[1];
+      incomingTrainer = existingTrainer;
     }
 
     var newPhotoUrls = _uploadPhotos(p.photos, data);
@@ -708,7 +959,7 @@ function updateReport(p) {
   } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
-function deleteReport(p) {
+function deleteReport(p, session) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
@@ -737,6 +988,13 @@ function deleteReport(p) {
     }
     
     if (targetRow === -1) throw new Error("No se encontró el reporte.");
+
+    const targetData = d[targetRow - 1];
+    const targetTrainer = (targetData[colMap.TRAINER] || targetData[1] || "").toString().trim().toLowerCase();
+    const sessionUser = (session && session.user || "").toString().trim().toLowerCase();
+    if (!session || (session.role !== "Admin" && targetTrainer !== sessionUser)) {
+      return { status: "error", code: "FORBIDDEN", message: "No tienes permiso para eliminar este reporte." };
+    }
     
     s.deleteRow(targetRow);
     _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
@@ -802,9 +1060,9 @@ function _uploadPhotos(photos, data) {
       var tienda = cleanName(data && data.cuenta ? data.cuenta : "tienda");
       var fecha = cleanName(data && data.fecha ? data.fecha : "fecha");
       
-      for (var i=0; i<photos.length; i++) {
+      for (var i=0; i<Math.min(photos.length, 20); i++) {
           var p = photos[i];
-          if (p && p.base64Data) {
+          if (p && p.base64Data && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(p.base64Data) && p.base64Data.length < 2600000) {
               try {
                 var splitted = p.base64Data.split(',');
                 // El replace(/\s/g, '') arregla los saltos de línea de iOS/Android que rompen el decodificador
@@ -827,10 +1085,51 @@ function _uploadPhotos(photos, data) {
   return photoUrls;
 }
 
+function _validateReportData(input) {
+  const data = input || {};
+  const text = function(value, max) {
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+      .trim()
+      .slice(0, max);
+  };
+  const number = function(value, max) {
+    const parsed = parseFloat(String(value == null ? "" : value).replace(",", ".").replace(/[^0-9.]/g, "")) || 0;
+    return Math.min(max, Math.max(0, parsed));
+  };
+  const allowedMethods = ["Backoffice", "Classroom", "Evento", "Hospitality", "Live", "POS", "Reunión Interna", "Training Material", "Viaje", "Webinar"];
+  const result = {
+    trainer: text(data.trainer, 100),
+    fecha: text(data.fecha, 10),
+    cuenta: text(data.cuenta, 120),
+    distribuidor: text(data.distribuidor, 180),
+    metodologia: text(data.metodologia, 50),
+    sesiones: number(data.sesiones, 1000),
+    alumnos: number(data.alumnos, 100000),
+    provincia: text(data.provincia, 100),
+    duracion: number(data.duracion, 1000),
+    tiendas: number(data.tiendas, 10000),
+    perfil: text(data.perfil, 100),
+    ciudad: text(data.ciudad, 120),
+    contenidos: text(data.contenidos, 120),
+    dispositivos: text(data.dispositivos, 1000),
+    dispositivos_no_movil: text(data.dispositivos_no_movil, 1000),
+    comentarios: text(data.comentarios, 5000),
+    existingPhotos: text(data.existingPhotos, 10000)
+  };
+  if (!result.trainer || !result.cuenta || !/^\d{4}-\d{2}-\d{2}$/.test(result.fecha) || allowedMethods.indexOf(result.metodologia) === -1) {
+    const error = new Error("El reporte contiene campos obligatorios o valores no válidos.");
+    error.code = "VALIDATION_ERROR";
+    throw error;
+  }
+  return result;
+}
+
 function handleSaveReport(data, photos) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
+    data = _validateReportData(data);
     const s = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID).getSheetByName(CONFIG.REPORTES_SHEET_NAME);
     const colMap = _getColMap(s);
     
@@ -893,7 +1192,7 @@ function getMessages(p) {
   } catch(e) { return { status: "error", message: e.toString() }; }
 }
 
-function handleMarkMessageRead(p) {
+function handleMarkMessageRead(p, session) {
     const lock = LockService.getScriptLock();
     try {
       lock.waitLock(10000);
@@ -903,6 +1202,11 @@ function handleMarkMessageRead(p) {
       const d = smsg.getDataRange().getValues();
       for (let i = 1; i < d.length; i++) {
         if (d[i][0].toString() === p.msgId.toString()) {
+          const recipient = (d[i][2] || "").toString().trim().toLowerCase();
+          const sessionUser = (session && session.user || "").toString().trim().toLowerCase();
+          if (!session || (session.role !== "Admin" && recipient !== sessionUser)) {
+            return { status: "error", code: "FORBIDDEN", message: "No tienes permiso para modificar este mensaje." };
+          }
           smsg.getRange(i+1, 6).setValue("TRUE");
           return { status: "success" };
         }
@@ -1150,25 +1454,25 @@ function saveWeeklyAssignment(req) {
     const s = ss.getSheetByName(CONFIG.PLANIFICACION_SHEET_NAME);
     const d = s.getDataRange().getValues();
     
-    let newData = [d[0]];
+    const rowsToDelete = [];
     for (let i = 1; i < d.length; i++) {
         const pDate = parseDateStable(d[i][2]);
         if (!pDate) continue;
         
         const dStr = pDate.getFullYear() + "-" + ("0" + (pDate.getMonth() + 1)).slice(-2) + "-" + ("0" + pDate.getDate()).slice(-2);
-        if (!(d[i][1] === req.user && dStr === req.date)) {
-            newData.push(d[i]);
-        }
+        if (d[i][1] === req.user && dStr === req.date) rowsToDelete.push(i + 1);
     }
+    rowsToDelete.sort(function(a, b) { return b - a; }).forEach(function(row) { s.deleteRow(row); });
     
     if (req.items && req.items.length > 0) {
-      req.items.forEach(it => {
-        newData.push([Date.now(), req.user, req.date, it.text, it.category, req.modifiedBy || '']);
-      });
+      const rows = req.items
+        .filter(function(it) { return it && String(it.text || "").trim(); })
+        .slice(0, 20)
+        .map(function(it) {
+          return [Date.now(), req.user, req.date, String(it.text).trim().slice(0, 1000), String(it.category || "otros").slice(0, 50), req.modifiedBy || ""];
+        });
+      if (rows.length) s.getRange(s.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
     }
-    
-    s.clearContents();
-    if (newData.length > 0) s.getRange(1, 1, newData.length, newData[0].length).setValues(newData);
     
     _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.PLANIFICACION_SHEET_NAME);
     notifyUser(req.user, "Se ha actualizado tu planificación semanal.");

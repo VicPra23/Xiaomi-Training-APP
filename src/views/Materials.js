@@ -1,6 +1,6 @@
 function renderMaterials(container) {
     const session = getSessionData();
-    const categories = [
+    let categories = [
         {
             id: 'smartphones',
             title: 'Smartphones',
@@ -230,6 +230,7 @@ function renderMaterials(container) {
     ];
 
     let activeCatId = 'smartphones';
+    const esc = value => window.escapeHTML ? window.escapeHTML(value) : String(value ?? '');
 
     function renderContent(cat) {
         return `
@@ -238,13 +239,13 @@ function renderMaterials(container) {
                     <div class="glass-card" style="padding: 2rem; border-radius: 28px; margin-bottom: 2rem;">
                         <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-main);">
                             <div style="width: 6px; height: 20px; background: var(--xiaomi-orange); border-radius: 3px;"></div>
-                            <h4 style="margin:0; font-size: 1.1rem; text-transform: none; letter-spacing: normal;">${sub.name}</h4>
+                            <h4 style="margin:0; font-size: 1.1rem; text-transform: none; letter-spacing: normal;">${esc(sub.name)}</h4>
                         </div>
                         <div class="mat-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
                             ${sub.items.length > 0 ? sub.items.map(item => `
-                                <a href="${item.link}" target="_blank" class="mat-link" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.25rem; background: var(--bg-main); border-radius: 16px; text-decoration: none; transition: all 0.2s;">
+                                <a href="${esc(window.safeExternalUrl(item.link))}" target="_blank" rel="noopener noreferrer" class="mat-link" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.25rem; background: var(--bg-main); border-radius: 16px; text-decoration: none; transition: all 0.2s;">
                                     <span style="color: var(--text-main); font-weight: 500; font-size: 0.9rem;">
-                                        ${item.name}
+                                        ${esc(item.name)}
                                         ${item.isNew ? '<span class="badge-new" style="background: var(--xiaomi-orange); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 8px;">NEW</span>' : ''}
                                     </span>
                                     <i data-lucide="chevron-right" style="width: 16px; color: var(--text-muted); opacity: 0.5;"></i>
@@ -270,6 +271,7 @@ function renderMaterials(container) {
             container.querySelectorAll('.mat-tab-btn').forEach(btn => {
                 if (btn.dataset.id === activeCatId) btn.classList.add('active');
                 else btn.classList.remove('active');
+                btn.setAttribute('aria-selected', btn.dataset.id === activeCatId ? 'true' : 'false');
             });
             const contentContainer = container.querySelector('#mat-tab-content-container');
             if (contentContainer) {
@@ -292,7 +294,7 @@ function renderMaterials(container) {
                 </header>
                 
                 <div class="social-access-bar" style="margin-bottom: 4rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                    <a href="https://www.tiktok.com/@xiaomitrainingvideos" target="_blank" class="glass-card" style="display:flex; align-items:center; gap: 18px; padding: 1.5rem; text-decoration: none; border-radius: 24px; transition: all 0.3s ease;">
+                    <a href="https://www.tiktok.com/@xiaomitrainingvideos" target="_blank" rel="noopener noreferrer" class="glass-card" style="display:flex; align-items:center; gap: 18px; padding: 1.5rem; text-decoration: none; border-radius: 24px; transition: all 0.3s ease;">
                         <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content:center;">
                             <img src="https://cdn.simpleicons.org/tiktok/000000" alt="TikTok" class="tiktok-icon-fix" style="width: 32px; height: 32px; transition: filter 0.3s;">
                         </div>
@@ -301,7 +303,7 @@ function renderMaterials(container) {
                             <span style="font-size:0.8rem; color: var(--text-muted); font-weight: 500;">@xiaomitrainingvideos</span>
                         </div>
                     </a>
-                    <a href="https://www.youtube.com/@xiaomitrainingvideos" target="_blank" class="glass-card" style="display:flex; align-items:center; gap: 18px; padding: 1.5rem; text-decoration: none; border-radius: 24px; transition: all 0.3s ease;">
+                    <a href="https://www.youtube.com/@xiaomitrainingvideos" target="_blank" rel="noopener noreferrer" class="glass-card" style="display:flex; align-items:center; gap: 18px; padding: 1.5rem; text-decoration: none; border-radius: 24px; transition: all 0.3s ease;">
                         <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content:center;">
                             <img src="https://cdn.simpleicons.org/youtube/ff0000" alt="YouTube" style="width: 34px; height: auto;">
                         </div>
@@ -312,15 +314,15 @@ function renderMaterials(container) {
                     </a>
                 </div>
 
-                <div class="mat-tabs-header" style="margin-bottom: 3rem; display: flex; gap: 10px; overflow-x: auto; padding: 10px 5px; flex-wrap: nowrap; scrollbar-width: none;">
+                <div class="mat-tabs-header" role="tablist" aria-label="Categorías de materiales" style="margin-bottom: 3rem; display: flex; gap: 10px; overflow-x: auto; padding: 10px 5px; flex-wrap: nowrap; scrollbar-width: none;">
                     ${categories.map(c => {
                         const hasNew = c.subcategories && c.subcategories.some(sub => sub.items && sub.items.some(item => item.isNew));
                         return `
-                        <div class="mat-tab-btn ${c.id === activeCatId ? 'active' : ''}" data-id="${c.id}" style="flex: 0 0 auto; min-width: 130px; padding: 1rem 0.5rem; border-radius: 16px; position: relative;">
+                        <button type="button" role="tab" aria-selected="${c.id === activeCatId ? 'true' : 'false'}" class="mat-tab-btn ${c.id === activeCatId ? 'active' : ''}" data-id="${esc(c.id)}" style="flex: 0 0 auto; min-width: 130px; padding: 1rem 0.5rem; border-radius: 16px; position: relative;">
                             ${hasNew ? '<span class="badge-new" style="position: absolute; top: -5px; right: -5px; margin: 0; padding: 2px 5px; font-size: 0.65rem;">NEW</span>' : ''}
                             <i data-lucide="${c.icon}" style="width: 20px; height: 20px;"></i>
-                            <span style="font-weight: 600; font-size: 0.9rem;">${c.title}</span>
-                        </div>
+                            <span style="font-weight: 600; font-size: 0.9rem;">${esc(c.title)}</span>
+                        </button>
                         `;
                     }).join('')}
                 </div>
@@ -357,5 +359,13 @@ function renderMaterials(container) {
     }
 
     updateView();
+    api.getMaterials().then(res => {
+        if (res.status === 'success' && Array.isArray(res.data) && res.data.length) {
+            categories = res.data;
+            activeCatId = categories[0].id;
+            container.innerHTML = '';
+            updateView();
+        }
+    }).catch(() => {});
 }
 window.renderMaterials = renderMaterials;

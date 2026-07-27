@@ -46,16 +46,19 @@ function renderMessages(container) {
         const log = document.getElementById('msgLogContainer'); if(!log) return;
         if (res.status === 'success' && res.data.length > 0) {
             log.innerHTML = res.data.map(m => {
+                const messageText = String(m.text || '');
+                const messageId = Number(m.id) || 0;
                 const isRead = m.read || (m.id && localReadCache.includes(m.id.toString()));
-                const urlMatch = m.text.match(/https?:\/\/[^\s]+/);
-                const extUrl = urlMatch ? urlMatch[0] : null;
+                const urlMatch = messageText.match(/https?:\/\/[^\s]+/);
+                const extUrl = urlMatch ? window.safeExternalUrl(urlMatch[0].replace(/[),.;]+$/, '')) : '';
                 // Clean the URL from the text so it looks cleaner
-                const cleanText = extUrl ? m.text.replace(extUrl, '').trim() : m.text;
+                const cleanText = urlMatch ? messageText.replace(urlMatch[0], '').trim() : messageText;
 
-                const isVac = m.text.toLowerCase().includes('vacacio') || m.text.toLowerCase().includes('extra');
-                const isCal = m.text.toLowerCase().includes('calendario') || m.text.toLowerCase().includes('planifica');
-                const isMat = m.text.toLowerCase().includes('material');
-                const isRep = m.text.toLowerCase().includes('reporte') || m.text.toLowerCase().includes('historial');
+                const normalizedText = messageText.toLowerCase();
+                const isVac = normalizedText.includes('vacacio') || normalizedText.includes('extra');
+                const isCal = normalizedText.includes('calendario') || normalizedText.includes('planifica');
+                const isMat = normalizedText.includes('material');
+                const isRep = normalizedText.includes('reporte') || normalizedText.includes('historial');
                 
                 let targetHash = '';
                 if (isVac) targetHash = '#vacations';
@@ -64,22 +67,22 @@ function renderMessages(container) {
                 else if (isRep && !extUrl) targetHash = '#dashboard';
 
                 return `
-                <article id="msg-${m.id}" class="glass-card fade-in" style="padding: 1.2rem; border-left: 6px solid ${isRead ? 'var(--border-main)' : (m.from === 'Admin' ? 'var(--xiaomi-orange)' : '#10b981')}; position:relative; opacity: ${isRead ? '0.7' : '1'};">
+                <article id="msg-${messageId}" class="glass-card fade-in" style="padding: 1.2rem; border-left: 6px solid ${isRead ? 'var(--border-main)' : (m.from === 'Admin' ? 'var(--xiaomi-orange)' : '#10b981')}; position:relative; opacity: ${isRead ? '0.7' : '1'};">
                     <div style="display:flex; justify-content:space-between; align-items:start;">
                         <div>
-                            <h4 style="margin:0; font-size:1.1rem; color:var(--text-main); font-family:var(--font-heading);">${m.from}</h4>
-                            <small style="color:var(--text-muted); font-weight:600;">${new Date(m.date).toLocaleString()}</small>
+                            <h4 style="margin:0; font-size:1.1rem; color:var(--text-main); font-family:var(--font-heading);">${window.escapeHTML(m.from || 'Sistema')}</h4>
+                            <small style="color:var(--text-muted); font-weight:600;">${window.escapeHTML(new Date(m.date).toLocaleString('es-ES'))}</small>
                         </div>
                         ${!isRead ? '<span class="badge" style="background:var(--xiaomi-orange); color:#fff; font-size:0.6rem; padding:4px 10px; border-radius:8px; font-weight:800; letter-spacing:0.05em;">NUEVO</span>' : ''}
                     </div>
-                    <p style="margin:1rem 0 0 0; color:var(--text-medium); line-height:1.6; font-size: 0.95rem;">${cleanText}</p>
+                    <p style="margin:1rem 0 0 0; color:var(--text-medium); line-height:1.6; font-size: 0.95rem;">${window.escapeHTML(cleanText)}</p>
                     
                     <div style="display:flex; gap:10px; margin-top:1.2rem; flex-wrap: wrap;">
-                        ${!isRead ? `<button onclick="markAsRead(${m.id})" class="btn-secondary" style="padding:6px 15px; font-size:0.8rem; margin:0; display:flex; align-items:center; gap:5px;"><i data-lucide="check" style="width:14px;"></i> Marcar leído</button>` : ''}
+                        ${!isRead ? `<button onclick="markAsRead(${messageId})" class="btn-secondary" style="padding:6px 15px; font-size:0.8rem; margin:0; display:flex; align-items:center; gap:5px;"><i data-lucide="check" style="width:14px;"></i> Marcar leído</button>` : ''}
                         ${extUrl ? `
-                            <a href="${extUrl}" target="_blank" onclick="markAsRead(${m.id})" class="btn-primary" style="padding:6px 15px; font-size:0.8rem; margin:0; text-decoration:none; display:flex; align-items:center; gap:5px; border-radius: 8px;"><i data-lucide="external-link" style="width:14px;"></i> Abrir Archivo</a>
+                            <a href="${window.escapeHTML(extUrl)}" target="_blank" rel="noopener noreferrer" onclick="markAsRead(${messageId})" class="btn-primary" style="padding:6px 15px; font-size:0.8rem; margin:0; text-decoration:none; display:flex; align-items:center; gap:5px; border-radius: 8px;"><i data-lucide="external-link" style="width:14px;"></i> Abrir Archivo</a>
                         ` : (targetHash ? `
-                            <button onclick="goToSection('${targetHash}', ${m.id})" class="btn-primary" style="padding:6px 15px; font-size:0.8rem; margin:0; display:flex; align-items:center; gap:5px;"><i data-lucide="arrow-right-circle" style="width:14px;"></i> Ir a sección</button>
+                            <button onclick="goToSection('${targetHash}', ${messageId})" class="btn-primary" style="padding:6px 15px; font-size:0.8rem; margin:0; display:flex; align-items:center; gap:5px;"><i data-lucide="arrow-right-circle" style="width:14px;"></i> Ir a sección</button>
                         ` : '')}
                     </div>
                 </article>

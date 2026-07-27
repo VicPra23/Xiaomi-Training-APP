@@ -1,14 +1,42 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbzWVAsc5lKxNXupPbaHp7M6qrifA3hcSR2TV8oYAw_AV7ReZZuDASQPwxbuQ2nLsYZqLA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyIP0FTYYj3TWb8GmCI5R4MB76g-3mZf8XT8gF3mXVUC0LzovnVasGqZhJtCxbPoRKR/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
+const OFFLINE_CACHE_KEY = "xiaomiOfflineReadCacheV1";
+
+function getOfflineCacheEntry(action, params) {
+    try {
+        const session = getSessionData();
+        const all = JSON.parse(localStorage.getItem(OFFLINE_CACHE_KEY) || "{}");
+        const key = `${session?.user || "anon"}:${action}:${JSON.stringify(params)}`;
+        return all[key]?.data || null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function setOfflineCacheEntry(action, params, data) {
+    if (!data || data.status !== "success") return;
+    try {
+        const session = getSessionData();
+        const all = JSON.parse(localStorage.getItem(OFFLINE_CACHE_KEY) || "{}");
+        const key = `${session?.user || "anon"}:${action}:${JSON.stringify(params)}`;
+        all[key] = { data, savedAt: Date.now() };
+        const entries = Object.entries(all).sort((a, b) => b[1].savedAt - a[1].savedAt).slice(0, 25);
+        localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
+    } catch (error) {
+        console.warn("No se pudo actualizar la lectura offline.", error);
+    }
+}
 
 /**
  * Motor de comunicación GET (V6.9) - MODO JSONP (Anti-Bloqueos CORS)
  * Esto evita que el móvil bloquee las redirecciones de Google Apps Script.
  */
 function sendGet(action, params = {}, useCache = false) {
-    const cacheKey = action + JSON.stringify(params);
+    const session = getSessionData();
+    const authParams = session?.token ? { ...params, token: session.token } : params;
+    const cacheKey = action + JSON.stringify(authParams);
     if (useCache && _metadataCache.has(cacheKey)) {
         return Promise.resolve(_metadataCache.get(cacheKey));
     }
@@ -19,7 +47,9 @@ function sendGet(action, params = {}, useCache = false) {
         
         const timeout = setTimeout(() => {
             cleanup();
-            reject(new Error("Timeout: El servidor de Google no responde o hay mala cobertura."));
+            const cached = getOfflineCacheEntry(action, params);
+            if (cached) resolve({ ...cached, offline: true });
+            else reject(new Error("Timeout: El servidor de Google no responde o hay mala cobertura."));
         }, 15000); 
 
         function cleanup() {
@@ -30,18 +60,22 @@ function sendGet(action, params = {}, useCache = false) {
 
         window[callbackName] = function(data) {
             cleanup();
+            handleAuthFailure(data);
+            setOfflineCacheEntry(action, params, data);
             if (useCache) _metadataCache.set(cacheKey, data);
             resolve(data);
         };
 
-        const queryParams = { action, ...params, callback: callbackName };
+        const queryParams = { action, ...authParams, callback: callbackName };
         if (!useCache) queryParams._t = Date.now(); // Evitar caché del navegador
         
         const query = new URLSearchParams(queryParams).toString();
         script.src = `${API_URL}?${query}`;
         script.onerror = () => { 
             cleanup(); 
-            reject(new Error("Error de red o bloqueo de seguridad (CORS/VPN).")); 
+            const cached = getOfflineCacheEntry(action, params);
+            if (cached) resolve({ ...cached, offline: true });
+            else reject(new Error("Error de red o bloqueo de seguridad (CORS/VPN)."));
         };
         
         document.body.appendChild(script);
@@ -52,7 +86,8 @@ function sendGet(action, params = {}, useCache = false) {
  * Motor de comunicación POST para subida de reportes y fotos
  */
 async function sendPost(action, data = {}) {
-    const payload = JSON.stringify({ action, ...data });
+    const session = getSessionData();
+    const payload = JSON.stringify({ action, ...data, ...(session?.token && action !== "login" ? { token: session.token } : {}) });
     console.log(`[API] sending POST for action: ${action}`);
     
     try {
@@ -66,6 +101,7 @@ async function sendPost(action, data = {}) {
         
         if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         const result = await res.json();
+        handleAuthFailure(result);
         
         console.log(`[API] POST sent successfully`);
         _metadataCache.clear(); // Limpiamos caché porque hubo cambios
@@ -77,24 +113,41 @@ async function sendPost(action, data = {}) {
 }
 
 function setSessionData(data) { 
-    try { localStorage.setItem('userSession', JSON.stringify(data)); } 
+    try { localStorage.setItem('userSession', JSON.stringify({ ...data, expiresAt: data.expiresAt || Date.now() + (8 * 60 * 60 * 1000) })); }
     catch(e) { console.warn("LocalStorage bloqueado:", e); }
 }
 
 function getSessionData() { 
-    try { return JSON.parse(localStorage.getItem('userSession')); } 
+    try {
+        const session = JSON.parse(localStorage.getItem('userSession'));
+        if (!session?.token || (session.expiresAt && Date.now() >= session.expiresAt)) {
+            localStorage.removeItem('userSession');
+            return null;
+        }
+        return session;
+    }
     catch(e) { return null; }
 }
 
 function clearSessionData() { 
     try {
         localStorage.removeItem('userSession'); 
+        localStorage.removeItem(OFFLINE_CACHE_KEY);
         _metadataCache.clear();
     } catch(e) {}
 }
 
+function handleAuthFailure(result) {
+    if (result && (result.code === "AUTH_REQUIRED" || result.code === "SESSION_EXPIRED")) {
+        clearSessionData();
+        if (window.location.hash !== "#") window.location.hash = "#";
+    }
+}
+
 const api = {
-    login: (user, pass) => sendGet("login", { user, pass }),
+    login: (user, pass) => sendPost("login", { user, pass }),
+    logout: () => sendPost("logout"),
+    getLoginUsers: () => sendGet("getLoginUsers"),
     getUsersList: () => sendGet("getUsersList", {}, true),
     getVacationData: (user) => sendGet("getVacationData", { user }),
     getAdminData: () => sendGet("getAdminData"),
@@ -102,6 +155,7 @@ const api = {
     getReportsHistory: (params) => sendGet("getReportsHistory", params),
     getCitiesList: () => sendGet("getCitiesList", {}, true),
     getFilterMetadata: () => sendGet("getFilterMetadata", {}, true),
+    getMaterials: () => sendGet("getMaterials", {}, true),
     getMessages: (params) => sendGet("getMessages", params),
     getWeekly: (params) => sendGet("getWeekly", params),
     

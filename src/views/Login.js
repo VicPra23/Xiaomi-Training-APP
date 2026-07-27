@@ -9,16 +9,17 @@ function renderLogin(container) {
             <form id="loginForm">
                 <div class="form-group">
                     <label for="username" class="form-label">Usuario</label>
-                    <select id="username" name="username" class="form-control" required>
-                        <option value="" disabled selected>Cargando usuarios...</option>
+                    <select id="username" name="username" class="form-control" autocomplete="username" required disabled>
+                        <option value="" selected>Cargando usuarios...</option>
                     </select>
+                    <button type="button" id="retryUsers" class="btn-secondary" style="display:none; width:100%; margin-top:8px;">Volver a cargar usuarios</button>
                 </div>
                 
                 <div class="form-group">
-                    <label for="password" class="form-label">Password</label>
+                    <label for="password" class="form-label">Contraseña</label>
                     <div style="position: relative;">
-                        <input type="password" id="password" name="password" class="form-control" placeholder="*************" required style="padding-right: 40px; width: 100%;">
-                        <button type="button" id="togglePassword" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 0; display: flex; align-items: center;" title="Mostrar/Ocultar contraseña">
+                        <input type="password" id="password" name="password" class="form-control" autocomplete="current-password" placeholder="*************" required style="padding-right: 48px; width: 100%;">
+                        <button type="button" id="togglePassword" aria-label="Mostrar contraseña" aria-pressed="false" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 10px; display: flex; align-items: center;" title="Mostrar/Ocultar contraseña">
                             <i data-lucide="eye" id="eyeIcon" style="width: 20px;"></i>
                         </button>
                     </div>
@@ -28,7 +29,7 @@ function renderLogin(container) {
                     <i data-lucide="lock" style="width:18px;"></i> Entrar a mi espacio
                 </button>
                 
-                <small id="errorMsg" style="color: var(--status-rejected-text); display: none; margin-top: 15px; text-align: center; font-weight: 500;"></small>
+                <small id="errorMsg" role="alert" aria-live="assertive" style="color: var(--status-rejected-text); display: none; margin-top: 15px; text-align: center; font-weight: 500;"></small>
             </form>
         </div>
     </div>`;
@@ -38,14 +39,56 @@ function renderLogin(container) {
     var form = document.getElementById('loginForm');
     var errorMsg = document.getElementById('errorMsg');
     var btnSubmit = document.getElementById('btnSubmit');
-    var userSelect = document.getElementById('username');
+    var userInput = document.getElementById('username');
     var togglePassword = document.getElementById('togglePassword');
     var passwordInput = document.getElementById('password');
+    var retryUsers = document.getElementById('retryUsers');
+
+    function setLoginError(message) {
+        errorMsg.innerText = message;
+        errorMsg.style.display = 'block';
+    }
+
+    function loadLoginUsers() {
+        userInput.disabled = true;
+        btnSubmit.disabled = true;
+        retryUsers.style.display = 'none';
+        errorMsg.style.display = 'none';
+        userInput.replaceChildren(new Option('Cargando usuarios...', '', true, true));
+
+        api.getLoginUsers().then(function(res) {
+            if (res.status !== 'success' || !Array.isArray(res.data) || !res.data.length) {
+                throw new Error(res.message || 'No hay usuarios disponibles.');
+            }
+
+            var fragment = document.createDocumentFragment();
+            fragment.appendChild(new Option('Selecciona tu usuario', '', true, true));
+            res.data.forEach(function(item) {
+                var label = item.name && item.name !== item.user
+                    ? item.name + ' · ' + item.user
+                    : item.user;
+                fragment.appendChild(new Option(label, item.user));
+            });
+            userInput.replaceChildren(fragment);
+            userInput.disabled = false;
+            btnSubmit.disabled = false;
+            userInput.focus();
+        }).catch(function() {
+            userInput.replaceChildren(new Option('Usuarios no disponibles', '', true, true));
+            retryUsers.style.display = 'block';
+            setLoginError('No se pudo cargar la lista. Publica el Code.gs actualizado como una nueva versión de Apps Script.');
+        });
+    }
+
+    retryUsers.addEventListener('click', loadLoginUsers);
+    loadLoginUsers();
 
     if (togglePassword && passwordInput) {
         togglePassword.addEventListener('click', function() {
             var type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
             passwordInput.setAttribute('type', type);
+            togglePassword.setAttribute('aria-pressed', type === 'text' ? 'true' : 'false');
+            togglePassword.setAttribute('aria-label', type === 'text' ? 'Ocultar contraseña' : 'Mostrar contraseña');
             var eyeIcon = document.getElementById('eyeIcon');
             if (type === 'password') {
                 eyeIcon.setAttribute('data-lucide', 'eye');
@@ -56,29 +99,12 @@ function renderLogin(container) {
         });
     }
 
-    // Mantenemos el endpoint original getUsersList
-    api.getUsersList().then(function(res) {
-        if (res.status === 'success') {
-            userSelect.innerHTML = '<option value="" disabled selected>Selecciona tu cuenta</option>';
-            res.data.forEach(function(u) {
-                var opt = document.createElement('option');
-                opt.value = u.user; opt.innerText = u.name;
-                userSelect.appendChild(opt);
-            });
-        } else {
-            userSelect.innerHTML = '<option value="" disabled selected>Error de red</option>';
-        }
-    }).catch(function() {
-        userSelect.innerHTML = '<option value="" disabled selected>Sin conexión</option>';
-    });
-
     form.addEventListener('submit', function(e) {
         e.preventDefault();
-        var user = userSelect.value;
+        var user = userInput.value.trim();
         var pass = document.getElementById('password').value;
         if (!user) {
-            errorMsg.innerText = 'Selecciona un usuario primero.';
-            errorMsg.style.display = 'block';
+            setLoginError('Selecciona tu usuario.');
             return;
         }
         
@@ -91,17 +117,15 @@ function renderLogin(container) {
             btnSubmit.disabled = false;
             btnSubmit.innerText = 'Entrar a mi espacio';
             if (res.status === 'success') {
-                setSessionData({ user: res.user, name: res.name, role: res.role, sede: res.sede, email: res.email });
+                setSessionData({ user: res.user, name: res.name, role: res.role, sede: res.sede, email: res.email, token: res.token, expiresAt: res.expiresAt });
                 navigate('#dashboard');
             } else {
-                errorMsg.innerText = res.message || 'Usuario o password incorrectos.';
-                errorMsg.style.display = 'block';
+                setLoginError(res.message || 'Usuario o contraseña incorrectos.');
             }
         }).catch(function() {
             btnSubmit.disabled = false;
             btnSubmit.innerText = 'Entrar a mi espacio';
-            errorMsg.innerText = 'Error de red. Intenta de nuevo.';
-            errorMsg.style.display = 'block';
+            setLoginError('Error de red. Intenta de nuevo.');
         });
     });
 }

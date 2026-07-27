@@ -1,8 +1,9 @@
-const CACHE_NAME = 'xiaomi-trainer-v41.0';
-const ASSETS = [
+const CACHE_NAME = 'xiaomi-trainer-v42.3';
+const APP_SHELL = [
   './',
   './index.html',
   './style.css',
+  './manifest.json',
   './src/main.js',
   './src/services/api.js',
   './src/views/Login.js',
@@ -12,39 +13,65 @@ const ASSETS = [
   './src/views/Vacations.js',
   './src/views/Materials.js',
   './src/views/Messages.js',
-  './Xiaomi_logo_(2021-).svg.png',
-  'https://unpkg.com/lucide@latest',
-  'https://cdn.jsdelivr.net/npm/chart.js'
+  './Xiaomi_logo_(2021-).svg.png'
 ];
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
-    })
+    caches.open(CACHE_NAME)
+      .then(cache => Promise.all(APP_SHELL.map(asset =>
+        fetch(asset, { cache: 'reload' })
+          .then(response => {
+            if (response.ok) return cache.put(asset, response);
+            return null;
+          })
+          .catch(() => null)
+      )))
+      .then(() => self.skipWaiting())
   );
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    })
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Si hay internet, devuelve lo nuevo y actualiza la caché en segundo plano
-        return response;
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+
+  if (url.hostname === 'script.google.com' || url.hostname === 'script.googleusercontent.com') return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
+          return response;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(request, { ignoreSearch: true }).then(cached => {
+        const network = fetch(request).then(response => {
+          if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()));
+          return response;
+        }).catch(() => cached);
+        return cached || network;
       })
-      .catch(() => {
-        // Si no hay red (offline), busca en la caché ignorando los parámetros ?v=...
-        return caches.match(event.request, { ignoreSearch: true });
-      })
-  );
+    );
+  }
+});
+
+self.addEventListener('message', event => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
