@@ -738,6 +738,10 @@ function renderReport(container, editData = null) {
 
         const fd = new FormData(form);
         const data = Object.fromEntries(fd.entries());
+        
+        // Si la cuenta est deshabilitada (ej: Viaje, Backoffice), le asignamos N/A para que pase la validacin del backend
+        if (!data.cuenta) data.cuenta = "N/A";
+
         data.trainer = (role === 'Admin') ? (document.getElementById('trainer').value || currentUser) : currentUser;
         data.existingPhotos = existingPhotos.join('\n');
         data.dispositivos = tsM.getValue().join(', ');
