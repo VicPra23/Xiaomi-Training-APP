@@ -1,35 +1,15 @@
 const calendarCache = {};
 
 function renderCalendar(container) {
-    // Función auxiliar para crear fechas sin problemas de zona horaria (Local Midnight)
-    function createLocalDate(year, month, day) {
-        return new Date(year, month, day, 0, 0, 0, 0);
-    }
-
-    // Función para parsear ISO YYYY-MM-DD a objeto Date local sin saltos
-    function parseISOLocal(s) {
-        const p = s.split('-');
-        return createLocalDate(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
-    }
-
-    const today = new Date();
-    // Iniciar en el lunes de la semana actual (Lógica estable)
-    let currentMonday = createLocalDate(today.getFullYear(), today.getMonth(), today.getDate());
-    const day = currentMonday.getDay();
-    const diff = (day === 0 ? -6 : 1 - day); 
-    currentMonday.setDate(currentMonday.getDate() + diff);
-
-    const session = getSessionData();
-    const currentUser = session ? session.user : '';
-    const isAdmin = (session && session.role === 'Admin');
-
+    const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
     const categories = [
         { id: "eci", label: "ECI", color: "#00c853" },
         { id: "mm", label: "MM", color: "#d0021b" },
         { id: "crf", label: "CRF", color: "#2196f3" },
         { id: "mistores", label: "Mi Stores", color: "#ffb800" },
         { id: "osp", label: "OSP", color: "#ff6700" },
-        { id: "vdf", label: "VDF", color: "#f44336" }, 
+        { id: "vdf", label: "VDF", color: "#f44336" },
         { id: "mmy", label: "MMY", color: "#9c27b0" },
         { id: "tme", label: "TME", color: "#00bcd4" },
         { id: "interno", label: "Interno", color: "#ffeb3b" },
@@ -37,303 +17,694 @@ function renderCalendar(container) {
         { id: "otros", label: "Otros", color: "#607d8b" }
     ];
 
-    const html = `
-        <div class="calendar-module fade-in">
-            <header class="calendar-header-main" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:15px; border-bottom: 1px solid var(--border-main); padding-bottom: 1.5rem;">
-                <div class="calendar-controls" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                    <div class="btn-group" style="display:flex; gap:4px; background: var(--bg-card); padding: 4px; border-radius: 10px; border: 1px solid var(--border-main);">
-                        <button id="prevWeek" class="theme-toggle-btn" style="width:34px; height:34px;"><i data-lucide="chevron-left" style="width:18px;"></i></button>
-                        <button id="todayBtn" class="btn-secondary" style="padding:0 15px; font-size: 0.8rem; height:34px; border:none;">Hoy</button>
-                        <button id="nextWeek" class="theme-toggle-btn" style="width:34px; height:34px;"><i data-lucide="chevron-right" style="width:18px;"></i></button>
-                    </div>
-                    
-                    <div style="display:flex; align-items:center; gap:5px; background:var(--bg-card); border:1px solid var(--border-main); border-radius:10px; padding:4px 12px; box-shadow: var(--shadow-sm);">
-                        <select id="jumpMonth" class="form-control" style="border:none; background:transparent; font-weight:700; cursor:pointer; width:auto; padding:0; height:auto;">
-                            ${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"].map((m, i) => `<option value="${i}">${m}</option>`).join('')}
-                        </select>
-                        <select id="jumpYear" class="form-control" style="border:none; background:transparent; font-weight:700; cursor:pointer; width:auto; padding:0; height:auto;">
-                            <option value="2025">2025</option>
-                            <option value="2026">2026</option>
-                            <option value="2027">2027</option>
-                        </select>
-                        <button id="jumpBtn" class="btn-primary" style="padding:2px 10px; font-size: 0.7rem; height:24px; border-radius:6px; margin-left:5px;">Ir</button>
-                    </div>
+    const now = new Date();
+    const session = getSessionData();
+    const currentUser = session ? session.user : "";
+    const isAdmin = Boolean(session && session.role === "Admin");
+    let selectedYear = now.getFullYear();
+    let calendarData = null;
+    let suggestionCatalog = [];
+    let trainerFilter = "";
+    let hideWeekends = false;
+    let monthObserver = null;
 
-                    <h2 id="weekTitle" style="margin:0; font-weight:800; color:var(--xiaomi-orange); font-size:1.1rem;"></h2>
+    const createLocalDate = (year, month, day) => new Date(year, month, day, 0, 0, 0, 0);
+    const toISO = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const todayISO = toISO(now);
+    const deepCopyItems = (items) => (items || []).map(item => ({ text: String(item.text || ""), category: item.category || "otros" }));
+    const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    }[char]));
+
+    container.innerHTML = `
+        <section class="calendar-module continuous-calendar fade-in" aria-labelledby="calendar-title">
+            <header class="calendar-command-bar">
+                <div class="calendar-title-group">
+                    <span class="calendar-eyebrow">Planificación anual</span>
+                    <h2 id="calendar-title">Calendario <strong id="calendarActiveMonth">${MONTHS[now.getMonth()]}</strong></h2>
+                    <p>Desplázate para recorrer el año. Pulsa un día para planificarlo.</p>
                 </div>
-                
-                <div class="legend-bar glass-card" style="padding:12px; display:flex; gap:10px; flex-wrap:wrap; font-size:0.65rem; font-weight:800; text-transform: uppercase; letter-spacing: 0.02em; justify-content: center;">
-                    ${categories.map(c => `
-                        <span style="display:flex; align-items:center; gap:5px;">
-                            <i style="width:10px; height:10px; border-radius:3px; background:${c.color}; display:inline-block; flex-shrink:0;"></i> ${c.label}
-                        </span>
-                    `).join('')}
-                    <span style="display:flex; align-items:center; gap:5px;">
-                        <i style="width:10px; height:10px; border-radius:3px; background:var(--text-muted); opacity:0.3; display:inline-block; flex-shrink:0;"></i> Vac/Ext
-                    </span>
+                <div class="calendar-primary-actions">
+                    <button id="calendarToday" class="btn-primary calendar-today-btn" type="button">
+                        <i data-lucide="locate-fixed"></i><span>Hoy</span>
+                    </button>
+                    <label class="calendar-year-control">
+                        <span>Año</span>
+                        <select id="calendarYear" aria-label="Seleccionar año">
+                            ${Array.from({ length: 5 }, (_, index) => now.getFullYear() - 2 + index)
+                                .map(year => `<option value="${year}" ${year === selectedYear ? "selected" : ""}>${year}</option>`).join("")}
+                        </select>
+                    </label>
                 </div>
             </header>
 
-            <div class="calendar-scroll-shell">
-                <div id="calendarTableContainer" class="calendar-table-scroller">
-                <table class="calendar-weekly">
-                    <thead>
-                        <tr id="tableHeader">
-                            <th class="trainer-col">Trainer</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody"></tbody>
-                </table>
+            <div class="calendar-tool-row">
+                <label class="calendar-search">
+                    <i data-lucide="search"></i>
+                    <input id="calendarTrainerSearch" type="search" placeholder="Buscar formador…" autocomplete="off">
+                </label>
+                <label class="calendar-weekend-toggle">
+                    <input id="calendarWeekendToggle" type="checkbox">
+                    <span>Ocultar fin de semana</span>
+                </label>
+                <div id="calendarClipboardStatus" class="calendar-clipboard-status" aria-live="polite">
+                    <i data-lucide="clipboard"></i><span>Portapapeles vacío</span>
                 </div>
             </div>
-            <div id="loadingOverlay" style="text-align:center; padding:2rem; display:none;">
-                <div class="loader"></div>
-                <p>Sincronizando equipo...</p>
+
+            <nav id="calendarMonthRail" class="calendar-month-rail" aria-label="Ir a un mes">
+                ${MONTHS.map((month, index) => `
+                    <button type="button" data-month="${index}" class="${index === now.getMonth() ? "is-active" : ""}">
+                        <span>${String(index + 1).padStart(2, "0")}</span>${month.slice(0, 3)}
+                    </button>
+                `).join("")}
+            </nav>
+
+            <div id="calendarLoading" class="calendar-loading" role="status">
+                <div class="calendar-loader-mark"></div>
+                <div><strong>Preparando el año</strong><span>Sincronizando planificación y ausencias…</span></div>
             </div>
-        </div>
+            <div id="calendarYearScroll" class="calendar-year-scroll" tabindex="0" aria-label="Calendario anual con desplazamiento">
+                <div id="calendarMonths" class="calendar-months"></div>
+            </div>
+            <div id="calendarLiveRegion" class="sr-only" aria-live="polite"></div>
+        </section>
     `;
 
-    container.innerHTML = html;
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-    
-    document.getElementById('jumpMonth').value = currentMonday.getMonth();
-    document.getElementById('jumpYear').value = currentMonday.getFullYear();
-    document.getElementById('jumpBtn').onclick = () => {
-        const m = parseInt(document.getElementById('jumpMonth').value);
-        const y = parseInt(document.getElementById('jumpYear').value);
-        const d = createLocalDate(y, m, 1);
-        const day = d.getDay();
-        const diff = (day === 0 ? -6 : 1 - day);
-        currentMonday = createLocalDate(y, m, 1); currentMonday.setDate(currentMonday.getDate() + diff);
-        loadWeek();
-    };
+    const yearScroll = container.querySelector("#calendarYearScroll");
+    const monthRail = container.querySelector("#calendarMonthRail");
+    const loading = container.querySelector("#calendarLoading");
 
-    loadWeek();
+    if (typeof lucide !== "undefined") lucide.createIcons();
+    updateClipboardStatus();
+    loadYear(selectedYear, now.getMonth());
 
-    async function loadWeek() {
-        const loader = document.getElementById('loadingOverlay');
-        const tableCont = document.getElementById('calendarTableContainer');
-        loader.style.display = 'block'; tableCont.style.opacity = '0.3';
+    container.querySelector("#calendarYear").addEventListener("change", event => {
+        selectedYear = Number(event.target.value);
+        loadYear(selectedYear, selectedYear === now.getFullYear() ? now.getMonth() : 0);
+    });
 
-        const weekEnd = new Date(currentMonday); weekEnd.setDate(weekEnd.getDate() + 6);
-        const startISO = toISO(currentMonday), endISO = toISO(weekEnd);
-        const cacheKey = `${startISO}_${endISO}`;
-        
-        const weekNum = getWeekNumber(currentMonday);
-        const monthName = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][currentMonday.getMonth()];
-        const wTitle = document.getElementById('weekTitle');
-        if (wTitle) wTitle.innerText = `${monthName} ${currentMonday.getFullYear()} - Sem ${weekNum}`;
-
-        if (calendarCache[cacheKey]) {
-            loader.style.display = 'none'; tableCont.style.opacity = '1';
-            renderWeeklyTable(calendarCache[cacheKey].users, calendarCache[cacheKey].schedule, calendarCache[cacheKey].blocks);
+    container.querySelector("#calendarToday").addEventListener("click", async () => {
+        if (selectedYear !== now.getFullYear()) {
+            selectedYear = now.getFullYear();
+            container.querySelector("#calendarYear").value = selectedYear;
+            await loadYear(selectedYear, now.getMonth());
+        } else {
+            scrollToMonth(now.getMonth(), true);
+            window.setTimeout(() => {
+                const todayCell = container.querySelector(`[data-date="${todayISO}"]`);
+                if (todayCell) todayCell.focus({ preventScroll: false });
+            }, 420);
         }
+    });
+
+    monthRail.addEventListener("click", event => {
+        const button = event.target.closest("[data-month]");
+        if (button) scrollToMonth(Number(button.dataset.month), true);
+    });
+
+    container.querySelector("#calendarTrainerSearch").addEventListener("input", event => {
+        trainerFilter = event.target.value.trim().toLocaleLowerCase("es");
+        renderYear({ preserveScroll: true });
+    });
+
+    container.querySelector("#calendarWeekendToggle").addEventListener("change", event => {
+        hideWeekends = event.target.checked;
+        container.classList.toggle("calendar-hide-weekends", hideWeekends);
+    });
+
+    async function loadYear(year, focusMonth = 0) {
+        loading.hidden = false;
+        yearScroll.classList.add("is-loading");
+        const start = `${year}-01-01`;
+        const end = `${year}-12-31`;
+        const cacheKey = `${start}_${end}`;
 
         try {
-            const [usersRes, scheduleRes] = await Promise.all([
-                api.getUsersList(),
-                api.getWeekly({ start: startISO, end: endISO })
-            ]);
-
-            loader.style.display = 'none'; tableCont.style.opacity = '1';
-
-            if (usersRes.status === 'success' && scheduleRes.status === 'success') {
-                calendarCache[cacheKey] = { users: usersRes.data, schedule: scheduleRes.schedule, blocks: scheduleRes.blocks };
-                renderWeeklyTable(usersRes.data, scheduleRes.schedule, scheduleRes.blocks);
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-            } else {
-                const err = usersRes.message || scheduleRes.message || "Error desconocido";
-                loader.innerHTML = `<p style="color:var(--status-rejected-text); font-weight:bold; display:flex; align-items:center; justify-content:center; gap:8px;"><i data-lucide="alert-triangle"></i> Error: ${err}</p>`;
-                loader.style.display = 'block';
-                if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (!calendarCache[cacheKey]) {
+                const [usersRes, scheduleRes] = await Promise.all([
+                    api.getUsersList(),
+                    api.getWeekly({ start, end })
+                ]);
+                if (usersRes.status !== "success" || scheduleRes.status !== "success") {
+                    throw new Error(usersRes.message || scheduleRes.message || "No se pudo cargar el calendario.");
+                }
+                calendarCache[cacheKey] = {
+                    users: usersRes.data || [],
+                    schedule: scheduleRes.schedule || {},
+                    blocks: scheduleRes.blocks || {}
+                };
             }
-        } catch(e) { 
-            console.error(e); 
-            loader.style.display = 'none'; 
-            tableCont.style.opacity = '1';
-            alert("Error al cargar calendario: " + e.message);
+            calendarData = calendarCache[cacheKey];
+            buildSuggestionCatalog();
+            renderYear();
+            window.requestAnimationFrame(() => scrollToMonth(focusMonth, false));
+        } catch (error) {
+            console.error(error);
+            container.querySelector("#calendarMonths").innerHTML = `
+                <div class="calendar-error">
+                    <i data-lucide="cloud-off"></i>
+                    <strong>No hemos podido sincronizar el calendario</strong>
+                    <span>${escapeHTML(error.message)}</span>
+                    <button type="button" class="btn-secondary" id="calendarRetry">Reintentar</button>
+                </div>
+            `;
+            container.querySelector("#calendarRetry")?.addEventListener("click", () => loadYear(selectedYear, focusMonth));
+        } finally {
+            loading.hidden = true;
+            yearScroll.classList.remove("is-loading");
+            if (typeof lucide !== "undefined") lucide.createIcons();
         }
     }
 
-    function renderWeeklyTable(users, schedule, blocks) {
-        const header = document.getElementById('tableHeader'); if(!header) return;
-        header.innerHTML = '<th class="trainer-col">Trainer</th>';
-        const days = [];
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(currentMonday); d.setDate(d.getDate() + i);
-            const iso = toISO(d);
-            const label = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"][i];
-            const th = document.createElement('th');
-            th.innerHTML = `${label}<br><span style="font-size:0.65rem; opacity:0.9; font-weight:800;">${d.getDate()}/${d.getMonth()+1}</span>`;
-            header.appendChild(th);
-            days.push({ iso, isWeekend: (i >= 5) });
+    function buildSuggestionCatalog() {
+        const seen = new Map();
+        Object.values(calendarData.schedule || {}).forEach(daySchedule => {
+            Object.values(daySchedule || {}).forEach(items => {
+                (items || []).forEach(item => {
+                    const text = String(item.text || "").trim();
+                    if (!text) return;
+                    const key = text.toLocaleLowerCase("es");
+                    const current = seen.get(key);
+                    if (current) current.frequency += 1;
+                    else seen.set(key, { text, category: item.category || "otros", frequency: 1 });
+                });
+            });
+        });
+
+        try {
+            const saved = JSON.parse(localStorage.getItem("xiaomiCalendarSuggestions") || "[]");
+            saved.forEach(item => {
+                const text = String(item.text || "").trim();
+                if (text && !seen.has(text.toLocaleLowerCase("es"))) {
+                    seen.set(text.toLocaleLowerCase("es"), { text, category: item.category || "otros", frequency: 1 });
+                }
+            });
+        } catch (error) {
+            console.warn("No se pudo recuperar el historial de actividades.", error);
         }
 
-        const body = document.getElementById('tableBody'); if(!body) return;
-        body.innerHTML = '';
+        suggestionCatalog = Array.from(seen.values())
+            .sort((a, b) => b.frequency - a.frequency || a.text.localeCompare(b.text, "es"))
+            .slice(0, 150);
+    }
 
-        users.forEach(userObj => {
-            const userId = (typeof userObj === 'object') ? userObj.user : userObj;
-            const displayName = (typeof userObj === 'object' && userObj.name) ? userObj.name : userId;
-            
-            if (userId === "Training Manager" || displayName === "Training Manager") return;
-            
-            const tr = document.createElement('tr');
-            const tdName = document.createElement('td');
-            tdName.className = 'trainer-col'; 
-            tdName.innerText = displayName;
-            tr.appendChild(tdName);
+    function renderYear({ preserveScroll = false } = {}) {
+        if (!calendarData) return;
+        const oldScrollTop = preserveScroll ? yearScroll.scrollTop : 0;
+        const users = calendarData.users.filter(userObj => {
+            const userId = typeof userObj === "object" ? userObj.user : userObj;
+            const displayName = typeof userObj === "object" && userObj.name ? userObj.name : userId;
+            if (userId === "Training Manager" || displayName === "Training Manager") return false;
+            if (!trainerFilter) return true;
+            return `${displayName} ${userId}`.toLocaleLowerCase("es").includes(trainerFilter);
+        });
 
-            days.forEach(day => {
-                const td = document.createElement('td');
-                td.className = 'day-cell';
-                if (day.isWeekend) td.classList.add('day-wknd');
-                
-                const userBlocks = blocks[userId] || blocks[userId.toLowerCase()] || {};
-                const vHist = userBlocks.vacationInfo || [];
-                const matchedVaca = vHist.find(h => isInRange(day.iso, h.fechas));
-                const isHoliday = userBlocks[day.iso] === "FESTIVO";
+        container.querySelector("#calendarMonths").innerHTML = MONTHS.map((month, monthIndex) =>
+            renderMonth(month, monthIndex, users)
+        ).join("");
 
-                const dayItems = (schedule[day.iso] && (schedule[day.iso][userId] || schedule[day.iso][userId.toLowerCase()])) 
-                    ? (schedule[day.iso][userId] || schedule[day.iso][userId.toLowerCase()]) 
-                    : [];
+        bindCalendarInteractions();
+        observeMonths();
+        if (preserveScroll) yearScroll.scrollTop = oldScrollTop;
+        if (typeof lucide !== "undefined") lucide.createIcons();
+    }
 
-                if (matchedVaca) {
-                    td.classList.add('day-blocked');
-                    td.innerHTML = `<div class="assignment-tag" style="background:var(--text-muted); opacity:0.6; color:white; font-size:0.6rem;">${matchedVaca.status === 'Pendiente' ? 'SOLICITUD' : 'VACACIONES'}</div>`;
-                } else if (isHoliday) {
-                    const canEditHoliday = isAdmin;
-                    if (!canEditHoliday) td.classList.add('day-blocked');
-                    let itemsHtml = `<div class="assignment-tag cat-fest">FESTIVO</div>`;
-                    itemsHtml += dayItems.map(it => `<div class="assignment-tag cat-${it.category}">${linkify(it.text)}</div>`).join('');
-                    td.innerHTML = itemsHtml;
-                    if (canEditHoliday) td.onclick = (e) => { if (e.target.tagName !== 'A') openEditModal(userId, day.iso, dayItems); };
-                } else {
-                    const canEdit = (isAdmin || (userId === currentUser && !day.isWeekend));
-                    if (!canEdit) td.classList.add('day-blocked');
-                    td.innerHTML = dayItems.map(it => `<div class="assignment-tag cat-${it.category}">${linkify(it.text)}</div>`).join('') || (canEdit ? '<div style="color:var(--text-muted); opacity:0.6; font-size:0.6rem; text-align:center;">Libre</div>' : '');
-                    if (canEdit) td.onclick = (e) => { if (e.target.tagName !== 'A') openEditModal(userId, day.iso, dayItems); };
-                }
-                tr.appendChild(td);
+    function renderMonth(monthName, monthIndex, users) {
+        const firstDay = createLocalDate(selectedYear, monthIndex, 1);
+        const lastDay = createLocalDate(selectedYear, monthIndex + 1, 0);
+        const gridStart = new Date(firstDay);
+        gridStart.setDate(gridStart.getDate() - ((gridStart.getDay() + 6) % 7));
+        const gridEnd = new Date(lastDay);
+        gridEnd.setDate(gridEnd.getDate() + (7 - gridEnd.getDay()) % 7);
+        const weeks = [];
+        const cursor = new Date(gridStart);
+
+        while (cursor <= gridEnd) {
+            const week = Array.from({ length: 7 }, (_, index) => {
+                const date = new Date(cursor);
+                date.setDate(cursor.getDate() + index);
+                return date;
             });
-            body.appendChild(tr);
+            weeks.push(week);
+            cursor.setDate(cursor.getDate() + 7);
+        }
+
+        const activityCount = Object.entries(calendarData.schedule || {}).reduce((total, [date, byUser]) => {
+            if (!date.startsWith(`${selectedYear}-${String(monthIndex + 1).padStart(2, "0")}`)) return total;
+            return total + Object.values(byUser || {}).reduce((sum, items) => sum + (items || []).length, 0);
+        }, 0);
+
+        return `
+            <section class="calendar-month-section" id="calendar-month-${monthIndex}" data-month-section="${monthIndex}">
+                <header class="calendar-month-heading">
+                    <div><span>${String(monthIndex + 1).padStart(2, "0")}</span><h3>${monthName}</h3></div>
+                    <p>${activityCount} ${activityCount === 1 ? "actividad" : "actividades"} planificadas</p>
+                </header>
+                <div class="calendar-month-weeks">
+                    ${users.length ? weeks.map(week => renderWeek(week, monthIndex, users)).join("") : `
+                        <div class="calendar-empty-filter">
+                            <i data-lucide="user-search"></i><span>No hay formadores que coincidan con la búsqueda.</span>
+                        </div>
+                    `}
+                </div>
+            </section>
+        `;
+    }
+
+    function renderWeek(days, monthIndex, users) {
+        const weekNumber = getWeekNumber(days[0]);
+        return `
+            <div class="calendar-week-card" data-week="${weekNumber}">
+                <div class="calendar-week-label">Semana ${weekNumber}</div>
+                <div class="calendar-week-table-wrap">
+                    <table class="calendar-weekly calendar-continuous-table">
+                        <thead><tr>
+                            <th class="trainer-col">Formador</th>
+                            ${days.map((date, index) => `
+                                <th class="${index >= 5 ? "day-wknd" : ""} ${toISO(date) === todayISO ? "is-today" : ""}">
+                                    <span>${DAYS[index]}</span><strong>${date.getDate()}</strong>
+                                </th>
+                            `).join("")}
+                        </tr></thead>
+                        <tbody>
+                            ${users.map(user => renderTrainerRow(user, days, monthIndex)).join("")}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderTrainerRow(userObj, days, monthIndex) {
+        const userId = typeof userObj === "object" ? userObj.user : userObj;
+        const displayName = typeof userObj === "object" && userObj.name ? userObj.name : userId;
+        return `
+            <tr>
+                <td class="trainer-col" title="${escapeHTML(userId)}">${escapeHTML(displayName)}</td>
+                ${days.map((date, index) => renderDayCell(userId, date, monthIndex, index >= 5)).join("")}
+            </tr>
+        `;
+    }
+
+    function renderDayCell(userId, date, monthIndex, isWeekend) {
+        const iso = toISO(date);
+        const outsideMonth = date.getMonth() !== monthIndex;
+        if (outsideMonth) return `<td class="day-cell day-outside ${isWeekend ? "day-wknd" : ""}" aria-hidden="true"></td>`;
+
+        const blocks = calendarData.blocks || {};
+        const userBlocks = blocks[userId] || blocks[String(userId).toLowerCase()] || {};
+        const vacation = (userBlocks.vacationInfo || []).find(item => isInRange(iso, item.fechas));
+        const isHoliday = userBlocks[iso] === "FESTIVO";
+        const byDate = calendarData.schedule[iso] || {};
+        const items = byDate[userId] || byDate[String(userId).toLowerCase()] || [];
+        const canEdit = !vacation && (isAdmin || (userId === currentUser && !isWeekend));
+        const blocked = vacation || (!isAdmin && isHoliday) || !canEdit;
+        let content = "";
+
+        if (vacation) {
+            content = `<div class="assignment-tag calendar-absence">${vacation.status === "Pendiente" ? "Solicitud" : "Vacaciones"}</div>`;
+        } else {
+            if (isHoliday) content += `<div class="assignment-tag cat-fest">Festivo</div>`;
+            content += items.map(item => `
+                <div class="assignment-tag cat-${escapeHTML(item.category || "otros")}">${linkify(item.text)}</div>
+            `).join("");
+            if (!content && canEdit) content = `<span class="calendar-cell-empty">Añadir actividad</span>`;
+        }
+
+        return `
+            <td class="day-cell ${isWeekend ? "day-wknd" : ""} ${blocked ? "day-blocked" : ""} ${iso === todayISO ? "is-today" : ""}"
+                data-date="${iso}" data-user="${escapeHTML(userId)}" tabindex="${canEdit ? "0" : "-1"}"
+                aria-label="${escapeHTML(displayDate(date))}, ${escapeHTML(userId)}${items.length ? `, ${items.length} actividades` : ""}">
+                <div class="calendar-cell-actions">
+                    ${items.length ? `<button type="button" data-copy-day title="Copiar día" aria-label="Copiar actividades de este día"><i data-lucide="copy"></i></button>` : ""}
+                    ${canEdit && getClipboard()?.items?.length ? `<button type="button" data-paste-day title="Pegar en este día" aria-label="Pegar actividades en este día"><i data-lucide="clipboard-paste"></i></button>` : ""}
+                </div>
+                ${content}
+            </td>
+        `;
+    }
+
+    function bindCalendarInteractions() {
+        container.querySelectorAll(".day-cell[data-date]").forEach(cell => {
+            const getCellItems = () => getItems(cell.dataset.date, cell.dataset.user);
+            const editable = cell.tabIndex === 0;
+
+            if (editable) {
+                cell.addEventListener("click", event => {
+                    if (!event.target.closest(".calendar-cell-actions") && event.target.tagName !== "A") {
+                        openEditPanel(cell.dataset.user, cell.dataset.date, getCellItems());
+                    }
+                });
+                cell.addEventListener("keydown", event => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openEditPanel(cell.dataset.user, cell.dataset.date, getCellItems());
+                    }
+                    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
+                        event.preventDefault();
+                        const clipboard = getClipboard();
+                        if (clipboard?.items?.length) openEditPanel(cell.dataset.user, cell.dataset.date, clipboard.items, true);
+                    }
+                });
+            }
+
+            cell.querySelector("[data-copy-day]")?.addEventListener("click", event => {
+                event.stopPropagation();
+                copyDay(getCellItems(), cell.dataset.user, cell.dataset.date);
+            });
+            cell.querySelector("[data-paste-day]")?.addEventListener("click", event => {
+                event.stopPropagation();
+                const clipboard = getClipboard();
+                if (clipboard?.items?.length) openEditPanel(cell.dataset.user, cell.dataset.date, clipboard.items, true);
+            });
         });
     }
 
-    function openEditModal(userId, date, currentItems) {
-        const overlay = document.createElement('div'); overlay.className = 'calendar-overlay';
-        const modal = document.createElement('div'); modal.className = 'calendar-edit-modal';
-        function createItemRow(it) {
-            const div = document.createElement('div');
-            div.className = 'assignment-row';
-            div.style.cssText = 'display:flex; gap:5px; margin-bottom:8px; align-items:center;';
-            div.innerHTML = `
-                <div style="display:flex; flex-direction:column; gap:2px;">
-                    <button type="button" class="btn-secondary move-up" style="padding:0; width:22px; height:20px; font-size:10px;"><i data-lucide="chevron-up" style="width:12px;"></i></button>
-                    <button type="button" class="btn-secondary move-down" style="padding:0; width:22px; height:20px; font-size:10px;"><i data-lucide="chevron-down" style="width:12px;"></i></button>
+    function getItems(date, userId) {
+        const byUser = calendarData.schedule[date] || {};
+        return deepCopyItems(byUser[userId] || byUser[String(userId).toLowerCase()] || []);
+    }
+
+    function copyDay(items, userId, date) {
+        const clipboard = { items: deepCopyItems(items), sourceUser: userId, sourceDate: date, copiedAt: Date.now() };
+        sessionStorage.setItem("xiaomiCalendarClipboard", JSON.stringify(clipboard));
+        updateClipboardStatus();
+        renderYear({ preserveScroll: true });
+        announce(`Día copiado: ${items.length} ${items.length === 1 ? "actividad" : "actividades"}.`);
+    }
+
+    function getClipboard() {
+        try {
+            return JSON.parse(sessionStorage.getItem("xiaomiCalendarClipboard") || "null");
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function updateClipboardStatus() {
+        const status = container.querySelector("#calendarClipboardStatus");
+        if (!status) return;
+        const clipboard = getClipboard();
+        status.classList.toggle("has-content", Boolean(clipboard?.items?.length));
+        const text = clipboard?.items?.length
+            ? `${clipboard.items.length} ${clipboard.items.length === 1 ? "actividad copiada" : "actividades copiadas"}`
+            : "Portapapeles vacío";
+        status.querySelector("span").textContent = text;
+    }
+
+    function openEditPanel(userId, date, currentItems, pasted = false) {
+        let workingItems = deepCopyItems(currentItems);
+        const overlay = document.createElement("div");
+        overlay.className = "calendar-editor-overlay";
+        overlay.innerHTML = `
+            <aside class="calendar-edit-panel" role="dialog" aria-modal="true" aria-labelledby="calendar-editor-title">
+                <header class="calendar-editor-header">
+                    <div>
+                        <span>${escapeHTML(formatLongDate(date))}</span>
+                        <h3 id="calendar-editor-title">${escapeHTML(userId)}</h3>
+                    </div>
+                    <button type="button" class="calendar-editor-close" aria-label="Cerrar"><i data-lucide="x"></i></button>
+                </header>
+                ${pasted ? `<div class="calendar-paste-notice"><i data-lucide="clipboard-check"></i>Contenido pegado. Revísalo antes de guardar.</div>` : ""}
+                <div class="calendar-editor-tools">
+                    <button type="button" data-editor-copy><i data-lucide="copy"></i>Copiar día</button>
+                    <button type="button" data-editor-paste ${getClipboard()?.items?.length ? "" : "disabled"}><i data-lucide="clipboard-paste"></i>Pegar</button>
                 </div>
-                <select class="form-control sel-cat" style="flex:1; padding:6px; font-size: 0.8rem;">
-                    ${categories.map(c => `<option value="${c.id}" ${it && c.id === it.category ? 'selected' : ''}>${c.label}</option>`).join('')}
-                </select>
-                <textarea class="form-control inp-text" style="flex:2; padding:8px; font-size:0.75rem; border:1px solid var(--border-main); border-radius:10px; resize:vertical; min-height:45px;" placeholder="Detalle...">${it ? it.text : ''}</textarea>
-                <button type="button" class="btn-outline danger" onclick="this.parentElement.remove()" style="padding:0; width:34px; height:34px; display:flex; align-items:center; justify-content:center;"><i data-lucide="x" style="width:16px;"></i></button>
-            `;
-            div.querySelector('.move-up').onclick = () => { if(div.previousElementSibling) div.parentElement.insertBefore(div, div.previousElementSibling); };
-            div.querySelector('.move-down').onclick = () => { if(div.nextElementSibling) div.parentElement.insertBefore(div.nextElementSibling, div); };
-            return div;
+                <div class="calendar-assignment-list" data-items></div>
+                <button type="button" class="calendar-add-assignment" data-add-item>
+                    <i data-lucide="plus"></i>Añadir otra actividad
+                </button>
+                <footer class="calendar-editor-footer">
+                    <span>Esc para cerrar</span>
+                    <div>
+                        <button type="button" class="btn-outline" data-cancel>Cancelar</button>
+                        <button type="button" class="btn-primary" data-save><i data-lucide="check"></i>Guardar cambios</button>
+                    </div>
+                </footer>
+            </aside>
+        `;
+        document.body.appendChild(overlay);
+        document.body.classList.add("calendar-editor-open");
+        const list = overlay.querySelector("[data-items]");
+
+        const renderRows = () => {
+            list.innerHTML = "";
+            workingItems.forEach((item, index) => list.appendChild(createItemRow(item, index)));
+            if (!workingItems.length) list.appendChild(createItemRow({ text: "", category: "osp" }, 0));
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        };
+
+        const close = () => {
+            document.removeEventListener("keydown", onEscape);
+            document.body.classList.remove("calendar-editor-open");
+            overlay.classList.add("is-closing");
+            window.setTimeout(() => overlay.remove(), 180);
+        };
+        const onEscape = event => { if (event.key === "Escape") close(); };
+        document.addEventListener("keydown", onEscape);
+        overlay.addEventListener("mousedown", event => { if (event.target === overlay) close(); });
+        overlay.querySelector(".calendar-editor-close").addEventListener("click", close);
+        overlay.querySelector("[data-cancel]").addEventListener("click", close);
+
+        overlay.querySelector("[data-add-item]").addEventListener("click", () => {
+            syncRows();
+            workingItems.push({ text: "", category: "osp" });
+            renderRows();
+            list.lastElementChild?.querySelector(".calendar-activity-input")?.focus();
+        });
+
+        overlay.querySelector("[data-editor-copy]").addEventListener("click", () => {
+            syncRows();
+            const nonEmptyItems = workingItems.filter(item => item.text.trim());
+            if (nonEmptyItems.length) copyDay(nonEmptyItems, userId, date);
+        });
+
+        overlay.querySelector("[data-editor-paste]").addEventListener("click", () => {
+            const clipboard = getClipboard();
+            if (!clipboard?.items?.length) return;
+            syncRows();
+            if (workingItems.some(item => item.text.trim()) && !window.confirm("¿Reemplazar las actividades actuales por las copiadas?")) return;
+            workingItems = deepCopyItems(clipboard.items);
+            renderRows();
+            announce("Contenido pegado. Todavía no se ha guardado.");
+        });
+
+        overlay.querySelector("[data-save]").addEventListener("click", async event => {
+            syncRows();
+            const newItems = workingItems
+                .map(item => ({ text: item.text.trim(), category: item.category }))
+                .filter(item => item.text);
+            const saveButton = event.currentTarget;
+            saveButton.disabled = true;
+            saveButton.innerHTML = `<span class="calendar-button-spinner"></span>Guardando…`;
+            try {
+                const response = await api.saveAssignment({ user: userId, date, items: newItems, modifiedBy: currentUser });
+                if (response.status !== "success") throw new Error(response.message || "No se pudo guardar.");
+                if (!calendarData.schedule[date]) calendarData.schedule[date] = {};
+                calendarData.schedule[date][userId] = deepCopyItems(newItems);
+                rememberSuggestions(newItems);
+                buildSuggestionCatalog();
+                close();
+                renderYear({ preserveScroll: true });
+                announce("Planificación guardada.");
+            } catch (error) {
+                saveButton.disabled = false;
+                saveButton.innerHTML = `<i data-lucide="check"></i>Guardar cambios`;
+                if (typeof lucide !== "undefined") lucide.createIcons();
+                announce(`Error: ${error.message}`, true);
+            }
+        });
+
+        function syncRows() {
+            workingItems = Array.from(list.querySelectorAll(".calendar-assignment-row")).map(row => ({
+                text: row.querySelector(".calendar-activity-input").value,
+                category: row.querySelector(".sel-cat").value
+            }));
         }
 
-        modal.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h4 style="margin:0; font-size: 1.25rem;">${userId}</h4>
-                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; display:flex; align-items:center; gap:5px;"><i data-lucide="calendar" style="width:14px;"></i> ${date}</div>
-            </div>
-            <div id="itemsContainer"></div>
-            <button type="button" id="addItem" class="btn-secondary" style="width:100%; margin-top:15px; font-size:0.75rem; height:36px; border-style:dashed;">+ Añadir opción</button>
-            <div style="display:flex; gap:10px; margin-top:25px;">
-                <button id="cancelModal" class="btn-outline" style="flex:1;">Cerrar</button>
-                <button id="saveModal" class="btn-primary" style="flex:1;">Guardar</button>
-            </div>
-        `;
+        function createItemRow(item, index) {
+            const row = document.createElement("div");
+            row.className = "calendar-assignment-row";
+            row.innerHTML = `
+                <div class="calendar-row-index">${String(index + 1).padStart(2, "0")}</div>
+                <div class="calendar-row-fields">
+                    <select class="sel-cat" aria-label="Categoría de actividad">
+                        ${categories.map(category => `
+                            <option value="${category.id}" ${category.id === item.category ? "selected" : ""}>${category.label}</option>
+                        `).join("")}
+                    </select>
+                    <div class="calendar-autocomplete">
+                        <textarea class="calendar-activity-input" rows="2" placeholder="Escribe una actividad…" aria-label="Detalle de actividad">${escapeHTML(item.text)}</textarea>
+                        <div class="calendar-suggestions" role="listbox"></div>
+                    </div>
+                </div>
+                <div class="calendar-row-actions">
+                    <button type="button" data-move-up aria-label="Subir actividad"><i data-lucide="chevron-up"></i></button>
+                    <button type="button" data-move-down aria-label="Bajar actividad"><i data-lucide="chevron-down"></i></button>
+                    <button type="button" data-remove aria-label="Eliminar actividad"><i data-lucide="trash-2"></i></button>
+                </div>
+            `;
+            const input = row.querySelector(".calendar-activity-input");
+            const categorySelect = row.querySelector(".sel-cat");
+            const suggestions = row.querySelector(".calendar-suggestions");
 
-        document.body.appendChild(overlay);
-        document.body.appendChild(modal);
-        const container = document.getElementById('itemsContainer');
-        currentItems.forEach(it => container.appendChild(createItemRow(it)));
-        container.appendChild(createItemRow(null));
-        document.getElementById('addItem').onclick = () => {
-            container.appendChild(createItemRow(null));
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        };
-        const close = () => { overlay.remove(); modal.remove(); };
-        document.getElementById('cancelModal').onclick = close;
-        overlay.onclick = close;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
+            const showSuggestions = () => {
+                const query = input.value.trim().toLocaleLowerCase("es");
+                const matches = suggestionCatalog
+                    .filter(suggestion => !query || suggestion.text.toLocaleLowerCase("es").includes(query))
+                    .slice(0, 6);
+                suggestions.innerHTML = matches.map(suggestion => `
+                    <button type="button" role="option" data-text="${escapeHTML(suggestion.text)}" data-category="${escapeHTML(suggestion.category)}">
+                        <span>${highlightMatch(suggestion.text, query)}</span>
+                        <small>${escapeHTML(categoryLabel(suggestion.category))}</small>
+                    </button>
+                `).join("");
+                suggestions.classList.toggle("is-visible", matches.length > 0 && (document.activeElement === input));
+            };
 
-        document.getElementById('saveModal').onclick = async () => {
-            const rows = container.querySelectorAll('.assignment-row');
-            const newItems = [];
-            rows.forEach(r => {
-                const cat = r.querySelector('.sel-cat').value;
-                const txt = r.querySelector('.inp-text').value.trim();
-                if(txt) newItems.push({ text: txt, category: cat });
+            input.addEventListener("input", showSuggestions);
+            input.addEventListener("focus", showSuggestions);
+            input.addEventListener("blur", () => window.setTimeout(() => suggestions.classList.remove("is-visible"), 120));
+            suggestions.addEventListener("mousedown", event => event.preventDefault());
+            suggestions.addEventListener("click", event => {
+                const option = event.target.closest("[data-text]");
+                if (!option) return;
+                input.value = option.dataset.text;
+                categorySelect.value = option.dataset.category;
+                suggestions.classList.remove("is-visible");
+                input.focus();
             });
-            document.getElementById('saveModal').innerText = 'Guardando...';
-            document.getElementById('saveModal').disabled = true;
-            const res = await api.saveAssignment({ user: userId, date: date, items: newItems, modifiedBy: currentUser });
-            if (res.status === 'success') { 
-                delete calendarCache[toISO(currentMonday) + "_" + toISO(new Date(currentMonday.getTime() + 6*86400000))];
-                close(); loadWeek(); 
-            } else { alert("Error: " + res.message); document.getElementById('saveModal').innerText = 'Guardar'; document.getElementById('saveModal').disabled = false; }
-        };
+
+            row.querySelector("[data-remove]").addEventListener("click", () => {
+                syncRows();
+                workingItems.splice(index, 1);
+                renderRows();
+            });
+            row.querySelector("[data-move-up]").addEventListener("click", () => {
+                if (index === 0) return;
+                syncRows();
+                [workingItems[index - 1], workingItems[index]] = [workingItems[index], workingItems[index - 1]];
+                renderRows();
+            });
+            row.querySelector("[data-move-down]").addEventListener("click", () => {
+                syncRows();
+                if (index >= workingItems.length - 1) return;
+                [workingItems[index + 1], workingItems[index]] = [workingItems[index], workingItems[index + 1]];
+                renderRows();
+            });
+            return row;
+        }
+
+        renderRows();
+        window.requestAnimationFrame(() => {
+            overlay.classList.add("is-open");
+            list.querySelector(".calendar-activity-input")?.focus();
+        });
+        if (typeof lucide !== "undefined") lucide.createIcons();
+    }
+
+    function rememberSuggestions(items) {
+        const merged = [...items, ...suggestionCatalog].reduce((map, item) => {
+            const text = String(item.text || "").trim();
+            if (text) map.set(text.toLocaleLowerCase("es"), { text, category: item.category || "otros" });
+            return map;
+        }, new Map());
+        try {
+            localStorage.setItem("xiaomiCalendarSuggestions", JSON.stringify(Array.from(merged.values()).slice(0, 150)));
+        } catch (error) {
+            console.warn("No se pudo guardar el historial local.", error);
+        }
+    }
+
+    function observeMonths() {
+        monthObserver?.disconnect();
+        monthObserver = new IntersectionObserver(entries => {
+            const visible = entries
+                .filter(entry => entry.isIntersecting)
+                .sort((a, b) => Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top))[0];
+            if (!visible) return;
+            setActiveMonth(Number(visible.target.dataset.monthSection));
+        }, { root: yearScroll, rootMargin: "-12% 0px -70% 0px", threshold: 0 });
+        container.querySelectorAll("[data-month-section]").forEach(section => monthObserver.observe(section));
+    }
+
+    function setActiveMonth(monthIndex) {
+        container.querySelector("#calendarActiveMonth").textContent = MONTHS[monthIndex];
+        monthRail.querySelectorAll("[data-month]").forEach(button => {
+            const active = Number(button.dataset.month) === monthIndex;
+            button.classList.toggle("is-active", active);
+            if (active) button.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        });
+    }
+
+    function scrollToMonth(monthIndex, smooth) {
+        const section = container.querySelector(`#calendar-month-${monthIndex}`);
+        if (!section) return;
+        yearScroll.scrollTo({ top: Math.max(0, section.offsetTop - 8), behavior: smooth ? "smooth" : "auto" });
+        setActiveMonth(monthIndex);
+    }
+
+    function announce(message, isError = false) {
+        const region = container.querySelector("#calendarLiveRegion");
+        if (region) region.textContent = message;
+        if (typeof window.showToast === "function") {
+            window.showToast(isError ? "No se pudo completar" : "Calendario", message, "#calendar");
+        }
     }
 
     function linkify(text) {
-        if (!text) return "";
-        const str = text.toString();
-        const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|meet\.google\.com\/[^\s]+|teams\.microsoft\.com\/[^\s]+)/gi;
-        return str.replace(urlRegex, (url) => {
-            let href = url; if (!url.startsWith('http')) href = 'http://' + url;
-            return `<a href="${href}" target="_blank" style="color:white; text-decoration:underline; font-weight:bold;">Link</a>`;
+        const escaped = escapeHTML(text);
+        const urlRegex = /(https?:\/\/[^\s<]+|www\.[^\s<]+|meet\.google\.com\/[^\s<]+|teams\.microsoft\.com\/[^\s<]+)/gi;
+        return escaped.replace(urlRegex, url => {
+            const href = url.startsWith("http") ? url : `https://${url}`;
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer">Abrir enlace</a>`;
         });
     }
 
-    function toISO(d) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0'); }
-    
-    function isInRange(iso, rangeStr) {
-        if(!rangeStr) return false;
-        try {
-            const targetTime = parseISOLocal(iso).getTime();
-            const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
-            if (!matches) return false;
-            const parseDate = (str) => {
-                const p = str.split('/');
-                let y = parseInt(p[2]); if (y < 100) y += 2000;
-                return createLocalDate(y, parseInt(p[1]) - 1, parseInt(p[0])).getTime();
-            };
-            const start = parseDate(matches[0]);
-            if (matches.length === 1) return targetTime === start;
-            const end = parseDate(matches[matches.length-1]);
-            return targetTime >= start && targetTime <= end;
-        } catch(e) { return false; }
-    }
-    
-    function getWeekNumber(d) {
-        const date = new Date(d.getTime());
-        date.setHours(0, 0, 0, 0);
-        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
-        const week1 = new Date(date.getFullYear(), 0, 4);
-        return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+    function highlightMatch(text, query) {
+        const safe = escapeHTML(text);
+        if (!query) return safe;
+        const index = text.toLocaleLowerCase("es").indexOf(query);
+        if (index < 0) return safe;
+        return `${escapeHTML(text.slice(0, index))}<mark>${escapeHTML(text.slice(index, index + query.length))}</mark>${escapeHTML(text.slice(index + query.length))}`;
     }
 
-    document.getElementById('prevWeek').onclick = () => { currentMonday.setDate(currentMonday.getDate() - 7); loadWeek(); };
-    document.getElementById('nextWeek').onclick = () => { currentMonday.setDate(currentMonday.getDate() + 7); loadWeek(); };
-    document.getElementById('todayBtn').onclick = () => {
-        const d = new Date(); 
-        currentMonday = createLocalDate(d.getFullYear(), d.getMonth(), d.getDate());
-        const day = currentMonday.getDay(); const diff = (day === 0 ? -6 : 1 - day);
-        currentMonday.setDate(currentMonday.getDate() + diff);
-        loadWeek();
-    };
+    function categoryLabel(categoryId) {
+        return categories.find(category => category.id === categoryId)?.label || "Otros";
+    }
+
+    function displayDate(date) {
+        return new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long" }).format(date);
+    }
+
+    function formatLongDate(iso) {
+        const [year, month, day] = iso.split("-").map(Number);
+        return displayDate(createLocalDate(year, month - 1, day));
+    }
+
+    function isInRange(iso, rangeStr) {
+        if (!rangeStr) return false;
+        const matches = String(rangeStr).match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
+        if (!matches) return false;
+        const parseRangeDate = value => {
+            const [day, month, rawYear] = value.split("/").map(Number);
+            return createLocalDate(rawYear < 100 ? rawYear + 2000 : rawYear, month - 1, day).getTime();
+        };
+        const [year, month, day] = iso.split("-").map(Number);
+        const target = createLocalDate(year, month - 1, day).getTime();
+        const start = parseRangeDate(matches[0]);
+        const end = parseRangeDate(matches[matches.length - 1]);
+        return target >= start && target <= end;
+    }
+
+    function getWeekNumber(dateValue) {
+        const date = new Date(dateValue.getTime());
+        date.setHours(0, 0, 0, 0);
+        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+        const weekOne = new Date(date.getFullYear(), 0, 4);
+        return 1 + Math.round(((date.getTime() - weekOne.getTime()) / 86400000 - 3 + (weekOne.getDay() + 6) % 7) / 7);
+    }
 }
+
 window.renderCalendar = renderCalendar;

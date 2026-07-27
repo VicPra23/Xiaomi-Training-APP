@@ -1223,6 +1223,757 @@ h1, h2, h3, h4, h5, h6 {
     border: none;
     background: transparent;
 }
+
+/* ==========================================================================
+   CONTINUOUS YEAR CALENDAR V21
+   ========================================================================== */
+.continuous-calendar {
+    --calendar-sticky-offset: 0px;
+    min-width: 0;
+    padding-bottom: 2rem;
+}
+
+.calendar-command-bar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-bottom: 1.25rem;
+}
+
+.calendar-title-group { min-width: 0; }
+.calendar-eyebrow {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--xiaomi-orange);
+    font-size: 0.67rem;
+    font-weight: 800;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+}
+
+.calendar-title-group h2 {
+    margin: 0;
+    font-size: clamp(1.75rem, 3vw, 2.65rem);
+    line-height: 1;
+    letter-spacing: -0.045em;
+}
+
+.calendar-title-group h2 strong {
+    color: var(--xiaomi-orange);
+    font-weight: 500;
+}
+
+.calendar-title-group p {
+    margin: 0.6rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+}
+
+.calendar-primary-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-shrink: 0;
+}
+
+.calendar-today-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 42px;
+    padding-inline: 1rem;
+}
+
+.calendar-today-btn svg { width: 17px; height: 17px; }
+.calendar-year-control {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    height: 42px;
+    padding: 0.25rem 0.35rem 0.25rem 0.75rem;
+    border: 1px solid var(--border-main);
+    border-radius: 12px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.calendar-year-control select {
+    height: 32px;
+    padding: 0 1.8rem 0 0.65rem;
+    border: 0;
+    border-radius: 8px;
+    outline: 0;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font: 700 0.86rem var(--font-primary);
+}
+
+.calendar-tool-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto auto;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.calendar-search {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    height: 40px;
+    padding: 0 0.85rem;
+    border: 1px solid var(--border-main);
+    border-radius: 12px;
+    background: var(--bg-card);
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.calendar-search:focus-within {
+    border-color: color-mix(in srgb, var(--xiaomi-orange) 55%, var(--border-main));
+    box-shadow: 0 0 0 3px var(--xiaomi-orange-light);
+}
+
+.calendar-search svg { width: 16px; color: var(--text-muted); }
+.calendar-search input {
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text-main);
+    font: 600 0.8rem var(--font-primary);
+}
+
+.calendar-weekend-toggle,
+.calendar-clipboard-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 40px;
+    padding: 0 0.8rem;
+    border: 1px solid var(--border-main);
+    border-radius: 12px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.calendar-weekend-toggle { cursor: pointer; }
+.calendar-weekend-toggle input { accent-color: var(--xiaomi-orange); }
+.calendar-clipboard-status svg { width: 15px; }
+.calendar-clipboard-status.has-content {
+    border-color: color-mix(in srgb, var(--xiaomi-orange) 30%, var(--border-main));
+    background: var(--xiaomi-orange-light);
+    color: var(--xiaomi-orange);
+}
+
+.calendar-month-rail {
+    position: relative;
+    display: flex;
+    gap: 0.35rem;
+    width: 100%;
+    margin-bottom: 0.75rem;
+    padding: 0.35rem;
+    overflow-x: auto;
+    border: 1px solid var(--border-main);
+    border-radius: 14px;
+    background: var(--bg-card);
+    scrollbar-width: none;
+}
+
+.calendar-month-rail::-webkit-scrollbar { display: none; }
+.calendar-month-rail button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: max-content;
+    padding: 0.55rem 0.7rem;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-muted);
+    font: 750 0.68rem var(--font-primary);
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.calendar-month-rail button span {
+    color: color-mix(in srgb, var(--text-muted) 55%, transparent);
+    font-variant-numeric: tabular-nums;
+}
+
+.calendar-month-rail button:hover { background: var(--bg-main); color: var(--text-main); }
+.calendar-month-rail button.is-active {
+    background: var(--xiaomi-orange);
+    color: #fff8f3;
+    transform: translateY(-1px);
+}
+.calendar-month-rail button.is-active span { color: rgba(255, 248, 243, 0.66); }
+
+.calendar-year-scroll {
+    position: relative;
+    height: clamp(520px, calc(100vh - 285px), 820px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+    scroll-snap-type: y proximity;
+    border: 1px solid var(--border-main);
+    border-radius: 18px;
+    background:
+        linear-gradient(90deg, var(--bg-main) 1px, transparent 1px) 0 0 / 32px 32px,
+        var(--bg-card);
+    box-shadow: var(--shadow-md);
+}
+
+.calendar-year-scroll:focus-visible {
+    outline: 3px solid var(--xiaomi-orange-light);
+    outline-offset: 3px;
+}
+
+.calendar-year-scroll.is-loading { opacity: 0.42; pointer-events: none; }
+.calendar-months { min-width: 850px; }
+.calendar-month-section {
+    min-height: 70%;
+    padding: 0 1rem 3.5rem;
+    scroll-margin-top: 0.5rem;
+    scroll-snap-align: start;
+}
+
+.calendar-month-section + .calendar-month-section {
+    border-top: 1px solid color-mix(in srgb, var(--border-main) 75%, var(--xiaomi-orange));
+}
+
+.calendar-month-heading {
+    position: sticky;
+    top: 0;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 68px;
+    margin: 0 -1rem 1rem;
+    padding: 0 1.15rem;
+    border-bottom: 1px solid var(--border-main);
+    background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+    backdrop-filter: blur(16px) saturate(1.3);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+
+.calendar-month-heading > div { display: flex; align-items: baseline; gap: 0.65rem; }
+.calendar-month-heading span {
+    color: var(--xiaomi-orange);
+    font-size: 0.68rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+.calendar-month-heading h3 {
+    margin: 0;
+    font-size: clamp(1.35rem, 2vw, 1.8rem);
+    letter-spacing: -0.035em;
+}
+.calendar-month-heading p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.calendar-month-weeks { display: grid; gap: 1rem; }
+.calendar-week-card {
+    position: relative;
+    padding-top: 1.35rem;
+    border: 1px solid var(--border-main);
+    border-radius: 13px;
+    background: var(--bg-card);
+    overflow: hidden;
+}
+
+.calendar-week-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0.3rem 0.65rem;
+    border-radius: 0 0 8px 0;
+    background: var(--bg-main);
+    color: var(--text-muted);
+    font-size: 0.57rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.calendar-week-table-wrap { overflow-x: auto; }
+.continuous-calendar .calendar-continuous-table {
+    min-width: 820px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    table-layout: fixed;
+}
+
+.continuous-calendar .calendar-continuous-table th {
+    height: 45px;
+    padding: 0.4rem 0.55rem;
+    border: 0;
+    border-bottom: 1px solid var(--border-main);
+    background: var(--bg-card);
+}
+
+.continuous-calendar .calendar-continuous-table th:not(.trainer-col) span {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.56rem;
+    letter-spacing: 0.08em;
+}
+
+.continuous-calendar .calendar-continuous-table th:not(.trainer-col) strong {
+    display: block;
+    margin-top: 0.12rem;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.continuous-calendar .calendar-continuous-table .trainer-col {
+    left: 0;
+    width: 132px;
+    min-width: 132px;
+    max-width: 132px;
+    padding: 0.65rem;
+    border: 0;
+    border-right: 1px solid var(--border-main);
+    border-bottom: 1px solid var(--border-main);
+    background: var(--bg-card);
+    box-shadow: 8px 0 14px -14px rgba(15, 15, 15, 0.6);
+    text-align: left;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.continuous-calendar .calendar-continuous-table tbody .trainer-col {
+    color: var(--text-medium);
+    font-size: 0.66rem;
+    line-height: 1.25;
+}
+
+.continuous-calendar .calendar-continuous-table .day-cell {
+    height: 74px;
+    min-width: 96px;
+    padding: 0.32rem;
+    border: 0;
+    border-right: 1px solid var(--border-main);
+    border-bottom: 1px solid var(--border-main);
+    background: color-mix(in srgb, var(--bg-card) 96%, var(--xiaomi-orange));
+    transition: background 150ms ease, box-shadow 150ms ease;
+}
+
+.continuous-calendar .calendar-continuous-table .day-cell:not(.day-blocked):hover {
+    z-index: 2;
+    background: var(--xiaomi-orange-light);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xiaomi-orange) 38%, transparent);
+}
+
+.continuous-calendar .calendar-continuous-table .day-cell:focus-visible {
+    z-index: 3;
+    outline: 2px solid var(--xiaomi-orange);
+    outline-offset: -2px;
+}
+
+.continuous-calendar .calendar-continuous-table .day-wknd { background: var(--bg-main); opacity: 0.78; }
+.continuous-calendar .calendar-continuous-table .day-outside {
+    background:
+        repeating-linear-gradient(-45deg, transparent, transparent 6px, color-mix(in srgb, var(--border-main) 45%, transparent) 6px, color-mix(in srgb, var(--border-main) 45%, transparent) 7px),
+        var(--bg-main);
+    cursor: default;
+}
+
+.continuous-calendar .calendar-continuous-table .day-blocked { cursor: not-allowed; }
+.continuous-calendar .calendar-continuous-table .is-today {
+    box-shadow: inset 0 0 0 2px var(--xiaomi-orange);
+}
+.continuous-calendar .calendar-continuous-table th.is-today strong { color: var(--xiaomi-orange); }
+
+.continuous-calendar .assignment-tag {
+    position: relative;
+    padding: 0.35rem 0.42rem;
+    border: 0;
+    border-radius: 5px;
+    box-shadow: none;
+    font-size: 0.56rem;
+    font-weight: 750;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.continuous-calendar .assignment-tag a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.calendar-absence {
+    background: var(--text-muted) !important;
+    color: var(--bg-card) !important;
+    text-align: center;
+    opacity: 0.62;
+}
+
+.calendar-cell-empty {
+    display: grid;
+    min-height: 60px;
+    place-items: center;
+    color: var(--text-muted);
+    font-size: 0.56rem;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 150ms ease;
+}
+.day-cell:hover .calendar-cell-empty,
+.day-cell:focus-visible .calendar-cell-empty { opacity: 0.72; }
+
+.calendar-cell-actions {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    z-index: 4;
+    display: flex;
+    gap: 0.2rem;
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 150ms ease, transform 150ms ease;
+}
+.day-cell:hover .calendar-cell-actions,
+.day-cell:focus-within .calendar-cell-actions { opacity: 1; transform: translateY(0); }
+.calendar-cell-actions button,
+.calendar-row-actions button,
+.calendar-editor-close {
+    display: inline-grid;
+    width: 25px;
+    height: 25px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid var(--border-main);
+    border-radius: 7px;
+    background: var(--bg-card);
+    color: var(--text-medium);
+    cursor: pointer;
+}
+.calendar-cell-actions svg,
+.calendar-row-actions svg,
+.calendar-editor-close svg { width: 13px; height: 13px; }
+.calendar-cell-actions button:hover,
+.calendar-row-actions button:hover { border-color: var(--xiaomi-orange); color: var(--xiaomi-orange); }
+
+.calendar-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-height: 64px;
+    margin-bottom: 0.75rem;
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--border-main);
+    border-radius: 14px;
+    background: var(--bg-card);
+}
+.calendar-loading[hidden] { display: none; }
+.calendar-loader-mark {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--xiaomi-orange-light);
+    border-top-color: var(--xiaomi-orange);
+    border-radius: 50%;
+    animation: calendarSpin 700ms linear infinite;
+}
+.calendar-loading strong,
+.calendar-loading span { display: block; }
+.calendar-loading strong { color: var(--text-main); font-size: 0.76rem; }
+.calendar-loading span { margin-top: 0.15rem; color: var(--text-muted); font-size: 0.65rem; }
+@keyframes calendarSpin { to { transform: rotate(360deg); } }
+
+.calendar-error,
+.calendar-empty-filter {
+    display: grid;
+    min-height: 220px;
+    place-items: center;
+    align-content: center;
+    gap: 0.65rem;
+    padding: 2rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+.calendar-error svg,
+.calendar-empty-filter svg { width: 28px; color: var(--xiaomi-orange); }
+.calendar-error strong { color: var(--text-main); }
+.calendar-error span,
+.calendar-empty-filter span { font-size: 0.75rem; }
+
+.calendar-editor-open { overflow: hidden; }
+.calendar-editor-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    justify-content: flex-end;
+    background: rgba(12, 10, 8, 0);
+    backdrop-filter: blur(0);
+    transition: background 200ms ease, backdrop-filter 200ms ease;
+}
+.calendar-editor-overlay.is-open {
+    background: rgba(12, 10, 8, 0.38);
+    backdrop-filter: blur(5px);
+}
+.calendar-editor-overlay.is-closing { background: transparent; backdrop-filter: blur(0); }
+.calendar-edit-panel {
+    display: flex;
+    flex-direction: column;
+    width: min(540px, 100%);
+    height: 100%;
+    padding: 1.25rem;
+    overflow-y: auto;
+    border-left: 1px solid var(--border-main);
+    background: var(--bg-card);
+    box-shadow: -24px 0 70px rgba(0, 0, 0, 0.14);
+    transform: translateX(100%);
+    transition: transform 220ms cubic-bezier(.22, 1, .36, 1);
+}
+.is-open .calendar-edit-panel { transform: translateX(0); }
+.is-closing .calendar-edit-panel { transform: translateX(100%); }
+
+.calendar-editor-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-main);
+}
+.calendar-editor-header span {
+    color: var(--xiaomi-orange);
+    font-size: 0.67rem;
+    font-weight: 800;
+    text-transform: capitalize;
+}
+.calendar-editor-header h3 { margin: 0.2rem 0 0; font-size: 1.4rem; }
+.calendar-editor-close { width: 34px; height: 34px; flex-shrink: 0; }
+.calendar-editor-tools {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.8rem 0;
+}
+.calendar-editor-tools button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.48rem 0.7rem;
+    border: 1px solid var(--border-main);
+    border-radius: 8px;
+    background: var(--bg-main);
+    color: var(--text-medium);
+    font: 700 0.68rem var(--font-primary);
+    cursor: pointer;
+}
+.calendar-editor-tools button:disabled { opacity: 0.38; cursor: not-allowed; }
+.calendar-editor-tools svg { width: 14px; }
+.calendar-paste-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 9px;
+    background: var(--xiaomi-orange-light);
+    color: var(--xiaomi-orange);
+    font-size: 0.7rem;
+    font-weight: 750;
+}
+.calendar-paste-notice svg { width: 15px; }
+.calendar-assignment-list { display: grid; gap: 0.7rem; }
+.calendar-assignment-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 26px;
+    gap: 0.55rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border-main);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--bg-card) 97%, var(--xiaomi-orange));
+}
+.calendar-row-index {
+    padding-top: 0.62rem;
+    color: var(--xiaomi-orange);
+    font-size: 0.6rem;
+    font-weight: 850;
+    font-variant-numeric: tabular-nums;
+}
+.calendar-row-fields {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr);
+    gap: 0.5rem;
+}
+.calendar-row-fields select,
+.calendar-activity-input {
+    width: 100%;
+    border: 1px solid var(--border-main);
+    border-radius: 9px;
+    outline: 0;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font: 650 0.76rem var(--font-primary);
+}
+.calendar-row-fields select { height: 40px; padding: 0 0.55rem; }
+.calendar-activity-input {
+    min-height: 58px;
+    padding: 0.65rem;
+    resize: vertical;
+    line-height: 1.4;
+}
+.calendar-row-fields select:focus,
+.calendar-activity-input:focus {
+    border-color: var(--xiaomi-orange);
+    box-shadow: 0 0 0 3px var(--xiaomi-orange-light);
+}
+.calendar-row-actions { display: grid; align-content: start; gap: 0.25rem; }
+.calendar-row-actions button:last-child { margin-top: 0.3rem; color: var(--status-rejected-text); }
+.calendar-autocomplete { position: relative; }
+.calendar-suggestions {
+    position: absolute;
+    top: calc(100% + 5px);
+    right: 0;
+    left: 0;
+    z-index: 30;
+    display: none;
+    max-height: 230px;
+    overflow-y: auto;
+    padding: 0.3rem;
+    border: 1px solid var(--border-main);
+    border-radius: 10px;
+    background: var(--bg-card);
+    box-shadow: var(--shadow-lg);
+}
+.calendar-suggestions.is-visible { display: grid; }
+.calendar-suggestions button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.58rem 0.65rem;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-main);
+    font: 600 0.7rem var(--font-primary);
+    text-align: left;
+    cursor: pointer;
+}
+.calendar-suggestions button:hover { background: var(--xiaomi-orange-light); }
+.calendar-suggestions mark { background: transparent; color: var(--xiaomi-orange); font-weight: 850; }
+.calendar-suggestions small {
+    color: var(--text-muted);
+    font-size: 0.56rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+.calendar-add-assignment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.7rem;
+    border: 1px dashed color-mix(in srgb, var(--xiaomi-orange) 45%, var(--border-main));
+    border-radius: 10px;
+    background: transparent;
+    color: var(--xiaomi-orange);
+    font: 750 0.72rem var(--font-primary);
+    cursor: pointer;
+}
+.calendar-add-assignment svg { width: 15px; }
+.calendar-editor-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: auto;
+    padding-top: 1.25rem;
+}
+.calendar-editor-footer > span { color: var(--text-muted); font-size: 0.6rem; }
+.calendar-editor-footer > div { display: flex; gap: 0.55rem; }
+.calendar-editor-footer button { display: inline-flex; align-items: center; gap: 0.4rem; }
+.calendar-editor-footer svg { width: 15px; }
+.calendar-button-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,.45);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: calendarSpin 650ms linear infinite;
+}
+
+.calendar-hide-weekends .calendar-continuous-table th:nth-child(7),
+.calendar-hide-weekends .calendar-continuous-table th:nth-child(8),
+.calendar-hide-weekends .calendar-continuous-table td:nth-child(7),
+.calendar-hide-weekends .calendar-continuous-table td:nth-child(8) { display: none; }
+
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+@media (max-width: 820px) {
+    .calendar-command-bar { align-items: flex-start; }
+    .calendar-title-group p { display: none; }
+    .calendar-tool-row { grid-template-columns: 1fr auto; }
+    .calendar-clipboard-status { display: none; }
+    .calendar-year-scroll { height: calc(100dvh - 275px); min-height: 460px; border-radius: 14px; }
+    .calendar-month-section { padding-inline: 0.65rem; }
+    .calendar-month-heading { margin-inline: -0.65rem; padding-inline: 0.8rem; }
+    .calendar-month-heading p { display: none; }
+}
+
+@media (max-width: 560px) {
+    .calendar-command-bar { gap: 0.75rem; }
+    .calendar-title-group h2 { font-size: 1.55rem; }
+    .calendar-title-group h2 strong { display: block; margin-top: 0.2rem; }
+    .calendar-primary-actions { align-items: stretch; }
+    .calendar-today-btn { padding-inline: 0.7rem; }
+    .calendar-today-btn span,
+    .calendar-year-control > span { display: none; }
+    .calendar-year-control { padding-left: 0.35rem; }
+    .calendar-tool-row { grid-template-columns: 1fr; }
+    .calendar-weekend-toggle { display: none; }
+    .calendar-month-rail button { padding-inline: 0.62rem; }
+    .calendar-year-scroll { height: calc(100dvh - 260px); min-height: 420px; }
+    .calendar-months { min-width: 785px; }
+    .calendar-edit-panel { padding: 1rem; }
+    .calendar-row-fields { grid-template-columns: 1fr; }
+    .calendar-assignment-row { grid-template-columns: 24px minmax(0, 1fr) 26px; }
+    .calendar-editor-footer { align-items: flex-end; }
+    .calendar-editor-footer > span { display: none; }
+    .calendar-editor-footer > div { width: 100%; }
+    .calendar-editor-footer button { flex: 1; justify-content: center; padding-inline: 0.6rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .calendar-year-scroll { scroll-behavior: auto; }
+    .calendar-editor-overlay,
+    .calendar-edit-panel,
+    .calendar-cell-actions { transition: none; }
+}
 .ts-control {
     background: var(--bg-card) !important;
     color: var(--text-main) !important;
