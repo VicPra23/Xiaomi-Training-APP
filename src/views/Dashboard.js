@@ -46,7 +46,6 @@ function renderDashboard(container) {
 
     const filterCard = isAdmin ? `
         <div class="glass-card dashboard-filter-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
-            <button type="button" class="dashboard-filter-toggle" aria-expanded="true"><i data-lucide="sliders-horizontal"></i><span>Filtros del panel<small>Periodo, trainer y dispositivo</small></span><i data-lucide="chevron-down"></i></button>
             <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:center;">
                 <div class="form-group" style="margin:0; min-width: 130px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Trainer</label>
@@ -90,6 +89,12 @@ function renderDashboard(container) {
                     </div>
                 </div>
 
+                <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Metodología</label>
+                    <select id="dashboardMethodology" class="form-control" multiple>
+                        <option value="Todos" selected>Todas</option>
+                    </select>
+                </div>
                 <div class="form-group" style="margin:0; min-width: 110px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Dispositivo</label>
                     <select id="dashboardDevice" class="form-control">
@@ -104,7 +109,6 @@ function renderDashboard(container) {
             </div>
         </div>` : `
         <div class="glass-card dashboard-filter-card" style="margin-left: 0; margin-right: auto; margin-bottom: 2rem; max-width: 500px; padding: 0.75rem 1.25rem; position: relative; z-index: 10;">
-            <button type="button" class="dashboard-filter-toggle" aria-expanded="true"><i data-lucide="sliders-horizontal"></i><span>Filtros del panel<small>Semana o rango de fechas</small></span><i data-lucide="chevron-down"></i></button>
             <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
                 <div id="periodFiltersContainer" style="display:flex; gap:12px;">
                     <div class="form-group" style="margin:0; min-width: 180px; flex: 0 1 auto; text-align: center;">
@@ -326,15 +330,6 @@ function renderDashboard(container) {
         });
     });
     const dashboardFilterCard = container.querySelector('.dashboard-filter-card');
-    const dashboardFilterToggle = dashboardFilterCard?.querySelector('.dashboard-filter-toggle');
-    if (dashboardFilterCard && window.matchMedia('(max-width: 768px)').matches) {
-        dashboardFilterCard.classList.add('is-collapsed');
-        dashboardFilterToggle?.setAttribute('aria-expanded', 'false');
-    }
-    dashboardFilterToggle?.addEventListener('click', () => {
-        const collapsed = dashboardFilterCard.classList.toggle('is-collapsed');
-        dashboardFilterToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    });
 
     // Limpiar cualquier instancia previa de TomSelect al iniciar
     window.tsInstances = window.tsInstances || {};
@@ -743,25 +738,23 @@ function renderDashboard(container) {
                 const yS = document.getElementById('dashboardYear');
                 const mS = document.getElementById('dashboardMonth');
                 const dS = document.getElementById('dashboardDevice');
+                const dM = document.getElementById('dashboardMethodology');
                 
-                if (yS) yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}">${y}</option>`).join('');
+                if (res.data.years) {
+                    if (yS) yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}">${y}</option>`).join('');
+                }
                 if (mS && mS.tagName === "SELECT") mS.innerHTML = '<option value="Todos">Todos</option>' + res.data.months.map(m => `<option value="${m}">${m}</option>`).join('');
                 
-                if (dS) {
-                    const reported = new Set(res.data.devices);
-                    let opts = '<option value="Todos">Todos</option>';
-                    if (isAdmin) {
-                        masterDevices.forEach(d => {
-                            const hasData = reported.has(d);
-                            opts += `<option value="${d}" ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
-                        });
-                    } else {
-                        res.data.devices.sort().forEach(d => {
-                            opts += `<option value="${d}">${d}</option>`;
-                        });
-                    }
-                    dS.innerHTML = opts;
+                if (dS && res.data.devices) {
+                    dS.innerHTML = '<option value="Todos" selected>Todos</option>' + res.data.devices.map(d => `<option value="${d}">${d}</option>`).join('');
                     initTomSelect('dashboardDevice', 'Busca dispositivo...');
+                }
+                if (dM && res.data.methodologies) {
+                    dM.innerHTML = '<option value="Todos" selected>Todas</option>' + res.data.methodologies.map(m => `<option value="${m}">${m}</option>`).join('');
+                    initTomSelect('dashboardMethodology', 'Busca metodología...');
+                    if (window.tsInstances['dashboardMethodology']) {
+                        window.tsInstances['dashboardMethodology'].addItem('Todos', true);
+                    }
                 }
             }
         });
@@ -845,11 +838,19 @@ function renderDashboard(container) {
 
         const target = isAdmin ? (dTarget ? dTarget.value : "Total") : currentUser;
         const device = dDevice ? dDevice.value : "Todos";
+        let methodology = "Todos";
+        if (window.tsInstances && window.tsInstances['dashboardMethodology']) {
+            const vals = window.tsInstances['dashboardMethodology'].getValue();
+            methodology = Array.isArray(vals) ? vals.join(',') : (vals || "Todos");
+        } else if (document.getElementById('dashboardMethodology')) {
+            const mEl = document.getElementById('dashboardMethodology');
+            methodology = Array.from(mEl.selectedOptions).map(o => o.value).join(',');
+        }
 
         const statsLoading = document.getElementById('stat_count');
         if (statsLoading) statsLoading.innerText = "...";
 
-        let params = { targetUser: target, device: device, refresh: force };
+        let params = { targetUser: target, device: device, methodology: methodology, refresh: force };
         
         if (isAdmin && isRangeMode) {
             params.startDate = dStart ? dStart.value : "";

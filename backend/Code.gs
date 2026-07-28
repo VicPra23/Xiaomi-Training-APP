@@ -648,6 +648,7 @@ function getDashboardStats(p) {
   const targetMonth = (p.month || "Todos").toString().trim();
   const targetYear = (p.year || "Todos").toString().trim();
   const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
+  const targetMethodology = (p.methodology || "Todos").toString().trim().toLowerCase();
 
   // 1️⃣ NUEVO: Leer Rango de Fechas (Si el Admin lo usa)
   const startDateStr = (p.startDate || "").toString().trim();
@@ -668,6 +669,11 @@ function getDashboardStats(p) {
   let selectedMonths = [];
   if (targetMonth !== "Todos") {
       selectedMonths = targetMonth.split(',').map(m => m.trim());
+  }
+
+  let selectedMethodologies = [];
+  if (targetMethodology !== "todos" && targetMethodology !== "") {
+      selectedMethodologies = targetMethodology.split(',').map(m => m.trim());
   }
 
   const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -705,6 +711,18 @@ function getDashboardStats(p) {
         const mobiles = (colMap.DISP_MOVIL !== undefined ? d[i][colMap.DISP_MOVIL] : (d[i][11]||"")).toString().toLowerCase();
         const eco = (colMap.DISP_ECO !== undefined ? d[i][colMap.DISP_ECO] : (d[i][12]||"")).toString().toLowerCase();
         if (mobiles.indexOf(targetDevice) === -1 && eco.indexOf(targetDevice) === -1) continue;
+    }
+    
+    if (selectedMethodologies.length > 0 && !selectedMethodologies.includes("todos")) {
+        const rowMethodology = (colMap.METODOLOGIA !== undefined ? d[i][colMap.METODOLOGIA] : "").toString().trim().toLowerCase();
+        let match = false;
+        for (let j = 0; j < selectedMethodologies.length; j++) {
+            if (rowMethodology === selectedMethodologies[j] || (selectedMethodologies[j] === "reunión interna" && rowMethodology.indexOf("reuni") !== -1)) {
+                match = true;
+                break;
+            }
+        }
+        if (!match) continue;
     }
 
     const rowTrainer = (d[i][colMap.TRAINER]||d[i][1]||"").toString().trim().toLowerCase();
