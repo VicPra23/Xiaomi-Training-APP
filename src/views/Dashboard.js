@@ -353,6 +353,7 @@ function renderDashboard(container) {
             sortField: { field: "text", direction: "asc" },
             dropdownParent: 'body',
             hideSelected: false, // Maintain selected options in the list
+            controlInput: isMultiple ? null : '<input type="text" autocomplete="off" size="1">',
             score: function(search) {
                 var scoreFunc = this.getScoreFunction(search);
                 return function(item) {
@@ -388,21 +389,21 @@ function renderDashboard(container) {
                 if (Array.isArray(values)) {
                     if (values.length === 0) {
                         setTimeout(() => {
-                            this.addItem('Todos', true);
+                            this.setValue(['Todos'], true);
                             if (selectId.includes('histFilter')) window.dashboardLoadHistory();
                         }, 0);
                         return;
                     } else if (values.length > 1) {
                         if (values[0] === 'Todos') {
                             setTimeout(() => {
-                                this.removeItem('Todos', true);
+                                const newVal = values.filter(v => v !== 'Todos');
+                                this.setValue(newVal, true);
                                 if (selectId.includes('histFilter')) window.dashboardLoadHistory();
                             }, 0);
                             return;
                         } else if (values.includes('Todos')) {
                             setTimeout(() => {
-                                this.clear(true);
-                                this.addItem('Todos', true);
+                                this.setValue(['Todos'], true);
                                 if (selectId.includes('histFilter')) window.dashboardLoadHistory();
                             }, 0);
                             return;
