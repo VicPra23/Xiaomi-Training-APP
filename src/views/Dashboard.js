@@ -901,6 +901,11 @@ function renderDashboard(container) {
             } else {
                 document.getElementById('dashboardDevice').value = 'Todos';
             }
+            if (window.tsInstances && window.tsInstances['dashboardMethodology']) {
+                window.tsInstances['dashboardMethodology'].setValue(['Todos']);
+            } else if (document.getElementById('dashboardMethodology')) {
+                document.getElementById('dashboardMethodology').value = 'Todos';
+            }
             
             if(document.getElementById('dashboardDateStart')) document.getElementById('dashboardDateStart').value = '';
             if(document.getElementById('dashboardDateEnd')) document.getElementById('dashboardDateEnd').value = '';
