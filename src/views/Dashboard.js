@@ -95,7 +95,7 @@ function renderDashboard(container) {
 
                 <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Metodología</label>
-                    <select id="dashboardMethodology" class="form-control" multiple>
+                    <select id="dashboardMethodology" class="form-control" multiple style="max-height: 42px; overflow: hidden;">
                         <option value="Todos" selected>Todas</option>
                     </select>
                 </div>

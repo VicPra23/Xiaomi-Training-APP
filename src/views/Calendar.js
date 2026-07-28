@@ -846,14 +846,17 @@ function renderCalendar(container) {
         });
     }
 
-    function scrollToMonth(monthIndex, smooth) {
+        function scrollToMonth(monthIndex, smooth) {
         const section = container.querySelector(`#calendar-month-${monthIndex}`);
         if (!section) return;
+        yearScroll.style.scrollBehavior = smooth ? "smooth" : "auto";
         yearScroll.scrollTo({ top: Math.max(0, section.offsetTop - 8), behavior: smooth ? "smooth" : "auto" });
         setActiveMonth(monthIndex);
     }
 
-    function scrollToToday(smooth) {
+        function scrollToToday(smooth) {
+        yearScroll.style.scrollBehavior = smooth ? "smooth" : "auto";
+        document.documentElement.style.scrollBehavior = smooth ? "smooth" : "auto";
         scrollToMonth(now.getMonth(), smooth);
         window.setTimeout(() => {
             const todayCell = container.querySelector(`[data-date="${todayISO}"][data-user]`);
@@ -873,6 +876,8 @@ function renderCalendar(container) {
             todayCell.focus({ preventScroll: true });
             window.scrollTo({ top: 0, left: 0, behavior: smooth ? "smooth" : "auto" });
             todayCell.classList.add("calendar-today-arrival");
+            document.documentElement.style.scrollBehavior = "";
+            yearScroll.style.scrollBehavior = "";
             window.setTimeout(() => todayCell.classList.remove("calendar-today-arrival"), 1100);
         }, smooth ? 360 : 60);
     }
