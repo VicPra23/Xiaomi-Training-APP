@@ -1,0 +1,170 @@
+
+--- index.html ---
+Additions: 35, Deletions: 32
+Sample changes:
++    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
++    <link rel="stylesheet" href="style.css?v=43.1">
++    <a class="skip-link" href="#mainContent">Saltar al contenido</a>
++    <nav class="glass-nav" id="navbar" style="display: none;" aria-label="Navegación principal">
++            <a href="#dashboard" class="nav-brand" aria-label="Xiaomi Trainer Platform · Inicio">
++                <img src="./Xiaomi_logo_(2021-).svg.png" alt="" width="32" height="32">
++                    <span class="brand-subtext">Trainer Platform</span>
++                <li><a href="#dashboard" class="nav-link"><i data-lucide="layout-dashboard"></i><span>Resumen</span></a></li>
++                <li><a href="#report" class="nav-link"><i data-lucide="square-pen"></i><span>Reporte</span></a></li>
++                <li><a href="#calendar" class="nav-link"><i data-lucide="calendar-days"></i><span>Calendario</span></a></li>
++                <li><a href="#vacations" class="nav-link"><i data-lucide="umbrella"></i><span>Vacaciones</span></a></li>
++                <li><a href="#materials" class="nav-link"><i data-lucide="library"></i><span>Materiales</span></a></li>
++                <li><a href="#mensajes" class="nav-link"><i data-lucide="inbox"></i><span>Mensajes</span></a></li>
++            </ul>
++            <div class="nav-actions">
+
+--- style.css ---
+Additions: 688, Deletions: 0
+Sample changes:
++/* ==========================================================================
++   V43 · XIAOMI TRAINER PLATFORM — PRODUCT UI
++   ========================================================================== */
++:root {
++    --xiaomi-orange: oklch(67% 0.215 47);
++    --xiaomi-orange-hover: oklch(59% 0.205 45);
++    --xiaomi-orange-light: oklch(95.5% 0.035 55);
++    --bg-main: oklch(98.3% 0.006 65);
++    --bg-card: oklch(99.5% 0.003 65);
++    --bg-nav: color-mix(in oklch, var(--bg-card) 92%, transparent);
++    --text-main: oklch(22% 0.018 55);
++    --text-medium: oklch(40% 0.016 55);
++    --text-muted: oklch(53% 0.014 55);
++    --border-main: oklch(91.5% 0.012 60);
++    --surface-raised: oklch(100% 0.002 65);
+
+--- sw.js ---
+Additions: 1, Deletions: 1
+Sample changes:
++const CACHE_NAME = 'xiaomi-trainer-v43.1';
+
+--- manifest.json ---
+Additions: 6, Deletions: 3
+Sample changes:
++  "id": "./",
++  "name": "Xiaomi Trainer Platform",
++  "description": "Planificación, reportes y recursos del equipo de formación Xiaomi.",
++  "lang": "es",
++  "scope": "./",
++  "background_color": "#fbfaf8",
+
+--- backend/Code.gs ---
+Additions: 0, Deletions: 0
+
+--- src/main.js ---
+Additions: 36, Deletions: 8
+Sample changes:
++const mainContent = document.getElementById('mainContent');
++    const routeTitles = {
++        '#': 'Acceso',
++        '#dashboard': 'Resumen',
++        '#report': 'Reporte',
++        '#calendar': 'Calendario',
++        '#vacations': 'Vacaciones',
++        '#materials': 'Materiales',
++        '#mensajes': 'Mensajes'
++    };
++        const displayName = String(user.name || user.user || 'Equipo');
++        const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase();
++        const navUserName = document.getElementById('navUserName');
++        const navUserRole = document.getElementById('navUserRole');
++        const navUserAvatar = document.getElementById('navUserAvatar');
+
+--- src/views/Dashboard.js ---
+Additions: 28, Deletions: 10
+Sample changes:
++            <button type="button" class="dashboard-filter-toggle" aria-expanded="true">
++                <i data-lucide="sliders-horizontal"></i>
++                <span>Filtros del resumen<small>Acota el periodo, trainer o actividad</small></span>
++                <i data-lucide="chevron-down"></i>
++            </button>
++                    <button id="btnToggleRange" class="btn-secondary" aria-label="Cambiar entre periodo y rango de fechas" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Cambiar entre periodo y rango"><i data-lucide="calendar" style="width:18px;"></i></button>
++                    <button id="btnFilter" class="btn-primary" aria-label="Aplicar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Aplicar filtros"><i data-lucide="search" style="width:18px;"></i></button>
++                    <button id="btnClearFilters" class="btn-secondary" aria-label="Limpiar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Limpiar filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
++            <button type="button" class="dashboard-filter-toggle" aria-expanded="true">
++                <i data-lucide="sliders-horizontal"></i>
++                <span>Periodo del resumen<small>Consulta una semana o un rango</small></span>
++                <i data-lucide="chevron-down"></i>
++            </button>
++    const dashboardFilterToggle = dashboardFilterCard?.querySelector('.dashboard-filter-toggle');
++    if (dashboardFilterCard && dashboardFilterToggle) {
+
+--- src/views/Login.js ---
+Additions: 114, Deletions: 89
+Sample changes:
++    container.innerHTML = `
++        <div class="login-module fade-in">
++            <section class="login-shell" aria-labelledby="loginTitle">
++                <div class="login-brand-panel" aria-hidden="true">
++                    <div class="login-brand-lockup">
++                        <img src="./Xiaomi_logo_(2021-).svg.png" alt="" width="52" height="52">
++                        <span>Xiaomi Trainer</span>
++                    </div>
++                    <div class="login-brand-copy">
++                        <span class="login-eyebrow">Plataforma interna</span>
++                        <h1>Tu jornada,<br>bien coordinada.</h1>
++                        <p>Planificación, reportes y recursos del equipo de formación en un único espacio.</p>
++                    </div>
++                    <span class="login-brand-version">Trainer Platform · v43</span>
++
+
+--- src/views/Materials.js ---
+Additions: 19, Deletions: 4
+Sample changes:
++                btn.tabIndex = btn.dataset.id === activeCatId ? 0 : -1;
++                <header class="section-header page-heading">
++                    <span class="page-eyebrow">Recursos de formación</span>
++                    <h2><i data-lucide="library"></i>Materiales</h2>
++                    <p>Encuentra presentaciones, guías y recursos por categoría de producto.</p>
++        const materialTabs = Array.from(container.querySelectorAll('.mat-tab-btn'));
++        materialTabs.forEach((btn, index) => {
++            btn.tabIndex = btn.dataset.id === activeCatId ? 0 : -1;
++            };
++            btn.onkeydown = event => {
++                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
++                event.preventDefault();
++                let nextIndex = index;
++                if (event.key === 'ArrowLeft') nextIndex = (index - 1 + materialTabs.length) % materialTabs.length;
++                if (event.key === 'ArrowRight') nextIndex = (index + 1) % materialTabs.length;
+
+--- src/views/Messages.js ---
+Additions: 30, Deletions: 10
+Sample changes:
++            <header class="section-header page-heading messages-heading">
++                    <span class="page-eyebrow">Comunicaciones internas</span>
++                    <h2><i data-lucide="inbox"></i>Mensajes</h2>
++                    <p>Revisa avisos, tareas y novedades del equipo.</p>
++        const originalContent = btn.innerHTML;
++        btn.disabled = true;
++        btn.innerHTML = '<span class="button-spinner" aria-hidden="true"></span><span>Marcando…</span>';
++        } catch(e) {
++            showToast('No se han podido marcar', 'Comprueba la conexión y vuelve a intentarlo.');
++        }
++        btn.innerHTML = originalContent;
++        if (typeof lucide !== 'undefined') lucide.createIcons();
++        const log = document.getElementById('msgLogContainer'); if(!log) return;
++        log.innerHTML = '<div class="message-skeleton" aria-label="Cargando mensajes"><span></span><span></span><span></span></div>';
++        try {
+
+--- src/views/ReportForm.js ---
+Additions: 8, Deletions: 7
+Sample changes:
++        <header class="section-header page-heading">
++            <span class="page-eyebrow">Actividad de formación</span>
++            <h2><i data-lucide="square-pen"></i>${editData && editData.mode === 'edit' ? 'Editar reporte' : (editData && editData.mode === 'duplicate' ? 'Duplicar reporte' : 'Crear reporte')}</h2>
++            <p>Registra la sesión con la información necesaria para el seguimiento del equipo.</p>
++            showToast("Límite de fotos", "Puedes adjuntar un máximo de 20 fotos por reporte.");
++            showToast("Foto demasiado grande", `“${oversized.name}” supera 10 MB. Redúcela antes de subirla.`);
++                showToast("No se pudo guardar", res.message || "Revisa los datos e inténtalo de nuevo.");
++            showToast("Error de conexión", "No se pudo enviar el reporte. Comprueba la conexión e inténtalo de nuevo.");
+
+--- src/views/Vacations.js ---
+Additions: 3, Deletions: 2
+Sample changes:
++                <span class="page-eyebrow">Disponibilidad del equipo</span>
++                <h2><i data-lucide="umbrella"></i>Vacaciones</h2>
++                <p>Consulta tu saldo, selecciona las fechas y envía la solicitud.</p>

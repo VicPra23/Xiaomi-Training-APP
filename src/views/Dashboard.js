@@ -46,9 +46,8 @@ function renderDashboard(container) {
 
     const filterCard = isAdmin ? `
         <div class="glass-card dashboard-filter-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
-            <button type="button" class="dashboard-filter-toggle" aria-expanded="true">
-                <i data-lucide="sliders-horizontal"></i>
-                <span>Filtros del resumen<small>Acota el periodo, trainer o actividad</small></span>
+            <button type="button" class="dashboard-filter-toggle dashboard-filter-toggle-minimal" aria-expanded="true" aria-label="Mostrar u ocultar filtros">
+                <span class="sr-only">Mostrar u ocultar filtros</span>
                 <i data-lucide="chevron-down"></i>
             </button>
             <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:center;">
@@ -96,7 +95,7 @@ function renderDashboard(container) {
 
                 <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Metodología</label>
-                    <select id="dashboardMethodology" class="form-control" multiple>
+                    <select id="dashboardMethodology" class="form-control" multiple style="max-height: 42px; overflow: hidden;">
                         <option value="Todos" selected>Todas</option>
                     </select>
                 </div>
@@ -114,9 +113,8 @@ function renderDashboard(container) {
             </div>
         </div>` : `
         <div class="glass-card dashboard-filter-card" style="margin-left: 0; margin-right: auto; margin-bottom: 2rem; max-width: 500px; padding: 0.75rem 1.25rem; position: relative; z-index: 10;">
-            <button type="button" class="dashboard-filter-toggle" aria-expanded="true">
-                <i data-lucide="sliders-horizontal"></i>
-                <span>Periodo del resumen<small>Consulta una semana o un rango</small></span>
+            <button type="button" class="dashboard-filter-toggle dashboard-filter-toggle-minimal" aria-expanded="true" aria-label="Mostrar u ocultar filtros">
+                <span class="sr-only">Mostrar u ocultar filtros</span>
                 <i data-lucide="chevron-down"></i>
             </button>
             <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
@@ -1198,6 +1196,7 @@ function renderDashboard(container) {
         accounts.forEach(acc => {
             const s = stats.byAccount[acc]?.sesiones || 0;
             const a = stats.byAccount[acc]?.alumnos || 0;
+            if (s <= 0 || a <= 0) return;
             totalSes += s; totalAlu += a;
             rows += `
                 <tr class="table-row-hover" style="border-bottom:1px solid var(--border-main); transition: background 0.2s;">

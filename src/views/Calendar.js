@@ -24,9 +24,9 @@ function renderCalendar(container) {
     let selectedYear = now.getFullYear();
     let calendarData = null;
     let suggestionCatalog = [];
-    let trainerFilter = "";
     let hideWeekends = false;
     let monthObserver = null;
+    const CALENDAR_START_YEAR = 2026;
 
     const createLocalDate = (year, month, day) => new Date(year, month, day, 0, 0, 0, 0);
     const toISO = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -51,7 +51,7 @@ function renderCalendar(container) {
                     <label class="calendar-year-control">
                         <span>Año</span>
                         <select id="calendarYear" aria-label="Seleccionar año">
-                            ${Array.from({ length: 5 }, (_, index) => now.getFullYear() - 2 + index)
+                            ${Array.from({ length: Math.max(1, now.getFullYear() + 2 - CALENDAR_START_YEAR + 1) }, (_, index) => CALENDAR_START_YEAR + index)
                                 .map(year => `<option value="${year}" ${year === selectedYear ? "selected" : ""}>${year}</option>`).join("")}
                         </select>
                     </label>
@@ -59,10 +59,6 @@ function renderCalendar(container) {
             </header>
 
             <div class="calendar-tool-row">
-                <label class="calendar-search">
-                    <i data-lucide="search"></i>
-                    <input id="calendarTrainerSearch" type="search" placeholder="Buscar formador…" autocomplete="off">
-                </label>
                 <label class="calendar-weekend-toggle">
                     <input id="calendarWeekendToggle" type="checkbox">
                     <span>Ocultar fin de semana</span>
@@ -73,13 +69,13 @@ function renderCalendar(container) {
             </div>
 
             <details class="calendar-legend" open>
-                <summary><i data-lucide="palette"></i><span>Leyenda de actividades</span><small>Colores del calendario</small></summary>
+                <summary><i data-lucide="palette"></i><span>Leyenda de actividades</span></summary>
                 <div class="calendar-legend-grid">
                     ${categories.map(category => `
                         <div class="calendar-legend-item"><span class="calendar-legend-swatch cat-${category.id}"></span><strong>${category.label}</strong></div>
                     `).join("")}
-                    <div class="calendar-legend-item"><span class="calendar-legend-swatch calendar-legend-holiday"></span><strong>Festivo</strong></div>
-                    <div class="calendar-legend-item"><span class="calendar-legend-swatch calendar-legend-vacation"></span><strong>Vacaciones</strong></div>
+                    
+                    
                 </div>
             </details>
 
@@ -128,11 +124,6 @@ function renderCalendar(container) {
     monthRail.addEventListener("click", event => {
         const button = event.target.closest("[data-month]");
         if (button) scrollToMonth(Number(button.dataset.month), true);
-    });
-
-    container.querySelector("#calendarTrainerSearch").addEventListener("input", event => {
-        trainerFilter = event.target.value.trim().toLocaleLowerCase("es");
-        renderYear({ preserveScroll: true });
     });
 
     container.querySelector("#calendarWeekendToggle").addEventListener("change", event => {
@@ -229,9 +220,7 @@ function renderCalendar(container) {
         const users = calendarData.users.filter(userObj => {
             const userId = typeof userObj === "object" ? userObj.user : userObj;
             const displayName = typeof userObj === "object" && userObj.name ? userObj.name : userId;
-            if (userId === "Training Manager" || displayName === "Training Manager") return false;
-            if (!trainerFilter) return true;
-            return `${displayName} ${userId}`.toLocaleLowerCase("es").includes(trainerFilter);
+            return userId !== "Training Manager" && displayName !== "Training Manager";
         });
 
         container.querySelector("#calendarMonths").innerHTML = MONTHS.map((month, monthIndex) =>
@@ -291,7 +280,7 @@ function renderCalendar(container) {
         return `
             <div class="calendar-week-card" data-week="${weekNumber}">
                 <div class="calendar-week-label">Semana ${weekNumber}</div>
-                <div class="calendar-week-table-wrap">
+                <div class="calendar-week-table-wrap" style="overflow-x: auto; max-width: 100%;">
                     <table class="calendar-weekly calendar-continuous-table">
                         <thead><tr>
                             <th class="trainer-col">Formador</th>
@@ -420,10 +409,8 @@ function renderCalendar(container) {
         if (!savedItems.length) return false;
 
         const dateLabel = formatLongDate(date);
-        const confirmed = window.confirm(
-            `¿Borrar todas las actividades del ${dateLabel}?\n\nGuardaremos una copia en el portapapeles para que puedas recuperarlas con “Pegar”.`
-        );
-        if (!confirmed) return false;
+        const deletionComment = await requestDeleteConfirmation(userId, dateLabel);
+        if (deletionComment === null) return false;
 
         const backupStored = await storeClipboardEntry(savedItems, userId, date);
         if (!backupStored) {
@@ -443,7 +430,8 @@ function renderCalendar(container) {
                 user: userId,
                 date,
                 items: [],
-                modifiedBy: currentUser
+                modifiedBy: currentUser,
+                deletionComment
             });
             if (response.status !== "success") throw new Error(response.message || "No se pudo borrar el día.");
 
@@ -467,6 +455,57 @@ function renderCalendar(container) {
             announce(`Error: ${error.message}`, true);
             return false;
         }
+    }
+
+    function requestDeleteConfirmation(userId, dateLabel) {
+        return new Promise(resolve => {
+            const dialog = document.createElement("dialog");
+            dialog.className = "calendar-delete-dialog";
+            dialog.innerHTML = `
+                <form method="dialog" class="calendar-delete-dialog-card" aria-labelledby="calendar-delete-title">
+                    <div class="calendar-delete-dialog-icon" aria-hidden="true"><i data-lucide="trash-2"></i></div>
+                    <div class="calendar-delete-dialog-copy">
+                        <span>Acción permanente</span>
+                        <h3 id="calendar-delete-title">Borrar actividades del día</h3>
+                        <p>Se borrará la planificación de <strong>${escapeHTML(userId)}</strong> para el ${escapeHTML(dateLabel)}. Guardaremos una copia en el portapapeles para que puedas recuperarla.</p>
+                    </div>
+                    <label class="calendar-delete-comment">
+                        <span>Comentario opcional</span>
+                        <textarea rows="3" maxlength="500" placeholder="Motivo o contexto del borrado"></textarea>
+                        <small>Si escribes un comentario, se enviará a administración y al usuario afectado.</small>
+                    </label>
+                    <div class="calendar-delete-dialog-actions">
+                        <button type="button" class="btn-outline" data-keep>Conservar actividades</button>
+                        <button type="submit" class="calendar-confirm-delete" value="delete"><i data-lucide="trash-2"></i>Borrar actividades</button>
+                    </div>
+                </form>
+            `;
+            document.body.appendChild(dialog);
+            if (typeof lucide !== "undefined") lucide.createIcons();
+            const textarea = dialog.querySelector("textarea");
+            let settled = false;
+            const finish = value => {
+                if (settled) return;
+                settled = true;
+                resolve(value);
+                dialog.remove();
+            };
+            dialog.querySelector("[data-keep]").addEventListener("click", () => {
+                dialog.close("cancel");
+                finish(null);
+            });
+            dialog.addEventListener("cancel", event => {
+                event.preventDefault();
+                dialog.close("cancel");
+                finish(null);
+            });
+            dialog.addEventListener("close", () => {
+                if (dialog.returnValue === "delete") finish(textarea.value.trim());
+                else finish(null);
+            });
+            dialog.showModal();
+            textarea.focus();
+        });
     }
 
     function getClipboards() {
@@ -819,9 +858,12 @@ function renderCalendar(container) {
         window.setTimeout(() => {
             const todayCell = container.querySelector(`[data-date="${todayISO}"][data-user]`);
             if (!todayCell) return;
+            const currentWeekCard = todayCell.closest(".calendar-week-card");
             const scrollerRect = yearScroll.getBoundingClientRect();
             const cellRect = todayCell.getBoundingClientRect();
-            const targetTop = yearScroll.scrollTop + (cellRect.top - scrollerRect.top) - (yearScroll.clientHeight / 2) + (cellRect.height / 2);
+            const targetTop = currentWeekCard
+                ? yearScroll.scrollTop + (currentWeekCard.getBoundingClientRect().top - scrollerRect.top) - 80
+                : yearScroll.scrollTop + (cellRect.top - scrollerRect.top) - 80;
             const targetLeft = yearScroll.scrollLeft + (cellRect.left - scrollerRect.left) - (yearScroll.clientWidth / 2) + (cellRect.width / 2);
             yearScroll.scrollTo({
                 top: Math.max(0, targetTop),
@@ -829,7 +871,7 @@ function renderCalendar(container) {
                 behavior: smooth ? "smooth" : "auto"
             });
             todayCell.focus({ preventScroll: true });
-            window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+            window.scrollTo({ top: 0, left: 0, behavior: smooth ? "smooth" : "auto" });
             todayCell.classList.add("calendar-today-arrival");
             window.setTimeout(() => todayCell.classList.remove("calendar-today-arrival"), 1100);
         }, smooth ? 360 : 60);

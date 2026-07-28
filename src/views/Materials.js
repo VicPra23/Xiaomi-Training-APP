@@ -241,7 +241,7 @@ function renderMaterials(container) {
                             <div style="width: 6px; height: 20px; background: var(--xiaomi-orange); border-radius: 3px;"></div>
                             <h4 style="margin:0; font-size: 1.1rem; text-transform: none; letter-spacing: normal;">${esc(sub.name)}</h4>
                         </div>
-                        <div class="mat-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
+                        <div class="mat-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
                             ${sub.items.length > 0 ? sub.items.map(item => `
                                 <a href="${esc(window.safeExternalUrl(item.link))}" target="_blank" rel="noopener noreferrer" class="mat-link" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.25rem; background: var(--bg-main); border-radius: 16px; text-decoration: none; transition: all 0.2s;">
                                     <span style="color: var(--text-main); font-weight: 500; font-size: 0.9rem;">
@@ -287,12 +287,12 @@ function renderMaterials(container) {
                 <header class="section-header page-heading">
                     <span class="page-eyebrow">Recursos de formación</span>
                     <h2><i data-lucide="library"></i>Materiales</h2>
-                    <p>Encuentra presentaciones, guías y recursos por categoría de producto.</p>
-                    <div style="display:flex; justify-content:center; gap: 1rem;">
-                        ${(session && session.role === 'Admin') ? `
-                            <button id="btnNotifyMaterials" class="btn-primary" style="padding: 0.75rem 1.5rem; font-size:0.85rem;"><i data-lucide="send" style="width:16px; margin-right: 8px;"></i> Notificar Novedades</button>
-                        ` : ''}
-                    </div>
+                      <p>Encuentra presentaciones, guías y recursos por categoría de producto.</p>
+                      <div style="display:flex; justify-content:flex-start; margin-top: 1.5rem; gap: 1rem;">
+                          ${(session && session.role === 'Admin') ? `
+                              <button id="btnNotifyMaterials" class="btn-primary" style="padding: 0.35rem 0.65rem; font-size: 0.7rem;"><i data-lucide="send" style="width:14px; margin-right: 6px;"></i> Notificar Novedades</button>
+                          ` : ''}
+                      </div>
                 </header>
                 
                 <div class="social-access-bar" style="margin-bottom: 4rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">

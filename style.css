@@ -1,8 +1,8 @@
 :root {
     /* Xiaomi Color Palette (Global) */
-    --xiaomi-orange: #ff6700;
-    --xiaomi-orange-hover: #e65c00;
-    --xiaomi-orange-light: rgba(255, 103, 0, 0.06);
+    --xiaomi-orange: oklch(0.65 0.22 35);
+    --xiaomi-orange-hover: oklch(0.60 0.22 35);
+    --xiaomi-orange-light: oklch(0.65 0.22 35 / 0.08);
     
     /* Light Theme Tokens - Ultra Clean */
     --bg-main: #fcfcfc;
@@ -28,9 +28,9 @@
     --border-radius-sm: 12px;
     --border-radius-md: 20px;
     --border-radius-lg: 32px;
-    --shadow-sm: 0 2px 10px rgba(0,0,0,0.01);
-    --shadow-md: 0 10px 40px rgba(0,0,0,0.03);
-    --shadow-lg: 0 20px 60px -10px rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 2px 8px -2px oklch(0 0 0 / 0.05), inset 0 1px 0 0 oklch(1 1 1 / 0.4);
+    --shadow-md: 0 8px 24px -4px oklch(0 0 0 / 0.08), inset 0 1px 0 0 oklch(1 1 1 / 0.5);
+    --shadow-lg: 0 12px 32px -6px oklch(0 0 0 / 0.12), inset 0 1px 0 0 oklch(1 1 1 / 0.6);
     --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.02);
     
     --font-primary: 'Inter', sans-serif;
@@ -85,6 +85,7 @@ html, body {
 }
 
 h1, h2, h3, h4, h5, h6 {
+    text-wrap: balance;
     font-family: var(--font-heading);
     font-weight: 700;
     color: var(--text-main);
@@ -105,26 +106,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Scrollbar Customization */
-::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-::-webkit-scrollbar-track {
-    background: var(--bg-main);
-}
-::-webkit-scrollbar-thumb {
-    background: var(--border-main);
-    border-radius: 10px;
-    border: 3px solid var(--bg-main);
-}
-::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+
+html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-main) var(--bg-main);
 }
 
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
-    background: #333;
-    border: 3px solid var(--bg-main);
-}
 
 .tiktok-icon-fix { filter: none; }
 [data-theme="dark"] .tiktok-icon-fix { filter: invert(1) brightness(1.5); }
@@ -2139,7 +2126,8 @@ body {
     text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3, h4, h5, h6 { text-wrap: balance; }
+h1, h2, h3, h4, h5, h6 {
+    text-wrap: balance; text-wrap: balance; }
 p { text-wrap: pretty; }
 
 .skip-link {
@@ -3138,6 +3126,129 @@ p { text-wrap: pretty; }
 
 /* V43 final cascade guards */
 .badge-new { animation: none; }
+.dashboard-filter-toggle-minimal {
+    width: 44px;
+    min-height: 36px;
+    margin: -0.2rem 0 0.45rem auto;
+    justify-content: center;
+    border-radius: 9px;
+}
+.dashboard-filter-toggle-minimal:hover,
+.dashboard-filter-toggle-minimal:focus-visible {
+    background: var(--xiaomi-orange-light);
+}
+.dashboard-filter-toggle-minimal > svg:last-child {
+    width: 19px;
+    margin-inline-start: 0;
+}
+.dashboard-filter-card.is-collapsed .dashboard-filter-toggle-minimal {
+    margin: -0.2rem 0 -0.2rem auto;
+}
+.calendar-tool-row {
+    grid-template-columns: repeat(2, max-content);
+    justify-content: end;
+}
+.calendar-delete-dialog {
+    width: min(520px, calc(100vw - 2rem));
+    max-width: none;
+    padding: 0;
+    border: 1px solid var(--border-main);
+    border-radius: 18px;
+    background: var(--bg-card);
+    color: var(--text-main);
+    box-shadow: 0 28px 80px rgba(15, 10, 6, 0.26);
+}
+.calendar-delete-dialog::backdrop {
+    background: rgba(18, 12, 8, 0.52);
+    backdrop-filter: blur(5px);
+}
+.calendar-delete-dialog-card {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 0.9rem 1rem;
+    padding: 1.25rem;
+}
+.calendar-delete-dialog-icon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--status-rejected-bg);
+    color: var(--status-rejected-text);
+}
+.calendar-delete-dialog-icon svg { width: 20px; }
+.calendar-delete-dialog-copy span {
+    color: var(--status-rejected-text);
+    font-size: 0.66rem;
+    font-weight: 850;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.calendar-delete-dialog-copy h3 {
+    margin: 0.15rem 0 0.35rem;
+    font-size: 1.25rem;
+}
+.calendar-delete-dialog-copy p {
+    margin: 0;
+    color: var(--text-medium);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+.calendar-delete-comment {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: 0.4rem;
+}
+.calendar-delete-comment > span {
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+.calendar-delete-comment textarea {
+    width: 100%;
+    min-height: 86px;
+    padding: 0.75rem;
+    resize: vertical;
+    border: 1px solid var(--border-main);
+    border-radius: 11px;
+    outline: 0;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font: 650 0.82rem/1.45 var(--font-primary);
+}
+.calendar-delete-comment textarea:focus {
+    border-color: var(--xiaomi-orange);
+    box-shadow: 0 0 0 3px var(--xiaomi-orange-light);
+}
+.calendar-delete-comment small {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+}
+.calendar-delete-dialog-actions {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    padding-top: 0.25rem;
+}
+.calendar-delete-dialog-actions button {
+    min-height: 44px;
+}
+.calendar-confirm-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.65rem 0.9rem;
+    border: 0;
+    border-radius: 10px;
+    background: var(--status-rejected-text);
+    color: #fff8f3;
+    font: 800 0.76rem var(--font-primary);
+    cursor: pointer;
+}
+.calendar-confirm-delete:hover { filter: brightness(0.93); }
+.calendar-confirm-delete svg { width: 16px; }
 .vaca-module .stats-grid { gap: 0.75rem; margin-bottom: 1.5rem; }
 .vaca-module .stat-card {
     min-height: 122px;
@@ -3158,8 +3269,8 @@ p { text-wrap: pretty; }
     .vaca-module .stat-card { flex: 0 0 142px; scroll-snap-align: start; }
     .calendar-tool-row {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        justify-content: stretch;
     }
-    .calendar-search { grid-column: 1 / -1; }
     .calendar-weekend-toggle,
     .calendar-clipboard-status {
         display: inline-flex;
@@ -3170,5 +3281,52 @@ p { text-wrap: pretty; }
         font-size: 0.66rem;
         white-space: normal;
         text-align: center;
+    }
+    .calendar-delete-dialog {
+        width: calc(100vw - 1rem);
+        margin-bottom: max(0.5rem, env(safe-area-inset-bottom));
+        border-radius: 16px;
+    }
+    .calendar-delete-dialog-card {
+        grid-template-columns: 38px minmax(0, 1fr);
+        gap: 0.75rem;
+        padding: 1rem;
+    }
+    .calendar-delete-dialog-icon {
+        width: 38px;
+        height: 38px;
+    }
+    .calendar-delete-dialog-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+    .calendar-delete-dialog-actions .calendar-confirm-delete { grid-row: 1; }
+}
+
+
+/* Responsive Hotfixes */
+@media (max-width: 900px) {
+    .bento-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .dash-module .charts-container, .admin-charts-container {
+        grid-template-columns: 1fr !important;
+    }
+    .glass-card.dash-header {
+        padding: 1rem !important;
+    }
+}
+@media (max-width: 600px) {
+    .bento-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .vaca-module .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .vaca-module .main-layout {
+        grid-template-columns: 1fr !important;
+    }
+    .nav-container {
+        padding: 0 20px !important;
     }
 }

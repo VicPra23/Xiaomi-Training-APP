@@ -12,7 +12,6 @@ function renderLogin(container) {
                         <h1>Tu jornada,<br>bien coordinada.</h1>
                         <p>Planificación, reportes y recursos del equipo de formación en un único espacio.</p>
                     </div>
-                    <span class="login-brand-version">Trainer Platform · v43</span>
                 </div>
 
                 <div class="login-card">
@@ -20,7 +19,6 @@ function renderLogin(container) {
                         <img src="./Xiaomi_logo_(2021-).svg.png" alt="" width="44" height="44">
                         <strong>Xiaomi Trainer</strong>
                     </div>
-                    <span class="login-eyebrow">Acceso seguro</span>
                     <h2 id="loginTitle" class="login-title">Bienvenido al equipo</h2>
                     <p class="login-subtitle">Selecciona tu perfil e introduce tu contraseña.</p>
 
