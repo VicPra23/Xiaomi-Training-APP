@@ -83,38 +83,38 @@ function renderVacations(container) {
                 <p>Consulta tu saldo, selecciona las fechas y envía la solicitud.</p>
             </header>
 
-            <div class="stats-grid">
-                <div class="glass-card stat-card">
+            <section class="stats-grid vacation-balance-strip" aria-label="Resumen de vacaciones">
+                <div class="stat-card">
                     <div class="stat-badge"><i data-lucide="calendar-check"></i><span>Disponibles</span></div>
                     <div class="stat-content">
                         <h2 id="statBase">--</h2>
                     </div>
                 </div>
-                <div class="glass-card stat-card">
+                <div class="stat-card">
                     <div class="stat-badge sb-blue"><i data-lucide="award"></i><span>Extras</span></div>
                     <div class="stat-content">
                         <h2 id="statExtra">--</h2>
                     </div>
                 </div>
-                <div class="glass-card stat-card">
+                <div class="stat-card">
                     <div class="stat-badge sb-amber"><i data-lucide="clock"></i><span>Pendientes</span></div>
                     <div class="stat-content">
                         <h2 id="statPending">--</h2>
                     </div>
                 </div>
-                <div class="glass-card stat-card">
+                <div class="stat-card">
                     <div class="stat-badge sb-green"><i data-lucide="check-circle"></i><span>Aprobadas</span></div>
                     <div class="stat-content">
                         <h2 id="statAccepted">--</h2>
                     </div>
                 </div>
-                <div class="glass-card stat-card">
+                <div class="stat-card">
                     <div class="stat-badge sb-purple"><i data-lucide="star"></i><span>Ex. Aprob.</span></div>
                     <div class="stat-content">
                         <h2 id="statExtraAcc">--</h2>
                     </div>
                 </div>
-            </div>
+            </section>
 
             <div id="adminGlobalPanel" class="admin-panel" style="display: none; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 32px; box-shadow: var(--shadow-lg); margin-bottom: 3rem; overflow: hidden;">
                 <h4 id="adminTitle" style="padding: 2rem; margin:0; color: var(--text-main); display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-main); font-size: 1.1rem;"><i data-lucide="inbox" style="color: var(--xiaomi-orange);"></i> Peticiones del equipo</h4>

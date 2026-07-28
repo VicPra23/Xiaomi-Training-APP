@@ -1,111 +1,70 @@
 function renderMessages(container) {
-    let userData = getSessionData();
-    let user = userData ? userData.user : 'Desconocido';
+    const userData = getSessionData();
+    const user = userData ? userData.user : 'Desconocido';
+    const esc = value => window.escapeHTML ? window.escapeHTML(value) : String(value ?? '');
 
-    const html = `
-        <div class="fade-in">
-            <header class="section-header page-heading messages-heading">
-                <div style="flex: 1; min-width: 250px;">
+    container.innerHTML = `
+        <section class="messages-module fade-in" aria-labelledby="messagesTitle">
+            <header class="page-heading messages-heading">
+                <div>
                     <span class="page-eyebrow">Comunicaciones internas</span>
-                    <h2><i data-lucide="inbox"></i>Mensajes</h2>
-                    <p>Revisa avisos, tareas y novedades del equipo.</p>
+                    <h2 id="messagesTitle"><i data-lucide="inbox"></i>Mensajes</h2>
+                    <p>Avisos y tareas del equipo, ordenados por fecha.</p>
                 </div>
-                <button id="markAllReadBtn" class="btn-secondary" style="font-size:0.8rem; height:40px; padding:0 15px; display:flex; align-items:center; gap:8px; font-weight:600; border-radius:10px; flex-shrink: 0;">
-                    <i data-lucide="check-check" style="width:16px; height:16px;"></i>
-                    <span>Marcar todos leídos</span>
+                <button id="markAllReadBtn" class="btn-secondary messages-mark-all" type="button">
+                    <i data-lucide="check-check"></i><span>Marcar todo como leído</span>
                 </button>
             </header>
-            <div id="msgLogContainer" style="display:flex; flex-direction:column; gap:15px;">
-                <p style="text-align:center; color:#888;">Cargando mensajes...</p>
+            <div class="messages-workspace">
+                <div class="messages-toolbar" aria-label="Filtros de mensajes">
+                    <span><i data-lucide="list-filter"></i> Bandeja de entrada</span>
+                    <span id="messageCount" class="messages-count">—</span>
+                </div>
+                <div id="msgLogContainer" class="messages-list" aria-live="polite">
+                    <div class="message-skeleton" aria-label="Cargando mensajes"><span></span><span></span><span></span></div>
+                </div>
             </div>
-        </div>
-    `;
-    
-    container.innerHTML = html;
-    loadMessages();
+        </section>`;
 
-    document.getElementById('markAllReadBtn').onclick = async () => {
-        const btn = document.getElementById('markAllReadBtn');
-        const originalContent = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="button-spinner" aria-hidden="true"></span><span>Marcando…</span>';
+    const markAllButton = container.querySelector('#markAllReadBtn');
+    markAllButton.addEventListener('click', async () => {
+        const originalContent = markAllButton.innerHTML;
+        markAllButton.disabled = true;
+        markAllButton.innerHTML = '<span class="button-spinner" aria-hidden="true"></span><span>Marcando…</span>';
+        container.querySelectorAll('.message-row').forEach(row => row.classList.add('is-read'));
         try {
-            await sendPost('markAllMessagesRead', { user: user });
-            // Optimistic UI: mark everything as read in the view immediately
-            document.querySelectorAll('[id^="msg-"]').forEach(el => {
-                el.style.opacity = '0.7';
-                el.style.borderLeftColor = '#e2e8f0';
-                const badge = el.querySelector('.badge'); if(badge) badge.remove();
-                const btnM = el.querySelector('button[onclick^="markAsRead"]'); if(btnM) btnM.remove();
-            });
+            await sendPost('markAllMessagesRead', { user });
             if (window.updateNavBadge) window.updateNavBadge();
-        } catch(e) {
+            await loadMessages();
+        } catch (error) {
             showToast('No se han podido marcar', 'Comprueba la conexión y vuelve a intentarlo.');
+        } finally {
+            markAllButton.innerHTML = originalContent;
+            markAllButton.disabled = false;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
-        btn.innerHTML = originalContent;
-        btn.disabled = false;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    };
+    });
 
     async function loadMessages() {
-        const log = document.getElementById('msgLogContainer'); if(!log) return;
-        log.innerHTML = '<div class="message-skeleton" aria-label="Cargando mensajes"><span></span><span></span><span></span></div>';
+        const log = container.querySelector('#msgLogContainer');
+        if (!log) return;
         try {
-        const res = await api.getMessages({ targetUser: user });
-        const messages = res.status === 'success' && Array.isArray(res.data) ? res.data : [];
-        if (messages.length > 0) {
-            log.innerHTML = messages.map(m => {
-                const messageText = String(m.text || '');
-                const messageId = Number(m.id) || 0;
-                const isRead = m.read || (m.id && localReadCache.includes(m.id.toString()));
-                const urlMatch = messageText.match(/https?:\/\/[^\s]+/);
-                const extUrl = urlMatch ? window.safeExternalUrl(urlMatch[0].replace(/[),.;]+$/, '')) : '';
-                // Clean the URL from the text so it looks cleaner
-                const cleanText = urlMatch ? messageText.replace(urlMatch[0], '').trim() : messageText;
+            const res = await api.getMessages({ targetUser: user });
+            const messages = res.status === 'success' && Array.isArray(res.data) ? res.data : [];
+            container.querySelector('#messageCount').textContent = `${messages.length} ${messages.length === 1 ? 'mensaje' : 'mensajes'}`;
+            if (!messages.length) {
+                log.innerHTML = `
+                    <div class="workspace-empty">
+                        <span class="workspace-empty-icon"><i data-lucide="inbox"></i></span>
+                        <h3>Todo al día</h3>
+                        <p>Los nuevos avisos y tareas del equipo aparecerán aquí.</p>
+                    </div>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                return;
+            }
 
-                const normalizedText = messageText.toLowerCase();
-                const isVac = normalizedText.includes('vacacio') || normalizedText.includes('extra');
-                const isCal = normalizedText.includes('calendario') || normalizedText.includes('planifica');
-                const isMat = normalizedText.includes('material');
-                const isRep = normalizedText.includes('reporte') || normalizedText.includes('historial');
-                
-                let targetHash = '';
-                if (isVac) targetHash = '#vacations';
-                else if (isCal) targetHash = '#calendar';
-                else if (isMat) targetHash = '#materials';
-                else if (isRep && !extUrl) targetHash = '#dashboard';
-
-                return `
-                <article id="msg-${messageId}" class="glass-card fade-in" style="padding: 1.2rem; border-left: 6px solid ${isRead ? 'var(--border-main)' : (m.from === 'Admin' ? 'var(--xiaomi-orange)' : '#10b981')}; position:relative; opacity: ${isRead ? '0.7' : '1'};">
-                    <div style="display:flex; justify-content:space-between; align-items:start;">
-                        <div>
-                            <h4 style="margin:0; font-size:1.1rem; color:var(--text-main); font-family:var(--font-heading);">${window.escapeHTML(m.from || 'Sistema')}</h4>
-                            <small style="color:var(--text-muted); font-weight:600;">${window.escapeHTML(m.date ? new Date(m.date).toLocaleString('es-ES') : 'Sin fecha')}</small>
-                        </div>
-                        ${!isRead ? '<span class="badge" style="background:var(--xiaomi-orange); color:#fff; font-size:0.6rem; padding:4px 10px; border-radius:8px; font-weight:800; letter-spacing:0.05em;">NUEVO</span>' : ''}
-                    </div>
-                    <p style="margin:1rem 0 0 0; color:var(--text-medium); line-height:1.6; font-size: 0.95rem;">${window.escapeHTML(cleanText)}</p>
-                    
-                    <div style="display:flex; gap:10px; margin-top:1.2rem; flex-wrap: wrap;">
-                        ${!isRead ? `<button onclick="markAsRead(${messageId})" class="btn-secondary" style="padding:6px 15px; font-size:0.8rem; margin:0; display:flex; align-items:center; gap:5px;"><i data-lucide="check" style="width:14px;"></i> Marcar leído</button>` : ''}
-                        ${extUrl ? `
-                            <a href="${window.escapeHTML(extUrl)}" target="_blank" rel="noopener noreferrer" onclick="markAsRead(${messageId})" class="btn-primary" style="padding:6px 15px; font-size:0.8rem; margin:0; text-decoration:none; display:flex; align-items:center; gap:5px; border-radius: 8px;"><i data-lucide="external-link" style="width:14px;"></i> Abrir Archivo</a>
-                        ` : (targetHash ? `
-                            <button onclick="goToSection('${targetHash}', ${messageId})" class="btn-primary" style="padding:6px 15px; font-size:0.8rem; margin:0; display:flex; align-items:center; gap:5px;"><i data-lucide="arrow-right-circle" style="width:14px;"></i> Ir a sección</button>
-                        ` : '')}
-                    </div>
-                </article>
-                `;
-            }).join('');
+            log.innerHTML = messages.map(message => renderMessage(message)).join('');
             if (typeof lucide !== 'undefined') lucide.createIcons();
-        } else {
-            log.innerHTML = `
-                <div class="glass-card" style="text-align:center; padding:4rem 2rem; color:var(--text-muted);">
-                    <i data-lucide="inbox" style="width:48px; height:48px; margin-bottom:1rem; opacity:0.2;"></i>
-                    <p>Tu buzón está vacío por ahora.</p>
-                </div>`;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        }
         } catch (error) {
             log.innerHTML = `
                 <div class="route-error compact" role="alert">
@@ -114,31 +73,85 @@ function renderMessages(container) {
                     <p>Comprueba la conexión y vuelve a intentarlo.</p>
                     <button type="button" class="btn-secondary" id="retryMessages">Reintentar</button>
                 </div>`;
-            document.getElementById('retryMessages')?.addEventListener('click', loadMessages);
+            container.querySelector('#retryMessages')?.addEventListener('click', loadMessages);
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     }
 
+    function renderMessage(message) {
+        const messageText = String(message.text || '');
+        const messageId = Number(message.id) || 0;
+        const isRead = message.read || (message.id && localReadCache.includes(message.id.toString()));
+        const urlMatch = messageText.match(/https?:\/\/[^\s]+/);
+        const extUrl = urlMatch ? window.safeExternalUrl(urlMatch[0].replace(/[),.;]+$/, '')) : '';
+        const cleanText = urlMatch ? messageText.replace(urlMatch[0], '').trim() : messageText;
+        const targetHash = inferTarget(messageText, extUrl);
+        const date = message.date ? new Date(message.date) : null;
+        const formattedDate = date && !Number.isNaN(date.getTime())
+            ? new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date)
+            : 'Sin fecha';
+
+        return `
+            <article id="msg-${messageId}" class="message-row ${isRead ? 'is-read' : 'is-unread'}">
+                <span class="message-state" aria-hidden="true"></span>
+                <div class="message-meta">
+                    <strong>${esc(message.from || 'Sistema')}</strong>
+                    <time>${esc(formattedDate)}</time>
+                </div>
+                <div class="message-content">
+                    <p>${esc(cleanText)}</p>
+                    <div class="message-actions">
+                        ${!isRead ? `<button type="button" onclick="markAsRead(${messageId})" class="message-action-secondary"><i data-lucide="check"></i>Marcar leído</button>` : ''}
+                        ${extUrl ? `
+                            <a href="${esc(extUrl)}" target="_blank" rel="noopener noreferrer" onclick="markAsRead(${messageId})" class="message-action-primary"><span>Abrir archivo</span><i data-lucide="arrow-up-right"></i></a>
+                        ` : (targetHash ? `
+                            <button type="button" onclick="goToSection('${targetHash}', ${messageId})" class="message-action-primary"><span>Ir a la sección</span><i data-lucide="arrow-right"></i></button>
+                        ` : '')}
+                    </div>
+                </div>
+                ${!isRead ? '<span class="message-new-label">Nuevo</span>' : ''}
+            </article>`;
+    }
+
+    function inferTarget(text, extUrl) {
+        const normalized = text.toLowerCase();
+        if (normalized.includes('vacacio') || normalized.includes('extra')) return '#vacations';
+        if (normalized.includes('calendario') || normalized.includes('planifica')) return '#calendar';
+        if (normalized.includes('material')) return '#materials';
+        if (!extUrl && (normalized.includes('reporte') || normalized.includes('historial'))) return '#dashboard';
+        return '';
+    }
+
     window.goToSection = async (hash, id) => {
-        const el = document.getElementById(`msg-${id}`); if(el) el.style.display = 'none';
-        localReadCache.push(id.toString()); saveCache();
-        sendPost('markMessageRead', { msgId: id });
+        markLocally(id);
+        sendPost('markMessageRead', { msgId: id }).catch(() => {});
         window.location.hash = hash;
     };
 
-    window.markAsRead = async (id) => {
-        // EFECTO INMEDIATO
-        const el = document.getElementById(`msg-${id}`); if(el) el.style.display = 'none';
-        localReadCache.push(id.toString()); saveCache();
+    window.markAsRead = async id => {
+        const row = container.querySelector(`#msg-${id}`);
+        row?.classList.remove('is-unread');
+        row?.classList.add('is-read');
+        row?.querySelector('.message-new-label')?.remove();
+        row?.querySelector('.message-action-secondary')?.remove();
+        markLocally(id);
         if (window.updateNavBadge) window.updateNavBadge();
-
-        const res = await sendPost('markMessageRead', { msgId: id });
-        if (res.status === 'success') {
-            setTimeout(() => {
-                loadMessages();
-                if (window.updateNavBadge) window.updateNavBadge();
-            }, 600);
+        try {
+            const res = await sendPost('markMessageRead', { msgId: id });
+            if (res.status === 'success') window.setTimeout(loadMessages, 260);
+        } catch (error) {
+            showToast('No se pudo actualizar', 'El mensaje se marcará cuando vuelva la conexión.');
         }
     };
+
+    function markLocally(id) {
+        const value = id.toString();
+        if (!localReadCache.includes(value)) localReadCache.push(value);
+        saveCache();
+    }
+
+    loadMessages();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
+
 window.renderMessages = renderMessages;

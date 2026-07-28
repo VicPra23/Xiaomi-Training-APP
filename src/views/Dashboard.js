@@ -45,12 +45,12 @@ function renderDashboard(container) {
         window.addEventListener('resize', window._dashResizeHandler);
 
     const filterCard = isAdmin ? `
-        <div class="glass-card dashboard-filter-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
+        <div class="dashboard-filter-card">
             <button type="button" class="dashboard-filter-toggle dashboard-filter-toggle-minimal" aria-expanded="true" aria-label="Mostrar u ocultar filtros">
-                <span class="sr-only">Mostrar u ocultar filtros</span>
+                <span class="dashboard-filter-toggle-label"><i data-lucide="sliders-horizontal"></i> Filtros</span>
                 <i data-lucide="chevron-down"></i>
             </button>
-            <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:center;">
+            <div class="dashboard-filter-content">
                 <div class="form-group" style="margin:0; min-width: 130px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Trainer</label>
                     <select id="dashboardTarget" class="form-control">
@@ -95,7 +95,7 @@ function renderDashboard(container) {
 
                 <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Metodología</label>
-                    <select id="dashboardMethodology" class="form-control" multiple style="max-height: 42px; overflow: hidden;">
+                    <select id="dashboardMethodology" class="form-control" multiple>
                         <option value="Todos" selected>Todas</option>
                     </select>
                 </div>
@@ -112,12 +112,12 @@ function renderDashboard(container) {
                 </div>
             </div>
         </div>` : `
-        <div class="glass-card dashboard-filter-card" style="margin-left: 0; margin-right: auto; margin-bottom: 2rem; max-width: 500px; padding: 0.75rem 1.25rem; position: relative; z-index: 10;">
+        <div class="dashboard-filter-card dashboard-filter-card-compact">
             <button type="button" class="dashboard-filter-toggle dashboard-filter-toggle-minimal" aria-expanded="true" aria-label="Mostrar u ocultar filtros">
-                <span class="sr-only">Mostrar u ocultar filtros</span>
+                <span class="dashboard-filter-toggle-label"><i data-lucide="sliders-horizontal"></i> Filtros</span>
                 <i data-lucide="chevron-down"></i>
             </button>
-            <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
+            <div class="dashboard-filter-content">
                 <div id="periodFiltersContainer" style="display:flex; gap:12px;">
                     <div class="form-group" style="margin:0; min-width: 180px; flex: 0 1 auto; text-align: center;">
                         <label class="form-label" style="display: block; width: 100%;">Semana</label>
@@ -143,61 +143,65 @@ function renderDashboard(container) {
         </div>`;
 
     const html = `
-        <div class="dash-module fade-in" style="max-width: 1400px; margin: 0 auto;">
-            <header class="dash-header" style="margin-bottom: 4rem; text-align: center; padding-top: 2rem;">
-                <h2 style="font-size: 2.5rem; letter-spacing: -0.04em; margin-bottom: 0.5rem;">&iexcl;Hola, ${realName}! <i data-lucide="sparkles" style="color: var(--xiaomi-orange); width: 32px; vertical-align: middle;"></i></h2>
-                <p id="dashPeriodText" style="color: var(--text-medium); font-weight: 500; font-size: 1.1rem; justify-content: center; display: flex; align-items: center; gap: 8px;">
-                    ${isAdmin ? '<i data-lucide="line-chart" style="width:20px;"></i> Panel de Supervisión Global' : '<i data-lucide="zap" style="width:20px;"></i> Tu impacto semanal en Xiaomi'}
-                </p>
+        <div class="dash-module fade-in">
+            <header class="dash-header">
+                <div>
+                    <span class="page-eyebrow">Centro de operaciones</span>
+                    <h2>&iexcl;Hola, ${realName}!</h2>
+                    <p id="dashPeriodText">
+                        ${isAdmin ? 'Visión global del equipo y actividad reciente.' : 'Tu actividad, objetivos y próximos pasos.'}
+                    </p>
+                </div>
+                <button type="button" class="btn-primary dash-primary-action" onclick="window.reportEditData=null; window.location.hash='#report'">
+                    <i data-lucide="plus"></i><span>Crear reporte</span>
+                </button>
             </header>
 
             ${filterCard}
 
-            <div class="bento-grid">
-                <div class="glass-card bento-item" style="grid-column: span 2; grid-row: span 2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; overflow: hidden;">
-                    <h3 style="font-size: 1.25rem; color: var(--text-medium); font-weight: 500; position: relative; z-index: 2; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                        <i data-lucide="activity" style="color: var(--text-medium); width: 22px;"></i>
-                        Actividades Registradas
-                    </h3>
-                    <div id="stat_count" style="font-size: clamp(3.5rem, 15vw, 5.5rem); font-weight: 800; line-height: 1; letter-spacing: -0.05em; font-family: var(--font-heading); position: relative; z-index: 2; color: var(--xiaomi-orange);">0</div>
-                </div>
-
-                <div class="glass-card bento-item" style="grid-column: span 2; display: flex; align-items: center; justify-content: center; text-align: center; padding: 2rem; position: relative; overflow: hidden;">
-                    <div style="position: relative; z-index: 2;">
-                        <h4 style="color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.1em; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                            <i data-lucide="users" style="color: var(--text-muted); width: 16px;"></i>
-                            Alumnos Formados
-                        </h4>
-                        <div id="stat_alumnos" style="font-size: clamp(2rem, 10vw, 2.5rem); font-weight: 800; font-family: var(--font-heading); color: #059669;">0</div>
+            <section class="bento-grid metric-strip" aria-label="Indicadores del periodo">
+                <div class="bento-item metric-item metric-primary">
+                    <span class="metric-icon"><i data-lucide="activity"></i></span>
+                    <div class="metric-copy">
+                        <span class="metric-label">Actividades</span>
+                        <div id="stat_count" class="metric-value">0</div>
                     </div>
                 </div>
 
-                <div class="glass-card bento-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5rem; position: relative; overflow: hidden;">
-                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; position: relative; z-index: 2; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-                        <i data-lucide="layers" style="color: var(--text-muted); width: 14px;"></i>
-                        Sesiones
-                    </span>
-                    <div id="stat_sesiones" style="font-size: 2rem; font-weight: 800; font-family: var(--font-heading); position: relative; z-index: 2; color: #3b82f6;">0</div>
+                <div class="bento-item metric-item">
+                    <span class="metric-icon"><i data-lucide="users"></i></span>
+                    <div class="metric-copy">
+                        <span class="metric-label">Alumnos formados</span>
+                        <div id="stat_alumnos" class="metric-value">0</div>
+                    </div>
                 </div>
 
-                <div class="glass-card bento-item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5rem; position: relative; overflow: hidden;">
-                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; position: relative; z-index: 2; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-                        <i data-lucide="clock" style="color: var(--text-muted); width: 14px;"></i>
-                        Horas
-                    </span>
-                    <div id="stat_horas" style="font-size: 2rem; font-weight: 800; font-family: var(--font-heading); position: relative; z-index: 2; color: #8b5cf6;">0</div>
+                <div class="bento-item metric-item">
+                    <span class="metric-icon"><i data-lucide="layers"></i></span>
+                    <div class="metric-copy">
+                        <span class="metric-label">Sesiones</span>
+                        <div id="stat_sesiones" class="metric-value">0</div>
+                    </div>
                 </div>
-            </div>
+
+                <div class="bento-item metric-item">
+                    <span class="metric-icon"><i data-lucide="clock"></i></span>
+                    <div class="metric-copy">
+                        <span class="metric-label">Horas</span>
+                        <div id="stat_horas" class="metric-value">0</div>
+                    </div>
+                </div>
+            </section>
 
             <div class="charts-container">
-                <div class="glass-card">
-                    <h3 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2rem; letter-spacing: 0.1em; display: flex; align-items: center; gap: 10px;"><i data-lucide="bar-chart-3" style="width:18px;"></i> Tendencia Semanal</h3>
+                <section class="workspace-panel workspace-panel-primary">
+                    <div class="workspace-panel-heading"><div><span class="page-eyebrow">Evolución</span><h3>Tendencia semanal</h3></div><i data-lucide="bar-chart-3"></i></div>
                     <div class="chart-wrapper"><canvas id="chartWeekly" role="img" aria-label="Tendencia semanal de actividad"></canvas></div>
-                </div>
-                <div class="glass-card">
-                    <h3 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2rem; letter-spacing: 0.1em; display: flex; align-items: center; gap: 10px;"><i data-lucide="pie-chart" style="width:18px;"></i> Distribución por Método</h3>
-                    <div class="chart-wrapper" style="display: flex; justify-content: center;"><canvas id="chartMethods" role="img" aria-label="Distribución de actividad por metodología"></canvas></div>
-                </div>
+                </section>
+                <section class="workspace-panel">
+                    <div class="workspace-panel-heading"><div><span class="page-eyebrow">Mix de actividad</span><h3>Distribución por método</h3></div><i data-lucide="list-filter"></i></div>
+                    <div class="chart-wrapper chart-wrapper-methods"><canvas id="chartMethods" role="img" aria-label="Distribución de actividad por metodología"></canvas></div>
+                </section>
             </div>
 
             ${isAdmin ? `
@@ -890,8 +894,9 @@ function renderDashboard(container) {
                     
                     const pText = document.getElementById('dashPeriodText');
                     if (pText) {
-                        pText.innerHTML = isAdmin ? '<i data-lucide="line-chart" style="width:20px;"></i> Panel de Supervisión Global' : 'Tu impacto semanal en Xiaomi';
-                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                        pText.textContent = isAdmin
+                            ? 'Visión global del equipo y actividad reciente.'
+                            : 'Tu actividad, objetivos y próximos pasos.';
                     }
 
                     updateWeekSelect(res.availableWeeks, isAdmin);
@@ -1407,8 +1412,8 @@ function renderCharts(data) {
     if (!data) return;
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const isMobile = window.innerWidth < 768;
-    const primaryColor = '#ff6700';
-    const primaryGradientEnd = '#ff9a44';
+    const primaryColor = getComputedStyle(document.querySelector('.btn-primary') || document.documentElement).backgroundColor || '#ff6700';
+    const primaryGradientEnd = isDark ? 'oklch(78% 0.16 55)' : 'oklch(78% 0.17 55)';
     const secondaryColor = isDark ? '#334155' : '#cbd5e0';
     const secondaryGradientEnd = isDark ? '#1e293b' : '#f1f5f9';
     const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)';
@@ -1416,6 +1421,7 @@ function renderCharts(data) {
     const isLandscape = window.innerHeight < window.innerWidth && isMobile;
     const fontSize = isMobile ? (isLandscape ? 8 : 9) : 12;
     const tickSize = isMobile ? (isLandscape ? 7 : 8) : 11;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     if (typeof Chart === 'undefined') {
         console.error("Chart.js is NOT defined.");
@@ -1427,6 +1433,7 @@ function renderCharts(data) {
         Chart.defaults.font.family = "'Inter', 'Outfit', sans-serif";
         Chart.defaults.color = textColor;
         Chart.defaults.borderColor = gridColor;
+        Chart.defaults.animation = reducedMotion ? false : { duration: 420, easing: 'easeOutQuart' };
 
         const createGrad = (ctx, start, end) => {
             if (!ctx) return start;
@@ -1472,7 +1479,7 @@ function renderCharts(data) {
             },
             options: { 
                 responsive: true, 
-                maintainAspectRatio: false,
+                maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
                 layout: { padding: isMobile ? { top: 5, bottom: 5, left: 10, right: 15 } : 15 },
                 plugins: { 
                     legend: { 
@@ -1514,47 +1521,29 @@ function renderCharts(data) {
         if (!canvasM) return;
         const ctxM = canvasM.getContext('2d');
         if(methodsChart) methodsChart.destroy();
+        const methodValues = data.pieData || data.methodData || [];
         methodsChart = new Chart(ctxM, {
-            type: 'doughnut',
+            type: 'bar',
             data: { 
                 labels: data.pieLabels || data.methodLabels || [], 
                 datasets: [{ 
-                    data: data.pieData || data.methodData || [],
-                    backgroundColor: [
-                        primaryColor,                                   // 1. Orange (Brand)
-                        isDark ? '#3b82f6' : '#2563eb',                 // 2. Blue
-                        isDark ? '#10b981' : '#059669',                 // 3. Green
-                        isDark ? '#8b5cf6' : '#7c3aed',                 // 4. Purple
-                        isDark ? '#f59e0b' : '#d97706',                 // 5. Amber
-                        isDark ? '#ec4899' : '#db2777',                 // 6. Pink
-                        isDark ? '#06b6d4' : '#0891b2',                 // 7. Cyan/Teal
-                        isDark ? '#f43f5e' : '#e11d48',                 // 8. Rose
-                        isDark ? '#6366f1' : '#4f46e5',                 // 9. Indigo
-                        isDark ? '#84cc16' : '#65a30d',                 // 10. Lime
-                        isDark ? '#0d9488' : '#0f766e',                 // 11. Teal Dark
-                        isDark ? '#a21caf' : '#86198f'                  // 12. Magenta/Fuchsia
-                    ],
+                    label: 'Horas',
+                    data: methodValues,
+                    backgroundColor: methodValues.map((_, index) => index === 0 ? primaryColor : secondaryColor),
                     borderWidth: 0,
-                    hoverOffset: 12
+                    borderRadius: 7,
+                    borderSkipped: false,
+                    maxBarThickness: 24
                 }] 
             },
             options: { 
+                indexAxis: 'y',
                 responsive: true, 
-                maintainAspectRatio: false, 
-                animation: { animateRotate: true, animateScale: true },
-                layout: { padding: isMobile ? { top: 10, bottom: 10, left: 5, right: 5 } : 0 },
+                maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, 
+                animation: reducedMotion ? false : { duration: 360, easing: 'easeOutQuart' },
+                layout: { padding: isMobile ? { top: 6, bottom: 6, left: 0, right: 8 } : { top: 8, right: 12 } },
                 plugins: { 
-                    legend: { 
-                        position: 'bottom',
-                        display: true,
-                        labels: { 
-                            color: textColor,
-                            padding: isMobile ? 12 : 20, 
-                            usePointStyle: true, 
-                            pointStyle: 'circle', 
-                            font: { size: fontSize - 1, weight: 600 } 
-                        }
-                    },
+                    legend: { display: false },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
@@ -1567,6 +1556,17 @@ function renderCharts(data) {
                             }
                         }
                     }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { color: gridColor, drawBorder: false },
+                        ticks: { color: textColor, font: { size: tickSize }, maxTicksLimit: 4 }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { color: textColor, font: { size: tickSize, weight: 600 } }
+                    }
                 }
             }
         });
@@ -1575,7 +1575,8 @@ function renderCharts(data) {
         if(data.adminStats && document.getElementById('chartTrainers')) {
             const ctxT = document.getElementById('chartTrainers').getContext('2d');
             if(trainersChart) trainersChart.destroy();
-            const names = Object.keys(data.adminStats.byTrainer);
+            const trainerStats = data.adminStats.byTrainer || {};
+            const names = Object.keys(trainerStats);
             
             const gradT_Orange = createGrad(ctxT, primaryColor, primaryGradientEnd);
             const gradT_Gray = createGrad(ctxT, secondaryColor, secondaryGradientEnd);
@@ -1585,14 +1586,14 @@ function renderCharts(data) {
                 data: {
                     labels: names,
                     datasets: [
-                        { label: 'Personas', data: names.map(n => data.adminStats.byTrainer[n]?.alumnos || 0), backgroundColor: gradT_Orange, borderRadius: 20 },
-                        { label: 'Sesiones', data: names.map(n => data.adminStats.byTrainer[n]?.sesiones || 0), backgroundColor: gradT_Gray, borderRadius: 20 }
+                        { label: 'Personas', data: names.map(n => trainerStats[n]?.alumnos || 0), backgroundColor: gradT_Orange, borderRadius: 20 },
+                        { label: 'Sesiones', data: names.map(n => trainerStats[n]?.sesiones || 0), backgroundColor: gradT_Gray, borderRadius: 20 }
                     ]
                 },
                 options: {
                     indexAxis: 'y',
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
                     plugins: { 
                         legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: isMobile ? 9 : 12, weight: 600 } } }
                     },

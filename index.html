@@ -18,7 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
     
     <!-- Custom Style -->
-    <link rel="stylesheet" href="style.css?v=43.2">
+    <link rel="stylesheet" href="style.css?v=44.0">
     
     <!-- TomSelect (Necesario para ReportForm) -->
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
@@ -58,6 +58,9 @@
                 <li><a href="#mensajes" class="nav-link"><i data-lucide="inbox"></i><span>Mensajes</span></a></li>
             </ul>
             <div class="nav-actions">
+                    <a href="#mensajes" class="nav-mobile-inbox" title="Mensajes" aria-label="Abrir mensajes">
+                        <i data-lucide="inbox"></i>
+                    </a>
                     <div class="nav-user" id="navUser" aria-label="Sesión actual">
                         <span class="nav-user-avatar" id="navUserAvatar">XT</span>
                         <span class="nav-user-copy"><strong id="navUserName">Equipo</strong><small id="navUserRole">Trainer</small></span>
@@ -72,6 +75,7 @@
     </nav>
 
     <main class="app-container" id="mainContent" tabindex="-1">
+        <div id="appStatusRegion" class="app-status-region" aria-live="polite"></div>
         <div id="app">
         <!-- Vistas dinámicas -->
         </div>
@@ -82,15 +86,15 @@
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     
     <!-- Vistas y Lógica -->
-    <script src="src/services/api.js?v=43.2"></script>
-    <script src="src/views/Login.js?v=43.2"></script>
-    <script src="src/views/Dashboard.js?v=43.2"></script>
-    <script src="src/views/ReportForm.js?v=43.2"></script>
-    <script src="src/views/Calendar.js?v=43.2"></script>
-    <script src="src/views/Vacations.js?v=43.2"></script>
-    <script src="src/views/Materials.js?v=43.2"></script>
-    <script src="src/views/Messages.js?v=43.2"></script>
-    <script src="src/main.js?v=43.2"></script>
+    <script src="src/services/api.js?v=44.0"></script>
+    <script src="src/views/Login.js?v=44.0"></script>
+    <script src="src/views/Dashboard.js?v=44.0"></script>
+    <script src="src/views/ReportForm.js?v=44.0"></script>
+    <script src="src/views/Calendar.js?v=44.0"></script>
+    <script src="src/views/Vacations.js?v=44.0"></script>
+    <script src="src/views/Materials.js?v=44.0"></script>
+    <script src="src/views/Messages.js?v=44.0"></script>
+    <script src="src/main.js?v=44.0"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -110,6 +114,18 @@
                                     };
                                     document.body.appendChild(notice);
                                 }
+                            // Insert update button next to user in sidebar
+                            const navUser = document.getElementById('navUser');
+                            if (navUser && !document.getElementById('sidebarUpdateBtn')) {
+                                const sidebarBtn = document.createElement('button');
+                                sidebarBtn.id = 'sidebarUpdateBtn';
+                                sidebarBtn.className = 'btn-primary btn-compact';
+                                sidebarBtn.style = 'margin-left: auto; font-size: 0.7rem; padding: 4px 8px; background: var(--xiaomi-orange); color: white; display: flex; align-items: center; gap: 4px;';
+                                sidebarBtn.innerHTML = '<i data-lucide="download" style="width:14px; height:14px;"></i> Actualizar';
+                                sidebarBtn.onclick = () => window.location.reload(true);
+                                navUser.appendChild(sidebarBtn);
+                                if (typeof lucide !== 'undefined') lucide.createIcons();
+                            }
                             }
                         };
                     };

@@ -168,11 +168,11 @@ function renderReport(container, editData = null) {
             <div id="reportDraftStatus" class="report-draft-status" aria-live="polite"><i data-lucide="cloud-check"></i><span>${editData ? 'Edición protegida' : 'Borrador automático activo'}</span></div>
         </header>
 
-        <form id="trainingForm" class="glass-card report-form-card">
-            <div id="adminArea" style="display: none; background: var(--xiaomi-orange-light); padding: 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 2rem; border: 1px dashed var(--xiaomi-orange);">
-                <h4 style="margin-top:0; color: var(--xiaomi-orange); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Panel de Administrador</h4>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label class="form-label">Reportar como:</label>
+        <form id="trainingForm" class="report-form-card">
+            <div id="adminArea" class="report-admin-context">
+                <div class="report-admin-label"><i data-lucide="user-round-cog"></i><span>Actuando como</span></div>
+                <div class="form-group">
+                    <label class="form-label sr-only" for="trainer">Seleccionar trainer</label>
                     <select id="trainer" name="trainer" class="form-control">
                         <option value="${currentUser}">${currentUser}</option>
                     </select>
@@ -361,7 +361,7 @@ function renderReport(container, editData = null) {
             <div class="form-group" style="margin-top: 1.5rem;">
                 <label class="form-label" id="photoLabel">Fotos (0/20)</label>
                 <div id="photoContainer" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px;">
-                    <button type="button" class="photo-upload-box" id="photoTrigger" aria-describedby="photoHelp" style="width: 100px; height: 100px; border: 2px dashed var(--border-main); border-radius: var(--border-radius-md); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; background:var(--bg-main);">
+                    <button type="button" class="photo-upload-box" id="photoTrigger" aria-describedby="photoHelp" style="width: 100px; height: 100px; border: 2px dashed var(--border-main); border-radius: var(--border-radius-md); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; background:var(--bg-main);">
                         <i data-lucide="camera" style="width: 32px; height: 32px; color: var(--text-muted);"></i>
                         <span style="font-size: 0.65rem; color: var(--text-muted); margin-top: 8px; font-weight: 700;">Añadir</span>
                     </button>

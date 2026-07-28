@@ -151,6 +151,7 @@ let hasShownNews = false;
 
 function navigateRouter() {
     let hash = window.location.hash || '#';
+    document.getElementById('appStatusRegion')?.replaceChildren();
     const routeTitles = {
         '#': 'Acceso',
         '#dashboard': 'Resumen',
@@ -252,15 +253,14 @@ async function updateNavBadge() {
     if (res.status === 'success' && Array.isArray(res.data)) {
         // Filtramos por leído en el servidor O en nuestra caché local
         const unread = res.data.filter(m => !m.read && m.id && !localReadCache.includes(m.id.toString())).length;
-        const msgLink = document.querySelector('a[href="#mensajes"]');
-        if (msgLink) {
-            msgLink.style.position = 'relative';
+        const msgLinks = document.querySelectorAll('a[href="#mensajes"]');
+        msgLinks.forEach(msgLink => {
             let b = msgLink.querySelector('.msg-badge');
             if (unread > 0) {
                 if (!b) { b = document.createElement('span'); b.className = 'msg-badge'; msgLink.appendChild(b); }
                 b.innerText = unread;
             } else if (b) { b.remove(); }
-        }
+        });
         if (res.data.length > 0) {
             const latest = res.data[0];
             if (latest.id && latest.id > lastSeenMsgId && lastSeenMsgId !== 0) {
@@ -271,29 +271,104 @@ async function updateNavBadge() {
     }
 }
 
-function showToast(title, msg, targetHash) {
+const toastQueue = [];
+const activeToastKeys = new Set();
+let toastIsVisible = false;
+
+function showInlineStatus(title, msg, targetHash) {
+    const region = document.getElementById('appStatusRegion');
+    if (!region) return;
+    const key = `${title}|${msg}`;
+    if (region.querySelector(`[data-status-key="${CSS.escape(key)}"]`)) return;
+    const status = document.createElement('section');
+    status.className = 'app-status-banner';
+    status.dataset.statusKey = key;
+    status.setAttribute('role', 'alert');
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', 'circle-alert');
+    const copy = document.createElement('div');
+    const heading = document.createElement('strong');
+    heading.textContent = String(title || 'Aviso');
+    const body = document.createElement('span');
+    body.textContent = String(msg || '');
+    copy.append(heading, body);
+    const actions = document.createElement('div');
+    actions.className = 'app-status-actions';
+    if (targetHash && targetHash !== window.location.hash) {
+        const link = document.createElement('a');
+        link.href = targetHash;
+        link.className = 'app-status-link';
+        link.textContent = 'Abrir';
+        actions.appendChild(link);
+    }
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'app-status-close';
+    close.setAttribute('aria-label', 'Cerrar aviso');
+    close.innerHTML = '<i data-lucide="x"></i>';
+    close.addEventListener('click', () => status.remove());
+    actions.appendChild(close);
+    status.append(icon, copy, actions);
+    region.replaceChildren(status);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function displayNextToast() {
+    if (toastIsVisible || toastQueue.length === 0) return;
     const container = document.getElementById('toast-container');
-    const t = document.createElement('div');
+    if (!container) return;
+    const item = toastQueue.shift();
+    toastIsVisible = true;
+    const t = document.createElement(item.targetHash ? 'button' : 'div');
+    if (t.tagName === 'BUTTON') t.type = 'button';
     t.className = 'toast';
     t.setAttribute('role', 'status');
     const toastTitle = document.createElement('div');
     toastTitle.className = 'toast-title';
-    toastTitle.textContent = String(title || '');
+    toastTitle.textContent = item.title;
     const toastBody = document.createElement('div');
     toastBody.className = 'toast-body';
-    toastBody.textContent = String(msg || '');
+    toastBody.textContent = item.msg;
     t.append(toastTitle, toastBody);
-    if (targetHash) {
+    if (item.targetHash) {
         const hint = document.createElement('div');
         hint.className = 'toast-hint';
-        hint.textContent = 'Pulsa para ver';
+        hint.textContent = 'Abrir';
         t.appendChild(hint);
-        t.tabIndex = 0;
-        t.onclick = () => { t.classList.add('out'); setTimeout(()=>t.remove(), 300); window.location.hash = targetHash; };
-        t.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') t.click(); };
+        t.onclick = () => {
+            dismiss();
+            window.location.hash = item.targetHash;
+        };
     }
-    container.appendChild(t);
-    setTimeout(() => { if(t.parentElement) { t.classList.add('out'); setTimeout(()=>t.remove(), 220); } }, 4200);
+    container.replaceChildren(t);
+    let closed = false;
+    const dismiss = () => {
+        if (closed) return;
+        closed = true;
+        t.classList.add('out');
+        window.setTimeout(() => {
+            t.remove();
+            activeToastKeys.delete(item.key);
+            toastIsVisible = false;
+            displayNextToast();
+        }, 180);
+    };
+    window.setTimeout(dismiss, 3800);
+}
+
+function showToast(title, msg, targetHash) {
+    const safeTitle = String(title || '');
+    const safeMessage = String(msg || '');
+    const key = `${safeTitle}|${safeMessage}`;
+    const isPersistent = /error|backend|conexión|sincronizar|no se pudo/i.test(`${safeTitle} ${safeMessage}`);
+    if (isPersistent) {
+        showInlineStatus(safeTitle, safeMessage, targetHash);
+        return;
+    }
+    if (activeToastKeys.has(key)) return;
+    activeToastKeys.add(key);
+    toastQueue.push({ title: safeTitle, msg: safeMessage, targetHash, key });
+    displayNextToast();
 }
 
 function startPoller() {

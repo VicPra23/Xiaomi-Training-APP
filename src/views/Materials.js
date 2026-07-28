@@ -230,33 +230,43 @@ function renderMaterials(container) {
     ];
 
     let activeCatId = 'smartphones';
+    let searchQuery = '';
     const esc = value => window.escapeHTML ? window.escapeHTML(value) : String(value ?? '');
 
     function renderContent(cat) {
+        const query = searchQuery.trim().toLocaleLowerCase('es');
+        const groups = (cat.subcategories || []).map(sub => ({
+            ...sub,
+            items: (sub.items || []).filter(item => !query || `${sub.name} ${item.name}`.toLocaleLowerCase('es').includes(query))
+        })).filter(sub => sub.items.length || !query);
+
         return `
-            <div class="mat-tab-content-panel" style="background: transparent; border: none; box-shadow: none; padding: 0;">
-                ${cat.subcategories ? cat.subcategories.map(sub => `
-                    <div class="glass-card" style="padding: 2rem; border-radius: 28px; margin-bottom: 2rem;">
-                        <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-main);">
-                            <div style="width: 6px; height: 20px; background: var(--xiaomi-orange); border-radius: 3px;"></div>
-                            <h4 style="margin:0; font-size: 1.1rem; text-transform: none; letter-spacing: normal;">${esc(sub.name)}</h4>
-                        </div>
-                        <div class="mat-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+            <div class="mat-tab-content-panel">
+                ${groups.length ? groups.map(sub => `
+                    <section class="material-group">
+                        <header class="material-group-heading">
+                            <h3>${esc(sub.name)}</h3>
+                            <span>${sub.items.length} ${sub.items.length === 1 ? 'recurso' : 'recursos'}</span>
+                        </header>
+                        <div class="mat-list">
                             ${sub.items.length > 0 ? sub.items.map(item => `
-                                <a href="${esc(window.safeExternalUrl(item.link))}" target="_blank" rel="noopener noreferrer" class="mat-link" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.25rem; background: var(--bg-main); border-radius: 16px; text-decoration: none; transition: all 0.2s;">
-                                    <span style="color: var(--text-main); font-weight: 500; font-size: 0.9rem;">
-                                        ${esc(item.name)}
-                                        ${item.isNew ? '<span class="badge-new" style="background: var(--xiaomi-orange); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-left: 8px;">NEW</span>' : ''}
+                                <a href="${esc(window.safeExternalUrl(item.link))}" target="_blank" rel="noopener noreferrer" class="mat-link">
+                                    <span class="mat-link-icon"><i data-lucide="file-text"></i></span>
+                                    <span class="mat-link-copy">
+                                        <strong>${esc(item.name)}</strong>
+                                        <small>Google Drive · Material de formación</small>
                                     </span>
-                                    <i data-lucide="chevron-right" style="width: 16px; color: var(--text-muted); opacity: 0.5;"></i>
+                                    ${item.isNew ? '<span class="badge-new">Nuevo</span>' : ''}
+                                    <i data-lucide="arrow-up-right" class="mat-link-arrow"></i>
                                 </a>
-                            `).join('') : '<p style="font-size:0.85rem; color:var(--text-muted); padding: 1rem; text-align: center;">Próximamente...</p>'}
+                            `).join('') : '<p class="materials-soon">Próximamente</p>'}
                         </div>
-                    </div>
+                    </section>
                 `).join('') : `
-                    <div class="glass-card" style="text-align: center; padding: 5rem 2rem;">
-                        <i data-lucide="folder-open" style="width: 64px; height: 64px; margin-bottom: 1.5rem; color: var(--border-main);"></i>
-                        <p style="color: var(--text-medium); font-size: 1.1rem;">No hay materiales disponibles en esta categoría.</p>
+                    <div class="workspace-empty">
+                        <span class="workspace-empty-icon"><i data-lucide="${query ? 'search-x' : 'folder-open'}"></i></span>
+                        <h3>${query ? 'Sin coincidencias' : 'Aún no hay materiales'}</h3>
+                        <p>${query ? 'Prueba con otro producto o categoría.' : 'Los nuevos recursos aparecerán aquí.'}</p>
                     </div>
                 `}
             </div>
@@ -284,46 +294,47 @@ function renderMaterials(container) {
 
         const html = `
             <div class="materials-module fade-in">
-                <header class="section-header page-heading">
-                    <span class="page-eyebrow">Recursos de formación</span>
-                    <h2><i data-lucide="library"></i>Materiales</h2>
-                      <p>Encuentra presentaciones, guías y recursos por categoría de producto.</p>
-                      <div style="display:flex; justify-content:flex-start; margin-top: 1.5rem; gap: 1rem;">
-                          ${(session && session.role === 'Admin') ? `
-                              <button id="btnNotifyMaterials" class="btn-primary" style="padding: 0.35rem 0.65rem; font-size: 0.7rem;"><i data-lucide="send" style="width:14px; margin-right: 6px;"></i> Notificar Novedades</button>
-                          ` : ''}
-                      </div>
+                <header class="section-header page-heading materials-heading">
+                    <div>
+                        <span class="page-eyebrow">Recursos de formación</span>
+                        <h2><i data-lucide="library"></i>Materiales</h2>
+                        <p>Presentaciones, guías y recursos por categoría de producto.</p>
+                    </div>
+                    <div class="materials-heading-actions">
+                        ${(session && session.role === 'Admin') ? `
+                            <button id="btnNotifyMaterials" class="btn-secondary"><i data-lucide="send"></i> Notificar novedades</button>
+                        ` : ''}
+                    </div>
                 </header>
-                
-                <div class="social-access-bar" style="margin-bottom: 4rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                    <a href="https://www.tiktok.com/@xiaomitrainingvideos" target="_blank" rel="noopener noreferrer" class="glass-card" style="display:flex; align-items:center; gap: 18px; padding: 1.5rem; text-decoration: none; border-radius: 24px; transition: all 0.3s ease;">
-                        <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content:center;">
-                            <img src="https://cdn.simpleicons.org/tiktok/000000" alt="TikTok" class="tiktok-icon-fix" style="width: 32px; height: 32px; transition: filter 0.3s;">
-                        </div>
-                        <div>
-                            <strong style="display:block; color: var(--text-main); font-size: 1.05rem;">TikTok</strong>
-                            <span style="font-size:0.8rem; color: var(--text-muted); font-weight: 500;">@xiaomitrainingvideos</span>
-                        </div>
+
+                <div class="materials-utility-bar">
+                    <label class="materials-search">
+                        <i data-lucide="search"></i>
+                        <input id="materialsSearch" type="search" placeholder="Buscar producto o material" autocomplete="off">
+                        <span class="sr-only">Buscar materiales</span>
+                    </label>
+                    <div class="social-access-bar" aria-label="Canales de Xiaomi Training">
+                    <a href="https://www.tiktok.com/@xiaomitrainingvideos" target="_blank" rel="noopener noreferrer" class="social-access-link">
+                        <img src="https://cdn.simpleicons.org/tiktok/000000" alt="">
+                        <span><strong>TikTok</strong><small>@xiaomitrainingvideos</small></span>
+                        <i data-lucide="arrow-up-right"></i>
                     </a>
-                    <a href="https://www.youtube.com/@xiaomitrainingvideos" target="_blank" rel="noopener noreferrer" class="glass-card" style="display:flex; align-items:center; gap: 18px; padding: 1.5rem; text-decoration: none; border-radius: 24px; transition: all 0.3s ease;">
-                        <div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content:center;">
-                            <img src="https://cdn.simpleicons.org/youtube/ff0000" alt="YouTube" style="width: 34px; height: auto;">
-                        </div>
-                        <div>
-                            <strong style="display:block; color: var(--text-main); font-size: 1.05rem;">YouTube</strong>
-                            <span style="font-size:0.8rem; color: var(--text-muted); font-weight: 500;">@xiaomitrainingvideos</span>
-                        </div>
+                    <a href="https://www.youtube.com/@xiaomitrainingvideos" target="_blank" rel="noopener noreferrer" class="social-access-link">
+                        <img src="https://cdn.simpleicons.org/youtube/ff0000" alt="">
+                        <span><strong>YouTube</strong><small>@xiaomitrainingvideos</small></span>
+                        <i data-lucide="arrow-up-right"></i>
                     </a>
+                    </div>
                 </div>
 
-                <div class="mat-tabs-header" role="tablist" aria-label="Categorías de materiales" style="margin-bottom: 3rem; display: flex; gap: 10px; overflow-x: auto; padding: 10px 5px; flex-wrap: nowrap; scrollbar-width: none;">
+                <div class="mat-tabs-header" role="tablist" aria-label="Categorías de materiales">
                     ${categories.map(c => {
                         const hasNew = c.subcategories && c.subcategories.some(sub => sub.items && sub.items.some(item => item.isNew));
                         return `
-                        <button type="button" role="tab" aria-selected="${c.id === activeCatId ? 'true' : 'false'}" class="mat-tab-btn ${c.id === activeCatId ? 'active' : ''}" data-id="${esc(c.id)}" style="flex: 0 0 auto; min-width: 130px; padding: 1rem 0.5rem; border-radius: 16px; position: relative;">
-                            ${hasNew ? '<span class="badge-new" style="position: absolute; top: -5px; right: -5px; margin: 0; padding: 2px 5px; font-size: 0.65rem;">NEW</span>' : ''}
-                            <i data-lucide="${c.icon}" style="width: 20px; height: 20px;"></i>
-                            <span style="font-weight: 600; font-size: 0.9rem;">${esc(c.title)}</span>
+                        <button type="button" role="tab" aria-selected="${c.id === activeCatId ? 'true' : 'false'}" class="mat-tab-btn ${c.id === activeCatId ? 'active' : ''}" data-id="${esc(c.id)}">
+                            ${hasNew ? '<span class="badge-new">Nuevo</span>' : ''}
+                            <i data-lucide="${c.icon}"></i>
+                            <span>${esc(c.title)}</span>
                         </button>
                         `;
                     }).join('')}
@@ -336,6 +347,17 @@ function renderMaterials(container) {
         `;
         container.innerHTML = html;
         if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        const searchInput = container.querySelector('#materialsSearch');
+        if (searchInput) {
+            searchInput.value = searchQuery;
+            searchInput.addEventListener('input', event => {
+                searchQuery = event.target.value;
+                const contentContainer = container.querySelector('#mat-tab-content-container');
+                if (contentContainer) contentContainer.innerHTML = renderContent(categories.find(c => c.id === activeCatId));
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        }
 
         const materialTabs = Array.from(container.querySelectorAll('.mat-tab-btn'));
         materialTabs.forEach((btn, index) => {
