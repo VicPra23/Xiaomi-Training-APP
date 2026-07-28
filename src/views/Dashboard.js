@@ -105,7 +105,7 @@ function renderDashboard(container) {
                         <option value="Todos">Todos</option>
                     </select>
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div style="display: flex; gap: 8px; align-self: flex-end;">
                     <button id="btnToggleRange" class="btn-secondary" aria-label="Cambiar entre periodo y rango de fechas" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Cambiar entre periodo y rango"><i data-lucide="calendar" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" aria-label="Aplicar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Aplicar filtros"><i data-lucide="search" style="width:18px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" aria-label="Limpiar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Limpiar filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
@@ -134,7 +134,7 @@ function renderDashboard(container) {
                         <input type="date" id="dashboardDateEnd" class="form-control" style="height: 42px; font-size: 0.85rem; text-align:center;">
                     </div>
                 </div>
-                <div style="display:flex; gap:8px;">
+                <div style="display:flex; gap:8px; align-self: flex-end;">
                     <button id="btnToggleRange" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Alternar Rango/Periodos"><i data-lucide="calendar" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" style="height:42px; width:42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="search" style="width:20px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="refresh-ccw" style="width:18px;"></i></button>
@@ -152,9 +152,7 @@ function renderDashboard(container) {
                         ${isAdmin ? 'Visión global del equipo y actividad reciente.' : 'Tu actividad, objetivos y próximos pasos.'}
                     </p>
                 </div>
-                <button type="button" class="btn-primary dash-primary-action" onclick="window.reportEditData=null; window.location.hash='#report'">
-                    <i data-lucide="plus"></i><span>Crear reporte</span>
-                </button>
+                
             </header>
 
             ${filterCard}
@@ -1408,6 +1406,32 @@ function renderDashboard(container) {
 }
 
 let weeklyChart, methodsChart, trainersChart;
+
+        Chart.register({
+            id: 'inlineDataLabels',
+            afterDatasetsDraw: (chart) => {
+                const ctx = chart.ctx;
+                chart.data.datasets.forEach((dataset, i) => {
+                    const meta = chart.getDatasetMeta(i);
+                    if(meta.hidden) return;
+                    meta.data.forEach((bar, index) => {
+                        const data = dataset.data[index];
+                        if(data !== 0 && data !== undefined) {
+                            ctx.fillStyle = (document.documentElement.getAttribute('data-theme') === 'dark' || document.documentElement.classList.contains('dark')) ? '#ffffff' : '#4b5563';
+                            ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            if(chart.options.indexAxis === 'y') {
+                                ctx.fillText(data, bar.x + 12, bar.y);
+                            } else {
+                                ctx.fillText(data, bar.x, bar.y - 12);
+                            }
+                        }
+                    });
+                });
+            }
+        });
+
 function renderCharts(data) {
     if (!data) return;
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -1531,7 +1555,7 @@ function renderCharts(data) {
                     data: methodValues,
                     backgroundColor: methodValues.map((_, index) => index === 0 ? primaryColor : secondaryColor),
                     borderWidth: 0,
-                    borderRadius: 7,
+                    borderRadius: 12,
                     borderSkipped: false,
                     maxBarThickness: 24
                 }] 
@@ -1586,8 +1610,8 @@ function renderCharts(data) {
                 data: {
                     labels: names,
                     datasets: [
-                        { label: 'Personas', data: names.map(n => trainerStats[n]?.alumnos || 0), backgroundColor: gradT_Orange, borderRadius: 7, maxBarThickness: 24, borderWidth: 0, borderSkipped: false },
-                        { label: 'Sesiones', data: names.map(n => trainerStats[n]?.sesiones || 0), backgroundColor: gradT_Gray, borderRadius: 7, maxBarThickness: 24, borderWidth: 0, borderSkipped: false }
+                        { label: 'Personas', data: names.map(n => trainerStats[n]?.alumnos || 0), backgroundColor: gradT_Orange, borderRadius: 12, maxBarThickness: 24, borderWidth: 0, borderSkipped: false },
+                        { label: 'Sesiones', data: names.map(n => trainerStats[n]?.sesiones || 0), backgroundColor: gradT_Gray, borderRadius: 12, maxBarThickness: 24, borderWidth: 0, borderSkipped: false }
                     ]
                 },
                 options: {
