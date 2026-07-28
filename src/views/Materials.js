@@ -233,7 +233,7 @@ function renderMaterials(container) {
     let searchQuery = '';
     const esc = value => window.escapeHTML ? window.escapeHTML(value) : String(value ?? '');
 
-    function renderContent(cat) {
+    function renderContent(cat, isGlobalSearch = false) {
         const query = searchQuery.trim().toLocaleLowerCase('es');
         const groups = (cat.subcategories || []).map(sub => ({
             ...sub,
@@ -354,7 +354,14 @@ function renderMaterials(container) {
             searchInput.addEventListener('input', event => {
                 searchQuery = event.target.value;
                 const contentContainer = container.querySelector('#mat-tab-content-container');
-                if (contentContainer) contentContainer.innerHTML = renderContent(categories.find(c => c.id === activeCatId));
+                if (contentContainer) {
+                      if (searchQuery.trim()) {
+                          const allHtml = categories.map(c => renderContent(c, true)).filter(html => html.includes('<section class="material-group"')).join('');
+                          contentContainer.innerHTML = allHtml || `<div class="glass-card" style="text-align: center; padding: 5rem 2rem;"><p style="color: var(--text-medium); font-size: 1.1rem;">No hay resultados en ninguna categoría.</p></div>`;
+                      } else {
+                          contentContainer.innerHTML = renderContent(categories.find(c => c.id === activeCatId));
+                      }
+                  }
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             });
         }

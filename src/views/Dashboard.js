@@ -1586,8 +1586,8 @@ function renderCharts(data) {
                 data: {
                     labels: names,
                     datasets: [
-                        { label: 'Personas', data: names.map(n => trainerStats[n]?.alumnos || 0), backgroundColor: gradT_Orange, borderRadius: 20 },
-                        { label: 'Sesiones', data: names.map(n => trainerStats[n]?.sesiones || 0), backgroundColor: gradT_Gray, borderRadius: 20 }
+                        { label: 'Personas', data: names.map(n => trainerStats[n]?.alumnos || 0), backgroundColor: gradT_Orange, borderRadius: 7, maxBarThickness: 24, borderWidth: 0, borderSkipped: false },
+                        { label: 'Sesiones', data: names.map(n => trainerStats[n]?.sesiones || 0), backgroundColor: gradT_Gray, borderRadius: 7, maxBarThickness: 24, borderWidth: 0, borderSkipped: false }
                     ]
                 },
                 options: {

@@ -5105,3 +5105,12 @@ p,
         justify-self: start;
     }
 }
+
+.materials-utility-bar .social-access-bar {
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
+}
+.materials-utility-bar .materials-search {
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
+}
