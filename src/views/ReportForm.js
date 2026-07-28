@@ -161,9 +161,10 @@ function renderReport(container, editData = null) {
 
     const html = `
     <div class="report-module fade-in">
-        <header class="section-header" style="margin-bottom: 2rem; border-bottom: 1px solid var(--border-main); padding-bottom: 1.5rem;">
-            <h2 style="font-size: 1.75rem; margin-bottom: 0.5rem;"><i data-lucide="edit-3" style="color: var(--xiaomi-orange); width: 28px; vertical-align: middle; margin-right: 10px;"></i> ${editData && editData.mode === 'edit' ? 'Editar Reporte' : (editData && editData.mode === 'duplicate' ? 'Duplicar Reporte' : 'Nuevo Reporte de Formación')}</h2>
-            <p style="color:var(--text-medium); font-weight: 500;">Registra los detalles de tu última sesión de entrenamiento.</p>
+        <header class="section-header page-heading">
+            <span class="page-eyebrow">Actividad de formación</span>
+            <h2><i data-lucide="square-pen"></i>${editData && editData.mode === 'edit' ? 'Editar reporte' : (editData && editData.mode === 'duplicate' ? 'Duplicar reporte' : 'Crear reporte')}</h2>
+            <p>Registra la sesión con la información necesaria para el seguimiento del equipo.</p>
             <div id="reportDraftStatus" class="report-draft-status" aria-live="polite"><i data-lucide="cloud-check"></i><span>${editData ? 'Edición protegida' : 'Borrador automático activo'}</span></div>
         </header>
 
@@ -586,12 +587,12 @@ function renderReport(container, editData = null) {
     photoInput.onchange = async (e) => {
         const files = Array.from(e.target.files || []);
         if(photosArray.length + existingPhotos.length + files.length > 20) { 
-            alert("Máximo 20 fotos en total."); 
+            showToast("Límite de fotos", "Puedes adjuntar un máximo de 20 fotos por reporte."); 
             return; 
         }
         const oversized = files.find(file => file.size > 10 * 1024 * 1024);
         if (oversized) {
-            alert(`La foto “${oversized.name}” supera 10 MB. Redúcela antes de subirla.`);
+            showToast("Foto demasiado grande", `“${oversized.name}” supera 10 MB. Redúcela antes de subirla.`);
             photoInput.value = "";
             return;
         }
@@ -775,12 +776,12 @@ function renderReport(container, editData = null) {
                 showToast("¡Éxito!", (editData && editData.mode === 'edit') ? "Reporte actualizado." : "Reporte enviado correctamente.");
                 navigate('#dashboard');
             } else {
-                alert("Error: " + res.message);
+                showToast("No se pudo guardar", res.message || "Revisa los datos e inténtalo de nuevo.");
                 btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte');
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
         } catch(err) {
-            alert("Error de conexión.");
+            showToast("Error de conexión", "No se pudo enviar el reporte. Comprueba la conexión e inténtalo de nuevo.");
             btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte');
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }

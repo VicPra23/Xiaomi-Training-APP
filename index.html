@@ -2,7 +2,7 @@
 <html lang="es" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Xiaomi Training APP</title>
     <link rel="icon" href="./Xiaomi_logo_(2021-).svg.png" type="image/png">
     
@@ -18,7 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
     
     <!-- Custom Style -->
-    <link rel="stylesheet" href="style.css?v=42.3">
+    <link rel="stylesheet" href="style.css?v=43.1">
     
     <!-- TomSelect (Necesario para ReportForm) -->
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
@@ -31,15 +31,16 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
+    <a class="skip-link" href="#mainContent">Saltar al contenido</a>
     <div id="navOverlay" class="nav-overlay"></div>
 
-    <nav class="glass-nav" id="navbar" style="display: none; border-bottom: 1px solid var(--border-main);">
+    <nav class="glass-nav" id="navbar" style="display: none;" aria-label="Navegación principal">
         <div class="nav-container">
-            <a href="#dashboard" class="nav-brand">
-                <img src="./Xiaomi_logo_(2021-).svg.png" alt="Xiaomi Logo" style="width: 30px; height: 30px; border-radius: 8px;">
+            <a href="#dashboard" class="nav-brand" aria-label="Xiaomi Trainer Platform · Inicio">
+                <img src="./Xiaomi_logo_(2021-).svg.png" alt="" width="32" height="32">
                 <div class="brand-info">
                     <strong class="brand-text">Xiaomi</strong>
-                    <span class="brand-subtext">Trainer APP</span>
+                    <span class="brand-subtext">Trainer Platform</span>
                 </div>
             </a>
 
@@ -49,26 +50,31 @@
             </button>
 
             <ul class="nav-links" id="navLinks">
-                <li><a href="#dashboard" class="nav-link"><i data-lucide="layout-grid"></i> Dashboard</a></li>
-                <li><a href="#report" class="nav-link"><i data-lucide="edit-3"></i> Reporte</a></li>
-                <li><a href="#calendar" class="nav-link"><i data-lucide="calendar"></i> Calendario</a></li>
-                <li><a href="#vacations" class="nav-link"><i data-lucide="umbrella"></i> Vacaciones</a></li>
-                <li><a href="#materials" class="nav-link"><i data-lucide="layers"></i> Materiales</a></li>
-                <li><a href="#mensajes" class="nav-link"><i data-lucide="mail"></i> Mensajes</a></li>
-                <li class="nav-divider"></li>
-                <li class="nav-actions">
-                    <button onclick="window.toggleTheme()" class="theme-toggle-btn" title="Cambiar Tema">
+                <li><a href="#dashboard" class="nav-link"><i data-lucide="layout-dashboard"></i><span>Resumen</span></a></li>
+                <li><a href="#report" class="nav-link"><i data-lucide="square-pen"></i><span>Reporte</span></a></li>
+                <li><a href="#calendar" class="nav-link"><i data-lucide="calendar-days"></i><span>Calendario</span></a></li>
+                <li><a href="#vacations" class="nav-link"><i data-lucide="umbrella"></i><span>Vacaciones</span></a></li>
+                <li><a href="#materials" class="nav-link"><i data-lucide="library"></i><span>Materiales</span></a></li>
+                <li><a href="#mensajes" class="nav-link"><i data-lucide="inbox"></i><span>Mensajes</span></a></li>
+            </ul>
+            <div class="nav-actions">
+                    <div class="nav-user" id="navUser" aria-label="Sesión actual">
+                        <span class="nav-user-avatar" id="navUserAvatar">XT</span>
+                        <span class="nav-user-copy"><strong id="navUserName">Equipo</strong><small id="navUserRole">Trainer</small></span>
+                    </div>
+                    <button type="button" onclick="window.toggleTheme()" class="theme-toggle-btn" title="Cambiar tema" aria-label="Cambiar tema">
                         <i data-lucide="sun" class="sun-icon"></i>
                         <i data-lucide="moon" class="moon-icon"></i>
                     </button>
-                    <a href="#" id="logoutBtn" class="nav-link danger" title="Cerrar Sesión"><i data-lucide="power"></i></a>
-                </li>
-            </ul>
+                    <a href="#" id="logoutBtn" class="nav-link danger" title="Cerrar sesión" aria-label="Cerrar sesión"><i data-lucide="log-out"></i></a>
+            </div>
         </div>
     </nav>
 
-    <main class="app-container" id="app">
+    <main class="app-container" id="mainContent" tabindex="-1">
+        <div id="app">
         <!-- Vistas dinámicas -->
+        </div>
     </main>
     
     <!-- Scripts -->
@@ -76,20 +82,19 @@
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     
     <!-- Vistas y Lógica -->
-    <script src="src/services/api.js?v=42.3"></script>
-    <script src="src/views/Login.js?v=42.3"></script>
-    <script src="src/views/Dashboard.js?v=42.3"></script>
-    <script src="src/views/ReportForm.js?v=42.3"></script>
-    <script src="src/views/Calendar.js?v=42.3"></script>
-    <script src="src/views/Vacations.js?v=42.3"></script>
-    <script src="src/views/Materials.js?v=42.3"></script>
-    <script src="src/views/Messages.js?v=42.3"></script>
-    <script src="src/main.js?v=42.3"></script>
+    <script src="src/services/api.js?v=43.1"></script>
+    <script src="src/views/Login.js?v=43.1"></script>
+    <script src="src/views/Dashboard.js?v=43.1"></script>
+    <script src="src/views/ReportForm.js?v=43.1"></script>
+    <script src="src/views/Calendar.js?v=43.1"></script>
+    <script src="src/views/Vacations.js?v=43.1"></script>
+    <script src="src/views/Materials.js?v=43.1"></script>
+    <script src="src/views/Messages.js?v=43.1"></script>
+    <script src="src/main.js?v=43.1"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js').then(reg => {
-                    console.log('SW registrado', reg);
                     reg.onupdatefound = () => {
                         const installingWorker = reg.installing;
                         installingWorker.onstatechange = () => {
@@ -108,9 +113,7 @@
                             }
                         };
                     };
-                }).catch(err => {
-                    console.log('SW error', err);
-                });
+                }).catch(() => {});
             });
         }
     </script>

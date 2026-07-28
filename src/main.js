@@ -14,6 +14,7 @@ window.safeExternalUrl = value => {
 };
 
 const app = document.getElementById('app');
+const mainContent = document.getElementById('mainContent');
 const navbar = document.getElementById('navbar');
 const navLinks = document.getElementById('navLinks');
 let lastSeenMsgId = 0;
@@ -150,6 +151,15 @@ let hasShownNews = false;
 
 function navigateRouter() {
     let hash = window.location.hash || '#';
+    const routeTitles = {
+        '#': 'Acceso',
+        '#dashboard': 'Resumen',
+        '#report': 'Reporte',
+        '#calendar': 'Calendario',
+        '#vacations': 'Vacaciones',
+        '#materials': 'Materiales',
+        '#mensajes': 'Mensajes'
+    };
     if (hash !== '#report' && window._reportBeforeUnload) {
         window.removeEventListener('beforeunload', window._reportBeforeUnload);
         window._reportBeforeUnload = null;
@@ -167,23 +177,30 @@ function navigateRouter() {
     });
     if (user) {
         document.body.classList.toggle('is-admin', user.role === 'Admin');
-        updateNavBadge();
+        const displayName = String(user.name || user.user || 'Equipo');
+        const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+        const navUserName = document.getElementById('navUserName');
+        const navUserRole = document.getElementById('navUserRole');
+        const navUserAvatar = document.getElementById('navUserAvatar');
+        if (navUserName) navUserName.textContent = displayName;
+        if (navUserRole) navUserRole.textContent = user.role === 'Admin' ? 'Administración' : (user.sede || 'Trainer');
+        if (navUserAvatar) navUserAvatar.textContent = initials || 'XT';
+        updateNavBadge().catch(() => {});
         if(!hasShownNews) {
             hasShownNews = true;
             api.getMessages({ targetUser: user.user }).then(res => {
-                if(res.status === 'success') {
+                if(res.status === 'success' && Array.isArray(res.data)) {
                     const unread = res.data.filter(m => !m.read && m.id && !localReadCache.includes(m.id.toString())).length;
                     if(unread > 0) {
                         const label = unread === 1 ? "tienes 1 mensaje pendiente" : `tienes ${unread} mensajes pendientes`;
                         showToast("¡Tienes novedades!", `Hola ${user.name}, ${label} en tu buzón.`, "#mensajes");
                     }
                 }
-            });
+            }).catch(() => {});
         }
     }
 
     try {
-        console.log("Navigating to:", hash);
         switch (hash) {
             case '#': renderLogin(app); break;
             case '#dashboard': renderDashboard(app); break;
@@ -199,8 +216,19 @@ function navigateRouter() {
         }
     } catch (e) {
         console.error("Router Error:", e);
-        renderDashboard(app);
+        app.innerHTML = `
+            <section class="route-error" role="alert">
+                <i data-lucide="triangle-alert"></i>
+                <span>La vista no ha podido abrirse</span>
+                <h1>Vamos a recuperarla.</h1>
+                <p>Vuelve al resumen y reintenta la operación. Tus datos guardados no se han modificado.</p>
+                <button type="button" class="btn-primary" id="routeRecovery">Volver al resumen</button>
+            </section>`;
+        document.getElementById('routeRecovery')?.addEventListener('click', () => navigate('#dashboard'));
     }
+    document.title = `${routeTitles[hash] || 'Xiaomi Trainer'} · Xiaomi Trainer`;
+    app.classList.remove('route-entering');
+    window.requestAnimationFrame(() => app.classList.add('route-entering'));
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
 
     // Renderizado de iconos Lucide tras cada navegación
@@ -221,7 +249,7 @@ async function updateNavBadge() {
     const userData = getSessionData();
     if (!userData) return;
     const res = await api.getMessages({ targetUser: userData.user });
-    if (res.status === 'success') {
+    if (res.status === 'success' && Array.isArray(res.data)) {
         // Filtramos por leído en el servidor O en nuestra caché local
         const unread = res.data.filter(m => !m.read && m.id && !localReadCache.includes(m.id.toString())).length;
         const msgLink = document.querySelector('a[href="#mensajes"]');
@@ -265,7 +293,7 @@ function showToast(title, msg, targetHash) {
         t.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') t.click(); };
     }
     container.appendChild(t);
-    setTimeout(() => { if(t.parentElement) { t.classList.add('out'); setTimeout(()=>t.remove(), 300); } }, 2000);
+    setTimeout(() => { if(t.parentElement) { t.classList.add('out'); setTimeout(()=>t.remove(), 220); } }, 4200);
 }
 
 function startPoller() {

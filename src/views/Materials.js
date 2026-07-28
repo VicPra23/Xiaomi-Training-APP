@@ -272,6 +272,7 @@ function renderMaterials(container) {
                 if (btn.dataset.id === activeCatId) btn.classList.add('active');
                 else btn.classList.remove('active');
                 btn.setAttribute('aria-selected', btn.dataset.id === activeCatId ? 'true' : 'false');
+                btn.tabIndex = btn.dataset.id === activeCatId ? 0 : -1;
             });
             const contentContainer = container.querySelector('#mat-tab-content-container');
             if (contentContainer) {
@@ -283,9 +284,10 @@ function renderMaterials(container) {
 
         const html = `
             <div class="materials-module fade-in">
-                <header class="section-header" style="margin-bottom: 3.5rem; text-align: center;">
-                    <h2 style="font-size: 2.2rem; letter-spacing: -0.03em; display: flex; align-items: center; justify-content: center; gap: 12px;">Biblioteca de Materiales <i data-lucide="book-open" style="color: var(--xiaomi-orange); width: 28px; height: 28px;"></i></h2>
-                    <p style="color:var(--text-medium); margin: 0.5rem 0 1.5rem 0; font-weight: 500; font-size: 1.1rem;">Todo lo que necesitas para tus formaciones en un solo lugar.</p>
+                <header class="section-header page-heading">
+                    <span class="page-eyebrow">Recursos de formación</span>
+                    <h2><i data-lucide="library"></i>Materiales</h2>
+                    <p>Encuentra presentaciones, guías y recursos por categoría de producto.</p>
                     <div style="display:flex; justify-content:center; gap: 1rem;">
                         ${(session && session.role === 'Admin') ? `
                             <button id="btnNotifyMaterials" class="btn-primary" style="padding: 0.75rem 1.5rem; font-size:0.85rem;"><i data-lucide="send" style="width:16px; margin-right: 8px;"></i> Notificar Novedades</button>
@@ -335,10 +337,23 @@ function renderMaterials(container) {
         container.innerHTML = html;
         if (typeof lucide !== 'undefined') lucide.createIcons();
 
-        container.querySelectorAll('.mat-tab-btn').forEach(btn => {
+        const materialTabs = Array.from(container.querySelectorAll('.mat-tab-btn'));
+        materialTabs.forEach((btn, index) => {
+            btn.tabIndex = btn.dataset.id === activeCatId ? 0 : -1;
             btn.onclick = () => {
                 activeCatId = btn.dataset.id;
                 updateView();
+            };
+            btn.onkeydown = event => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                let nextIndex = index;
+                if (event.key === 'ArrowLeft') nextIndex = (index - 1 + materialTabs.length) % materialTabs.length;
+                if (event.key === 'ArrowRight') nextIndex = (index + 1) % materialTabs.length;
+                if (event.key === 'Home') nextIndex = 0;
+                if (event.key === 'End') nextIndex = materialTabs.length - 1;
+                materialTabs[nextIndex].click();
+                container.querySelector(`.mat-tab-btn[data-id="${materialTabs[nextIndex].dataset.id}"]`)?.focus();
             };
         });
 

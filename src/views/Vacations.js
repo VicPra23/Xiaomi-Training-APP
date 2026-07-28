@@ -78,8 +78,9 @@ function renderVacations(container) {
     const html = `
         <div class="vaca-module fade-in">
             <header class="vaca-header">
-                <h2 style="font-size: 2.2rem; letter-spacing: -0.03em;"><i data-lucide="umbrella" style="color: var(--xiaomi-orange); width: 32px; vertical-align: middle; margin-right: 12px;"></i> Gestión de Vacaciones</h2>
-                <p style="color: var(--text-medium); font-weight: 500; font-size: 1.1rem; margin-top: 10px;">Planifica tus días de descanso, recarga pilas y desconecta del mundo.</p>
+                <span class="page-eyebrow">Disponibilidad del equipo</span>
+                <h2><i data-lucide="umbrella"></i>Vacaciones</h2>
+                <p>Consulta tu saldo, selecciona las fechas y envía la solicitud.</p>
             </header>
 
             <div class="stats-grid">

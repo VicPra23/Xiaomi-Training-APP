@@ -45,7 +45,7 @@ function renderCalendar(container) {
                     <p>Desplázate para recorrer el año. Pulsa un día para planificarlo.</p>
                 </div>
                 <div class="calendar-primary-actions">
-                    <button id="calendarToday" class="btn-primary calendar-today-btn" type="button">
+                    <button id="calendarToday" class="btn-primary calendar-today-btn" type="button" aria-label="Ir al día de hoy">
                         <i data-lucide="locate-fixed"></i><span>Hoy</span>
                     </button>
                     <label class="calendar-year-control">

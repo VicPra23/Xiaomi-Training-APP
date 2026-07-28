@@ -46,6 +46,11 @@ function renderDashboard(container) {
 
     const filterCard = isAdmin ? `
         <div class="glass-card dashboard-filter-card" style="margin-bottom: 2rem; position: relative; z-index: 10;">
+            <button type="button" class="dashboard-filter-toggle" aria-expanded="true">
+                <i data-lucide="sliders-horizontal"></i>
+                <span>Filtros del resumen<small>Acota el periodo, trainer o actividad</small></span>
+                <i data-lucide="chevron-down"></i>
+            </button>
             <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:center;">
                 <div class="form-group" style="margin:0; min-width: 130px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Trainer</label>
@@ -102,13 +107,18 @@ function renderDashboard(container) {
                     </select>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button id="btnToggleRange" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Alternar Rango/Periodos"><i data-lucide="calendar" style="width:18px;"></i></button>
-                    <button id="btnFilter" class="btn-primary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Filtrar"><i data-lucide="search" style="width:18px;"></i></button>
-                    <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Borrar Filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
+                    <button id="btnToggleRange" class="btn-secondary" aria-label="Cambiar entre periodo y rango de fechas" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Cambiar entre periodo y rango"><i data-lucide="calendar" style="width:18px;"></i></button>
+                    <button id="btnFilter" class="btn-primary" aria-label="Aplicar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Aplicar filtros"><i data-lucide="search" style="width:18px;"></i></button>
+                    <button id="btnClearFilters" class="btn-secondary" aria-label="Limpiar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Limpiar filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
                 </div>
             </div>
         </div>` : `
         <div class="glass-card dashboard-filter-card" style="margin-left: 0; margin-right: auto; margin-bottom: 2rem; max-width: 500px; padding: 0.75rem 1.25rem; position: relative; z-index: 10;">
+            <button type="button" class="dashboard-filter-toggle" aria-expanded="true">
+                <i data-lucide="sliders-horizontal"></i>
+                <span>Periodo del resumen<small>Consulta una semana o un rango</small></span>
+                <i data-lucide="chevron-down"></i>
+            </button>
             <div class="dashboard-filter-content" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
                 <div id="periodFiltersContainer" style="display:flex; gap:12px;">
                     <div class="form-group" style="margin:0; min-width: 180px; flex: 0 1 auto; text-align: center;">
@@ -330,6 +340,16 @@ function renderDashboard(container) {
         });
     });
     const dashboardFilterCard = container.querySelector('.dashboard-filter-card');
+    const dashboardFilterToggle = dashboardFilterCard?.querySelector('.dashboard-filter-toggle');
+    if (dashboardFilterCard && dashboardFilterToggle) {
+        const startsCollapsed = window.matchMedia('(max-width: 768px)').matches;
+        dashboardFilterCard.classList.toggle('is-collapsed', startsCollapsed);
+        dashboardFilterToggle.setAttribute('aria-expanded', startsCollapsed ? 'false' : 'true');
+        dashboardFilterToggle.addEventListener('click', () => {
+            const collapsed = dashboardFilterCard.classList.toggle('is-collapsed');
+            dashboardFilterToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        });
+    }
 
     // Limpiar cualquier instancia previa de TomSelect al iniciar
     window.tsInstances = window.tsInstances || {};
@@ -943,16 +963,16 @@ function renderDashboard(container) {
     };
     
     window.isUpdatingHistoryFilters = false;
-    const updateHistoryFilters = (af) => {
+    const updateHistoryFilters = (af = {}) => {
         if (window.isUpdatingHistoryFilters) return;
         window.isUpdatingHistoryFilters = true;
         try {
             const selectors = [
-                { id: 'histFilterMonth', data: af.months, label: 'Todos' },
+                { id: 'histFilterMonth', data: Array.isArray(af.months) ? af.months : [], label: 'Todos' },
                 { id: 'histFilterWeek', data: (af.weeks && af.weeks.length > 0) ? af.weeks : [...weeksList].sort((a,b)=>b-a), label: 'Todas' },
-                { id: 'histFilterAccount', data: af.accounts, label: 'Todas' },
-                { id: 'histFilterDevice', data: af.devices, label: 'Todos' },
-                { id: 'histFilterMethod', data: af.methods, label: 'Todas' }
+                { id: 'histFilterAccount', data: Array.isArray(af.accounts) ? af.accounts : [], label: 'Todas' },
+                { id: 'histFilterDevice', data: Array.isArray(af.devices) ? af.devices : [], label: 'Todos' },
+                { id: 'histFilterMethod', data: Array.isArray(af.methods) ? af.methods : [], label: 'Todas' }
             ];
             
             selectors.forEach(s => {
@@ -1404,8 +1424,6 @@ function renderCharts(data) {
     }
 
     try {
-        console.log("Rendering Dashboard charts with data:", data);
-
         // Configuración global de Chart.js
         Chart.defaults.font.family = "'Inter', 'Outfit', sans-serif";
         Chart.defaults.color = textColor;

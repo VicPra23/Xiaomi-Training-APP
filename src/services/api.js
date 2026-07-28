@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwIMFI2w5usQCZeAU_FlZj2TkHmmezDg_js0hT1z95LeTl_A2n-69FrKimgeCkNt8K1LQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycby4lZ6nq57asoiuwGbenv1JP1VnbhoDddQgwu0OMiFmhmW1rtfA5wbvY1ddsPxFn4msAg/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -88,7 +88,6 @@ function sendGet(action, params = {}, useCache = false) {
 async function sendPost(action, data = {}) {
     const session = getSessionData();
     const payload = JSON.stringify({ action, ...data, ...(session?.token && action !== "login" ? { token: session.token } : {}) });
-    console.log(`[API] sending POST for action: ${action}`);
     
     try {
         const res = await fetch(API_URL, { 
@@ -103,7 +102,6 @@ async function sendPost(action, data = {}) {
         const result = await res.json();
         handleAuthFailure(result);
         
-        console.log(`[API] POST sent successfully`);
         _metadataCache.clear(); // Limpiamos caché porque hubo cambios
         return result;
     } catch (e) {

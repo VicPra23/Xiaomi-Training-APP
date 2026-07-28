@@ -1,10 +1,13 @@
 {
-  "name": "Xiaomi Training APP",
+  "id": "./",
+  "name": "Xiaomi Trainer Platform",
   "short_name": "Xiaomi Trainer",
-  "description": "Aplicación de gestión para entrenadores Xiaomi",
+  "description": "Planificación, reportes y recursos del equipo de formación Xiaomi.",
+  "lang": "es",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#fbfaf8",
   "theme_color": "#ff6700",
   "icons": [
     {
