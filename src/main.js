@@ -227,7 +227,7 @@ function navigateRouter() {
             </section>`;
         document.getElementById('routeRecovery')?.addEventListener('click', () => navigate('#dashboard'));
     }
-    document.title = `${routeTitles[hash] || 'Xiaomi Trainer'} · Xiaomi Trainer`;
+    document.title = 'Xiaomi Trainer';
     app.classList.remove('route-entering');
     window.requestAnimationFrame(() => app.classList.add('route-entering'));
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });

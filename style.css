@@ -5114,3 +5114,565 @@ p,
     margin-bottom: 0 !important;
     margin-top: 0 !important;
 }
+
+/* ==========================================================================
+   V45 · RESPONSIVE WORKSPACE REFINEMENT
+   Requirements from "Mejoras APP(2)": dashboard, calendar, materials,
+   clipboard and vacations without horizontal clipping.
+   ========================================================================== */
+
+/* Dashboard: one visual language for filters, charts and activity history. */
+.dashboard-filter-toggle > .dashboard-filter-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.dashboard-filter-toggle-label svg {
+    flex: 0 0 auto;
+}
+
+.admin-charts-container {
+    gap: 0;
+    margin-bottom: clamp(1.75rem, 4vw, 3rem);
+    border-block: 1px solid var(--workspace-rule);
+}
+
+.admin-charts-container > .workspace-panel {
+    min-width: 0;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.admin-charts-container > .workspace-panel + .workspace-panel {
+    border-left: 1px solid var(--workspace-rule) !important;
+}
+
+.trainer-performance-panel .chart-wrapper {
+    height: clamp(260px, 30vw, 390px) !important;
+}
+
+.activity-history-panel {
+    border: 1px solid var(--workspace-rule) !important;
+    border-radius: var(--workspace-radius-surface) !important;
+    background: var(--bg-card) !important;
+    box-shadow: none !important;
+}
+
+.activity-history-panel > div:first-child {
+    padding: clamp(1rem, 2.4vw, 1.65rem) !important;
+}
+
+.activity-history-panel > div:first-child > div:first-child {
+    margin-bottom: 1rem !important;
+}
+
+.activity-history-panel h3 {
+    font-size: clamp(1.1rem, 2vw, 1.35rem) !important;
+}
+
+.activity-history-panel .filters-grid {
+    gap: 0.85rem !important;
+    margin-bottom: 0 !important;
+}
+
+/* Calendar toolbar and trainer filter. */
+.calendar-tool-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.calendar-trainer-filter {
+    display: inline-flex;
+    min-height: 42px;
+    padding: 0 0.65rem;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid var(--border-main);
+    border-radius: var(--workspace-radius-control);
+    background: var(--bg-card);
+    color: var(--text-medium);
+    font-size: 0.7rem;
+    font-weight: 750;
+}
+
+.calendar-trainer-filter svg {
+    width: 15px;
+    height: 15px;
+    color: var(--xiaomi-orange);
+}
+
+.calendar-trainer-filter select {
+    min-width: 110px;
+    height: 34px;
+    padding: 0 1.65rem 0 0.35rem;
+    border: 0;
+    outline: 0;
+    background: var(--bg-card);
+    color: var(--text-main);
+    font: 750 0.72rem var(--font-primary);
+}
+
+.calendar-legend summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.calendar-legend summary small {
+    margin-inline-start: auto;
+}
+
+.calendar-week-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.calendar-months,
+.calendar-month-section,
+.calendar-month-weeks,
+.calendar-week-card {
+    min-width: 0 !important;
+    max-width: 100%;
+}
+
+.continuous-calendar .calendar-continuous-table {
+    width: 100%;
+}
+
+.continuous-calendar .calendar-continuous-table tbody .trainer-col {
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: normal;
+    text-wrap: balance;
+}
+
+/* Clipboard rows have a separate, explicit destructive action. */
+.calendar-clipboard-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 0.45rem;
+    align-items: stretch;
+}
+
+.calendar-clipboard-option > [data-clipboard-index] {
+    display: grid;
+    width: 100%;
+    min-height: 76px;
+    padding: 0.7rem;
+    grid-template-columns: 38px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 0.7rem;
+    border: 1px solid var(--border-main);
+    border-radius: 12px;
+    background: var(--bg-main);
+    color: var(--text-main);
+    text-align: start;
+    cursor: pointer;
+}
+
+.calendar-clipboard-option > [data-clipboard-index]:hover,
+.calendar-clipboard-option > [data-clipboard-index]:focus-visible {
+    border-color: var(--xiaomi-orange);
+    box-shadow: 0 0 0 3px var(--xiaomi-orange-light);
+}
+
+.calendar-clipboard-delete {
+    display: grid;
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid color-mix(in oklch, var(--status-rejected-text) 28%, var(--border-main));
+    border-radius: 12px;
+    background: var(--status-rejected-bg);
+    color: var(--status-rejected-text);
+    cursor: pointer;
+}
+
+.calendar-clipboard-delete:hover,
+.calendar-clipboard-delete:focus-visible {
+    border-color: var(--status-rejected-text);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--status-rejected-text) 18%, transparent);
+}
+
+.calendar-clipboard-delete svg {
+    color: currentColor;
+}
+
+/* Materials: all categories remain visible; no sideways carousel. */
+.mat-tabs-header {
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: 0.3rem !important;
+    overflow: visible !important;
+}
+
+.mat-tab-btn {
+    width: 100%;
+    min-width: 0 !important;
+    gap: 0.35rem !important;
+}
+
+.mat-tab-btn > span:not(.badge-new) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Vacations: every grid child is shrinkable and all balances are visible. */
+.vaca-module,
+.vaca-module .main-layout,
+.vaca-module .main-layout > *,
+.vaca-module .calendar-wrapper,
+.vaca-module .year-grid,
+.vaca-module .month-card {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.vaca-module .main-layout {
+    grid-template-columns:
+        minmax(190px, 0.55fr)
+        minmax(0, 2fr)
+        minmax(230px, 0.7fr);
+}
+
+.vaca-module .calendar-wrapper {
+    overflow: hidden;
+}
+
+.vaca-module .year-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vaca-module .month-card {
+    padding: clamp(0.55rem, 1vw, 0.75rem);
+}
+
+.vaca-module .days-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.vaca-module .day-cell {
+    min-width: 0;
+    font-size: clamp(0.65rem, 1vw, 0.82rem);
+}
+
+.vacation-balance-strip {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    overflow: visible !important;
+}
+
+@media (max-width: 1180px) {
+    .vaca-module .main-layout {
+        grid-template-columns: minmax(180px, 0.55fr) minmax(0, 1.7fr);
+    }
+
+    .vaca-module .sidebar-right {
+        grid-column: 1 / -1;
+    }
+
+    .vaca-module .year-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-charts-container {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-charts-container > .workspace-panel + .workspace-panel {
+        border-top: 1px solid var(--workspace-rule) !important;
+        border-left: 0 !important;
+    }
+
+    .activity-history-panel {
+        border-inline: 0 !important;
+        border-radius: 0 !important;
+    }
+
+    .calendar-tool-row {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        width: 100%;
+        gap: 0.5rem;
+    }
+
+    .calendar-trainer-filter {
+        grid-column: 1 / -1;
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .calendar-trainer-filter select {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .calendar-weekend-toggle {
+        display: inline-flex !important;
+        width: 100%;
+        min-width: 0;
+        padding-inline: 0.5rem;
+        justify-content: center;
+        white-space: normal;
+        text-align: center;
+    }
+
+    .calendar-clipboard-status {
+        width: 100%;
+    }
+
+    .calendar-week-table-wrap {
+        overflow-x: hidden;
+    }
+
+    .continuous-calendar .calendar-continuous-table {
+        width: 100%;
+        min-width: 0 !important;
+        table-layout: fixed;
+    }
+
+    .continuous-calendar .calendar-continuous-table .trainer-col {
+        position: sticky;
+        left: 0;
+        width: 76px;
+        min-width: 76px;
+        max-width: 76px;
+        padding: 0.35rem 0.25rem;
+    }
+
+    .continuous-calendar .calendar-continuous-table th:not(.trainer-col),
+    .continuous-calendar .calendar-continuous-table td:not(.trainer-col) {
+        width: calc((100% - 76px) / 7);
+        min-width: 0 !important;
+        max-width: none;
+    }
+
+    .continuous-calendar .calendar-continuous-table .day-cell {
+        height: auto;
+        min-height: 70px;
+        padding: 0.16rem;
+    }
+
+    .continuous-calendar .calendar-continuous-table tbody .trainer-col {
+        font-size: 0.58rem;
+        line-height: 1.15;
+    }
+
+    .continuous-calendar .assignment-tag {
+        padding: 0.22rem 0.14rem;
+        font-size: 0.48rem;
+        line-height: 1.15;
+    }
+
+    .continuous-calendar .calendar-continuous-table th:not(.trainer-col) span {
+        font-size: 0.46rem;
+    }
+
+    .continuous-calendar .calendar-continuous-table th:not(.trainer-col) strong {
+        font-size: 0.72rem;
+    }
+
+    .calendar-cell-actions [data-copy-day],
+    .calendar-cell-actions [data-delete-day] {
+        display: none !important;
+    }
+
+    .calendar-cell-actions {
+        top: 0.12rem;
+        right: 0.12rem;
+    }
+
+    .calendar-cell-actions button {
+        width: 24px;
+        height: 24px;
+    }
+
+    .calendar-clipboard-option {
+        grid-template-columns: minmax(0, 1fr) 44px;
+    }
+
+    .calendar-clipboard-option > [data-clipboard-index] {
+        min-height: 82px;
+        grid-template-columns: 30px minmax(0, 1fr) 16px;
+        gap: 0.45rem;
+        padding: 0.6rem;
+    }
+
+    .mat-tabs-header {
+        position: static !important;
+        margin-inline: 0 !important;
+        padding: 0.35rem 0 !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 0.25rem !important;
+    }
+
+    .mat-tab-btn {
+        min-height: 54px !important;
+        padding: 0.4rem 0.2rem !important;
+        flex-direction: column;
+        justify-content: center;
+        font-size: 0.61rem;
+        line-height: 1.1;
+        white-space: normal;
+    }
+
+    .mat-tab-btn svg {
+        width: 15px;
+        height: 15px;
+    }
+
+    .mat-tab-btn > span:not(.badge-new) {
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .mat-tab-btn .badge-new {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        margin: 0;
+        padding: 0.12rem 0.25rem;
+        font-size: 0.46rem;
+    }
+
+    .vaca-module .main-layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    .vacation-balance-strip,
+    .vaca-module .stats-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        margin-inline: 0 !important;
+        padding-inline: 0 !important;
+        gap: 0.5rem !important;
+        overflow: visible !important;
+    }
+
+    .vaca-module .vacation-balance-strip .stat-card,
+    .vaca-module .stats-grid .stat-card {
+        display: flex;
+        min-width: 0;
+        min-height: 76px;
+        padding: 0.7rem !important;
+        flex: initial;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.4rem;
+        border: 1px solid var(--workspace-rule);
+        border-radius: var(--workspace-radius-interactive) !important;
+        text-align: left;
+    }
+
+    .vaca-module .vacation-balance-strip .stat-card:last-child,
+    .vaca-module .stats-grid .stat-card:last-child {
+        grid-column: 1 / -1;
+    }
+
+    .vaca-module .stat-badge {
+        min-width: 0;
+        padding: 0.35rem 0.45rem;
+        white-space: normal;
+        line-height: 1.15;
+    }
+
+    .vaca-module .stat-content h2 {
+        font-size: 1.55rem;
+    }
+
+    .vaca-module .calendar-wrapper {
+        padding: 0.6rem;
+    }
+
+    .vaca-module .calendar-header {
+        align-items: stretch;
+    }
+
+    #calendarTitleContainer {
+        width: 100%;
+        min-width: 0;
+        flex-wrap: wrap;
+    }
+
+    #userSelectorContainer,
+    #userSelectorContainer select {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .vaca-module .legend {
+        display: grid;
+        width: 100%;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.35rem;
+    }
+
+    .vaca-module .legend-item {
+        min-width: 0;
+        font-size: 0.62rem;
+    }
+
+    .vaca-module .year-grid {
+        grid-template-columns: 1fr !important;
+        gap: 0.65rem;
+    }
+
+    .vaca-module .month-card {
+        width: 100%;
+        padding: 0.55rem;
+    }
+
+    .vaca-module .days-grid {
+        width: 100%;
+        gap: 1px;
+    }
+
+    .vaca-module .day-cell {
+        width: 100%;
+        min-width: 0;
+        border-radius: 6px;
+        font-size: clamp(0.68rem, 3vw, 0.8rem);
+    }
+
+    .vaca-module .sidebar-left,
+    .vaca-module .sidebar-right {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 380px) {
+    .calendar-tool-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    .calendar-trainer-filter {
+        grid-column: auto;
+    }
+
+    .continuous-calendar .calendar-continuous-table .trainer-col {
+        width: 66px;
+        min-width: 66px;
+        max-width: 66px;
+    }
+
+    .continuous-calendar .calendar-continuous-table th:not(.trainer-col),
+    .continuous-calendar .calendar-continuous-table td:not(.trainer-col) {
+        width: calc((100% - 66px) / 7);
+    }
+
+    .mat-tabs-header {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+}

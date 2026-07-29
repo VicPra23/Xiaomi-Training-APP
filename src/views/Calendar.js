@@ -25,6 +25,7 @@ function renderCalendar(container) {
     let calendarData = null;
     let suggestionCatalog = [];
     let hideWeekends = false;
+    let selectedTrainer = "all";
     let monthObserver = null;
     const CALENDAR_START_YEAR = 2026;
 
@@ -59,6 +60,13 @@ function renderCalendar(container) {
             </header>
 
             <div class="calendar-tool-row">
+                <label class="calendar-trainer-filter">
+                    <i data-lucide="users"></i>
+                    <span>Formador</span>
+                    <select id="calendarTrainerFilter" aria-label="Filtrar por formador">
+                        <option value="all">Todos</option>
+                    </select>
+                </label>
                 <label class="calendar-weekend-toggle">
                     <input id="calendarWeekendToggle" type="checkbox">
                     <span>Ocultar fin de semana</span>
@@ -68,8 +76,13 @@ function renderCalendar(container) {
                 </button>
             </div>
 
-            <details class="calendar-legend" open>
-                <summary><i data-lucide="palette"></i><span>Leyenda de actividades</span></summary>
+            <details class="calendar-legend">
+                <summary>
+                    <i data-lucide="palette"></i>
+                    <span>Leyenda de actividades</span>
+                    <small>Ver colores</small>
+                    <i data-lucide="chevron-down" class="calendar-legend-chevron"></i>
+                </summary>
                 <div class="calendar-legend-grid">
                     ${categories.map(category => `
                         <div class="calendar-legend-item"><span class="calendar-legend-swatch cat-${category.id}"></span><strong>${category.label}</strong></div>
@@ -130,6 +143,11 @@ function renderCalendar(container) {
         hideWeekends = event.target.checked;
         container.classList.toggle("calendar-hide-weekends", hideWeekends);
     });
+    container.querySelector("#calendarTrainerFilter").addEventListener("change", event => {
+        selectedTrainer = event.target.value;
+        renderYear();
+        scrollToMonth(Number(container.querySelector(".calendar-month-rail .is-active")?.dataset.month || now.getMonth()), false);
+    });
     container.querySelector("#calendarClipboardStatus").addEventListener("click", async () => {
         const entries = getClipboards();
         if (entries.length) await chooseClipboard(entries, "Portapapeles", "Selecciona una copia para ver su contenido");
@@ -158,6 +176,7 @@ function renderCalendar(container) {
                 };
             }
             calendarData = calendarCache[cacheKey];
+            populateTrainerFilter();
             buildSuggestionCatalog();
             renderYear();
             window.requestAnimationFrame(() => {
@@ -180,6 +199,28 @@ function renderCalendar(container) {
             yearScroll.classList.remove("is-loading");
             if (typeof lucide !== "undefined") lucide.createIcons();
         }
+    }
+
+    function populateTrainerFilter() {
+        const select = container.querySelector("#calendarTrainerFilter");
+        if (!select || !calendarData) return;
+        const trainers = calendarData.users.filter(userObj => {
+            const userId = typeof userObj === "object" ? userObj.user : userObj;
+            const displayName = typeof userObj === "object" && userObj.name ? userObj.name : userId;
+            return userId !== "Training Manager" && displayName !== "Training Manager";
+        });
+        select.innerHTML = `
+            <option value="all">Todos</option>
+            ${trainers.map(userObj => {
+                const userId = typeof userObj === "object" ? userObj.user : userObj;
+                const displayName = typeof userObj === "object" && userObj.name ? userObj.name : userId;
+                return `<option value="${escapeHTML(userId)}">${escapeHTML(displayName)}</option>`;
+            }).join("")}
+        `;
+        if (!trainers.some(userObj => (typeof userObj === "object" ? userObj.user : userObj) === selectedTrainer)) {
+            selectedTrainer = "all";
+        }
+        select.value = selectedTrainer;
     }
 
     function buildSuggestionCatalog() {
@@ -220,7 +261,9 @@ function renderCalendar(container) {
         const users = calendarData.users.filter(userObj => {
             const userId = typeof userObj === "object" ? userObj.user : userObj;
             const displayName = typeof userObj === "object" && userObj.name ? userObj.name : userId;
-            return userId !== "Training Manager" && displayName !== "Training Manager";
+            return userId !== "Training Manager"
+                && displayName !== "Training Manager"
+                && (selectedTrainer === "all" || userId === selectedTrainer);
         });
 
         container.querySelector("#calendarMonths").innerHTML = MONTHS.map((month, monthIndex) =>
@@ -280,7 +323,7 @@ function renderCalendar(container) {
         return `
             <div class="calendar-week-card" data-week="${weekNumber}">
                 <div class="calendar-week-label">Semana ${weekNumber}</div>
-                <div class="calendar-week-table-wrap" style="overflow-x: auto; max-width: 100%;">
+                <div class="calendar-week-table-wrap">
                     <table class="calendar-weekly calendar-continuous-table">
                         <thead><tr>
                             <th class="trainer-col">Formador</th>
@@ -561,15 +604,20 @@ function renderCalendar(container) {
                     </header>
                     <div class="calendar-clipboard-options">
                         ${entries.map((entry, index) => `
-                            <button type="button" data-clipboard-index="${index}">
-                                <span class="calendar-clipboard-number">0${index + 1}</span>
-                                <span class="calendar-clipboard-copy">
-                                    <strong>${escapeHTML(formatLongDate(entry.sourceDate))}</strong>
-                                    <small>${escapeHTML(entry.sourceUser)} · ${entry.items.length} ${entry.items.length === 1 ? "actividad" : "actividades"}</small>
-                                    <em>${escapeHTML(entry.items.map(item => item.text).join(" · "))}</em>
-                                </span>
-                                <i data-lucide="chevron-right"></i>
-                            </button>
+                            <div class="calendar-clipboard-option">
+                                <button type="button" data-clipboard-index="${index}">
+                                    <span class="calendar-clipboard-number">0${index + 1}</span>
+                                    <span class="calendar-clipboard-copy">
+                                        <strong>${escapeHTML(formatLongDate(entry.sourceDate))}</strong>
+                                        <small>${escapeHTML(entry.sourceUser)} · ${entry.items.length} ${entry.items.length === 1 ? "actividad" : "actividades"}</small>
+                                        <em>${escapeHTML(entry.items.map(item => item.text).join(" · "))}</em>
+                                    </span>
+                                    <i data-lucide="chevron-right"></i>
+                                </button>
+                                <button type="button" class="calendar-clipboard-delete" data-delete-clipboard="${index}" aria-label="Borrar copia ${index + 1}" title="Borrar esta copia">
+                                    <i data-lucide="trash-2"></i>
+                                </button>
+                            </div>
                         `).join("")}
                     </div>
                 </section>
@@ -588,6 +636,17 @@ function renderCalendar(container) {
                 button.addEventListener("click", () => {
                     const index = Number(button.dataset.clipboardIndex);
                     finish({ index, entry: entries[index] });
+                });
+            });
+            overlay.querySelectorAll("[data-delete-clipboard]").forEach(button => {
+                button.addEventListener("click", event => {
+                    event.stopPropagation();
+                    const index = Number(button.dataset.deleteClipboard);
+                    entries.splice(index, 1);
+                    saveClipboards(entries);
+                    updateClipboardStatus();
+                    announce("Copia eliminada del portapapeles.");
+                    finish(null);
                 });
             });
             window.requestAnimationFrame(() => {
