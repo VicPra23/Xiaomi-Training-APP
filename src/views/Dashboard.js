@@ -32,13 +32,15 @@ function renderDashboard(container) {
             return new Date(dateStr).toLocaleDateString();
         };
 
+        // El redimensionamiento ahora lo gestiona Chart.js automáticamente con ResizeObserver
+        // gracias a que el tamaño de los contenedores está definido en CSS (clamp + media queries).
         if (window._dashResizeHandler) window.removeEventListener('resize', window._dashResizeHandler);
         window._dashResizeHandler = () => {
-            if (window.location.hash !== '#dashboard') return;
-            if (window._dashResizeFrame) cancelAnimationFrame(window._dashResizeFrame);
-            window._dashResizeFrame = requestAnimationFrame(() => {
-                [weeklyChart, methodsChart, trainersChart].forEach(chart => chart?.resize());
-            });
+            // Solo si queremos actualizar fuentes o algo muy específico al cambiar de modo (móvil/desktop)
+            // pero el re-render total ya no es necesario.
+            if (window.location.hash === '#dashboard' && window.weeklyChart) {
+                 // Chart.js hará el reflow por sí solo.
+            }
         };
         window.addEventListener('resize', window._dashResizeHandler);
 
@@ -201,13 +203,10 @@ function renderDashboard(container) {
             </div>
 
             ${isAdmin ? `
-            <div id="adminWidgets" class="admin-charts-container">
-                <section class="glass-card workspace-panel account-impact-panel" style="padding:0; overflow:hidden;">
-                    <div style="padding:1.5rem; border-bottom:1px solid var(--border-main); display:flex; align-items:center; gap:10px;">
-                        <i data-lucide="building" style="color: var(--text-muted); width:18px;"></i>
-                        <h3 style="margin:0; font-size: 0.9rem; color: var(--text-medium); text-transform: uppercase; letter-spacing: 0.05em;">Impacto por Cuenta</h3>
-                    </div>
-                    <div style="overflow-x:auto;">
+            <div id="adminWidgets" class="charts-container" style="margin-top: 2rem;">
+                  <section class="workspace-panel">
+                      <div class="workspace-panel-heading"><div><span class="page-eyebrow">Alcance</span><h3>Impacto por cuenta</h3></div><i data-lucide="building"></i></div>
+                      <div style="overflow-x:auto;">
                         <table id="accountTable" class="report-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
                             <thead style="background: var(--bg-main);">
                                 <tr>
@@ -219,18 +218,14 @@ function renderDashboard(container) {
                             <tbody id="accountTableBody"></tbody>
                         </table>
                     </div>
-                </section>
-                <section class="glass-card workspace-panel trainer-performance-panel">
-                    <div style="display:flex; align-items:center; gap:10px; margin-bottom: 2rem;">
-                        <i data-lucide="award" style="color: var(--xiaomi-orange); width:18px;"></i>
-                        <h3 style="margin:0; font-size: 0.9rem; color: var(--text-medium); text-transform: uppercase; letter-spacing: 0.05em;">Rendimiento Trainers</h3>
-                    </div>
-                    <div class="chart-wrapper"><canvas id="chartTrainers" role="img" aria-label="Comparativa de rendimiento entre trainers"></canvas></div>
-                </section>
-            </div>
-            ` : ''}
+                  </section>
+                  <section class="workspace-panel">
+                      <div class="workspace-panel-heading"><div><span class="page-eyebrow">Rendimiento</span><h3>Rendimiento trainers</h3></div><i data-lucide="award"></i></div>
+                      <div class="chart-wrapper"><canvas id="chartTrainers" role="img" aria-label="Comparativa de rendimiento entre trainers"></canvas></div>
+                  </section>
+            </div>` : ''}
 
-            <section class="glass-card activity-history-panel" style="padding: 0; overflow: hidden; border-radius: 32px;">
+            <div class="glass-card" style="padding: 0; overflow: hidden; border-radius: 32px;">
                 <div style="padding: 2.5rem; border-bottom: 1px solid var(--border-main);">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; margin-bottom: 2rem;">
                         <h3 style="margin:0; font-size: 1.4rem; display: flex; align-items: center; gap: 12px;"><i data-lucide="history" style="color: var(--xiaomi-orange);"></i> Historial de Actividad</h3>
@@ -313,7 +308,7 @@ function renderDashboard(container) {
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </div>
         </div>
 
         <div id="modalReport" class="calendar-overlay">
@@ -1419,19 +1414,22 @@ let weeklyChart, methodsChart, trainersChart;
                             ctx.font = 'bold 12px Inter, system-ui, sans-serif';
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'middle';
+                            
+                            let textToDraw = data;
+                            if (typeof data === 'number' && !Number.isInteger(data)) {
+                                textToDraw = data.toFixed(1);
+                            }
+                            
+                            const textWidth = ctx.measureText(textToDraw).width;
                             if(chart.options.indexAxis === 'y') {
-                                const chartRight = chart.chartArea?.right || chart.width;
-                                const preferredX = bar.x + 12;
-                                if (preferredX > chartRight - 8) {
-                                    ctx.fillStyle = isFinite(bar.x) ? '#ffffff' : ctx.fillStyle;
-                                    ctx.textAlign = 'right';
-                                    ctx.fillText(data, Math.max(bar.base + 18, bar.x - 7), bar.y);
+                                if (bar.x + 12 + (textWidth/2) > chart.chartArea.right) {
+                                    ctx.fillStyle = '#ffffff'; // inside bar, make it white
+                                    ctx.fillText(textToDraw, bar.x - 12 - (textWidth/2), bar.y);
                                 } else {
-                                    ctx.textAlign = 'left';
-                                    ctx.fillText(data, preferredX, bar.y);
+                                    ctx.fillText(textToDraw, bar.x + 12 + (textWidth/2), bar.y);
                                 }
                             } else {
-                                ctx.fillText(data, bar.x, bar.y - 12);
+                                ctx.fillText(textToDraw, bar.x, bar.y - 12);
                             }
                         }
                     });

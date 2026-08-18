@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwFG3Fb2n5jKI5wSZDJdb8ofUgqJjPZyLiGKxm86LwZ3KOmehCDXpwVY8cTxo_M6mr5Cg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzdH6sReC7SLqla2xHECEklA_F9M6uhA1pQyGVZWJEZtUpKt1bNI35StrmYxYljPkjUCQ/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -111,7 +111,7 @@ async function sendPost(action, data = {}) {
 }
 
 function setSessionData(data) { 
-    try { localStorage.setItem('userSession', JSON.stringify({ ...data, expiresAt: data.expiresAt || Date.now() + (8 * 60 * 60 * 1000) })); }
+    try { localStorage.setItem('userSession', JSON.stringify({ ...data, expiresAt: data.expiresAt || Date.now() + (30 * 24 * 60 * 60 * 1000) })); }
     catch(e) { console.warn("LocalStorage bloqueado:", e); }
 }
 

@@ -1493,7 +1493,9 @@ function saveWeeklyAssignment(req) {
     }
     
     _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.PLANIFICACION_SHEET_NAME);
-    notifyUser(req.user, "Se ha actualizado tu planificación semanal.");
+    if (req.notify) {
+        notifyUser(req.user, "Se ha actualizado tu planificación semanal.");
+    }
     return { status: "success" };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
@@ -1546,58 +1548,116 @@ function onManualSheetChange(e) {
   CacheService.getScriptCache().remove(CONFIG.REPORTES_SS_ID + "_" + CONFIG.REPORTES_SHEET_NAME);
 }
 
-// --- AUTOMATED WEEKLY PDF REPORT (V5.7) ---
-function setupWeeklyTrigger() {
-  const functionName = "generateWeeklyPDFReport";
-  ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === functionName) ScriptApp.deleteTrigger(t);
+// --- AUTOMATED PDF REPORTS ---
+function setupAllTriggers() {
+  const triggers = ScriptApp.getProjectTriggers();
+  ["runWeekly", "runMonthly", "runQuarterly", "runAnnual"].forEach(fn => {
+    triggers.forEach(t => { if (t.getHandlerFunction() === fn) ScriptApp.deleteTrigger(t); });
   });
-  // Se ejecutará todos los lunes a las 09:30 AM aprox.
-  ScriptApp.newTrigger(functionName)
+
+  // Weekly: Mondays at 09:30
+  ScriptApp.newTrigger("runWeekly")
     .timeBased()
     .onWeekDay(ScriptApp.WeekDay.MONDAY)
-    .atHour(9)
-    .nearMinute(30)
-    .create();
+    .atHour(9).nearMinute(30).create();
+
+  // Monthly: 1st of every month at 08:30
+  ScriptApp.newTrigger("runMonthly")
+    .timeBased()
+    .onMonthDay(1)
+    .atHour(8).nearMinute(30).create();
+
+  // Quarterly and Annual also run on the 1st of the month, but will abort inside if it's the wrong month
+  ScriptApp.newTrigger("runQuarterly")
+    .timeBased()
+    .onMonthDay(1)
+    .atHour(9).nearMinute(0).create();
+
+  ScriptApp.newTrigger("runAnnual")
+    .timeBased()
+    .onMonthDay(1)
+    .atHour(9).nearMinute(30).create();
+}
+
+function runWeekly() { generatePDFReport("WEEKLY"); }
+function runMonthly() { generatePDFReport("MONTHLY"); }
+function runQuarterly() { 
+  const m = new Date().getMonth();
+  if ([0, 3, 6, 9].includes(m)) generatePDFReport("QUARTERLY"); 
+}
+function runAnnual() {
+  if (new Date().getMonth() === 0) generatePDFReport("ANNUAL");
 }
 
 function testGeneratePDF() {
-  generateWeeklyPDFReport();
-  Logger.log("Reporte generado con éxito.");
+  generatePDFReport("WEEKLY");
 }
 
-function generateWeeklyPDFReport() {
+function generatePDFReport(periodType) {
   const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
   const s = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
   const colMap = _getColMap(s);
   const data = s.getDataRange().getValues();
 
-  // Fechas: Suponiendo que corre un Lunes.
   const today = new Date();
-  const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
-  const lastWeekEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayOfWeek); // Domingo
-  lastWeekEnd.setHours(23, 59, 59, 999);
-  
-  const lastWeekStart = new Date(lastWeekEnd);
-  lastWeekStart.setDate(lastWeekEnd.getDate() - 6); // Lunes
-  lastWeekStart.setHours(0, 0, 0, 0);
+  let currentStart, currentEnd, pastStart, pastEnd;
+  let reportTitle = "";
+  let currentLabel = "";
+  let pastLabel = "";
 
-  // Prev Week (WoW)
-  const prevWeekStart = new Date(lastWeekStart);
-  prevWeekStart.setDate(lastWeekStart.getDate() - 7);
-  const prevWeekEnd = new Date(lastWeekEnd);
-  prevWeekEnd.setDate(lastWeekEnd.getDate() - 7);
-  prevWeekEnd.setHours(23, 59, 59, 999);
+  if (periodType === "WEEKLY") {
+    reportTitle = "REPORTE SEMANAL";
+    currentLabel = "Semana Analizada";
+    pastLabel = "Semana Anterior";
+    const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
+    currentEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayOfWeek);
+    currentEnd.setHours(23, 59, 59, 999);
+    currentStart = new Date(currentEnd);
+    currentStart.setDate(currentEnd.getDate() - 6);
+    currentStart.setHours(0, 0, 0, 0);
 
-  // YTD (Year to date)
-  const ytdStart = new Date(lastWeekEnd.getFullYear(), 0, 1);
+    pastStart = new Date(currentStart); pastStart.setDate(currentStart.getDate() - 7);
+    pastEnd = new Date(currentEnd); pastEnd.setDate(currentEnd.getDate() - 7);
+    pastEnd.setHours(23, 59, 59, 999);
+  } else if (periodType === "MONTHLY") {
+    reportTitle = "REPORTE MENSUAL";
+    currentLabel = "Mes Analizado";
+    pastLabel = "Mes Anterior";
+    currentEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+    currentStart = new Date(today.getFullYear(), today.getMonth() - 1, 1, 0, 0, 0, 0);
+
+    pastEnd = new Date(today.getFullYear(), today.getMonth() - 1, 0, 23, 59, 59, 999);
+    pastStart = new Date(today.getFullYear(), today.getMonth() - 2, 1, 0, 0, 0, 0);
+  } else if (periodType === "QUARTERLY") {
+    reportTitle = "REPORTE TRIMESTRAL";
+    currentLabel = "Trimestre Analizado";
+    pastLabel = "Trimestre Anterior";
+    // 0=Jan, 3=Apr, 6=Jul, 9=Oct
+    const currentQ = Math.floor(today.getMonth() / 3);
+    const prevQMonthEnd = currentQ * 3; // e.g., if today is Apr (3), prevQMonthEnd is Mar (3) -- wait, Date(y, 3, 0) is Mar 31.
+    currentEnd = new Date(today.getFullYear(), prevQMonthEnd, 0, 23, 59, 59, 999);
+    currentStart = new Date(today.getFullYear(), prevQMonthEnd - 3, 1, 0, 0, 0, 0);
+
+    pastEnd = new Date(today.getFullYear(), prevQMonthEnd - 3, 0, 23, 59, 59, 999);
+    pastStart = new Date(today.getFullYear(), prevQMonthEnd - 6, 1, 0, 0, 0, 0);
+  } else if (periodType === "ANNUAL") {
+    reportTitle = "REPORTE ANUAL";
+    currentLabel = "Año Analizado";
+    pastLabel = "Año Anterior";
+    currentEnd = new Date(today.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+    currentStart = new Date(today.getFullYear() - 1, 0, 1, 0, 0, 0, 0);
+
+    pastEnd = new Date(today.getFullYear() - 2, 11, 31, 23, 59, 59, 999);
+    pastStart = new Date(today.getFullYear() - 2, 0, 1, 0, 0, 0, 0);
+  }
+
+  // YTD (Year to date up to currentEnd)
+  const ytdStart = new Date(currentEnd.getFullYear(), 0, 1);
   ytdStart.setHours(0, 0, 0, 0);
 
-  // Semana anterior del AÑO PASADO (52 semanas atrás)
-  const lastYearStart = new Date(lastWeekStart);
-  lastYearStart.setFullYear(lastWeekStart.getFullYear() - 1);
-  const lastYearEnd = new Date(lastWeekEnd);
-  lastYearEnd.setFullYear(lastWeekEnd.getFullYear() - 1);
+  // Last Year same period (YoY)
+  const lastYearStart = new Date(currentStart); lastYearStart.setFullYear(currentStart.getFullYear() - 1);
+  const lastYearEnd = new Date(currentEnd); lastYearEnd.setFullYear(currentEnd.getFullYear() - 1);
 
   let cw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {}, byTrainer: {} };
   let pw = { sesiones: 0, alumnos: 0, horas: 0 };
@@ -1620,11 +1680,11 @@ function generateWeeklyPDFReport() {
     const method = (data[i][colMap.METODOLOGIA] || "Otros").toString().trim() || "Otros";
 
     // YTD
-    if (dTime >= ytdStart.getTime() && dTime <= lastWeekEnd.getTime()) {
+    if (dTime >= ytdStart.getTime() && dTime <= currentEnd.getTime()) {
       yt.sesiones += ses; yt.alumnos += alu; yt.horas += hor;
     }
-    // Current Week
-    if (dTime >= lastWeekStart.getTime() && dTime <= lastWeekEnd.getTime()) {
+    // Current Period
+    if (dTime >= currentStart.getTime() && dTime <= currentEnd.getTime()) {
       cw.sesiones += ses; cw.alumnos += alu; cw.horas += hor;
       if (!cw.byAccount[account]) cw.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
       cw.byAccount[account].sesiones += ses; cw.byAccount[account].alumnos += alu; cw.byAccount[account].horas += hor;
@@ -1633,11 +1693,11 @@ function generateWeeklyPDFReport() {
       if (!cw.byTrainer[trainer].byMethod[method]) cw.byTrainer[trainer].byMethod[method] = 0;
       cw.byTrainer[trainer].byMethod[method] += hor;
     }
-    // Prev Week (WoW)
-    if (dTime >= prevWeekStart.getTime() && dTime <= prevWeekEnd.getTime()) {
+    // Past Period (WoW / MoM / QoQ)
+    if (dTime >= pastStart.getTime() && dTime <= pastEnd.getTime()) {
       pw.sesiones += ses; pw.alumnos += alu; pw.horas += hor;
     }
-    // Last Year
+    // Last Year same period (YoY)
     if (dTime >= lastYearStart.getTime() && dTime <= lastYearEnd.getTime()) {
       ly.sesiones += ses; ly.alumnos += alu; ly.horas += hor;
     }
@@ -1669,6 +1729,7 @@ function generateWeeklyPDFReport() {
       
       let added = false;
       for (const t in cwData.byTrainer) {
+          if (cwData.byTrainer[t].sesiones === 0 && cwData.byTrainer[t].alumnos === 0) continue;
           dataTable.addRow([t + " (" + cwData.byTrainer[t].alumnos + ")", cwData.byTrainer[t].alumnos]);
           added = true;
       }
@@ -1690,7 +1751,7 @@ function generateWeeklyPDFReport() {
           .addColumn(Charts.ColumnType.NUMBER, "Horas");
       let added = false;
       for (let key in dataObj) { dataTable.addRow([key, dataObj[key]]); added = true; }
-      if (!added) dataTable.addRow(["Sin datos", 1]); // fallback
+      if (!added) dataTable.addRow(["Sin datos", 1]);
       const chart = Charts.newPieChart()
           .setDataTable(dataTable.build())
           .setTitle(title)
@@ -1700,16 +1761,19 @@ function generateWeeklyPDFReport() {
       return Utilities.base64Encode(chart.getAs('image/png').getBytes());
   }
 
-  // Generate charts for YoY and WoW
-  const chartYoY_Ses = createVersusChart("Sesiones y Alumnos vs Año Anterior", "Sem. Analizada", cw.sesiones, cw.alumnos, "Año Pasado", ly.sesiones, ly.alumnos);
-  const chartWoW_Ses = createVersusChart("Sesiones y Alumnos vs Sem. Anterior", "Sem. Analizada", cw.sesiones, cw.alumnos, "Sem. Anterior", pw.sesiones, pw.alumnos);
+  // Generate charts for YoY and past period
+  const chartYoY_Ses = createVersusChart("Sesiones y Alumnos vs Año Anterior", currentLabel, cw.sesiones, cw.alumnos, "Año Pasado", ly.sesiones, ly.alumnos);
+  const chartWoW_Ses = createVersusChart("Sesiones y Alumnos vs " + pastLabel, currentLabel, cw.sesiones, cw.alumnos, pastLabel, pw.sesiones, pw.alumnos);
   const chartTrainersImpact = createTrainersImpactChart("Impacto por Formador", cw);
 
   // HTML helpers
   const td = (val) => `<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; color: #555;">${val}</td>`;
   const th = (val) => `<th style="padding: 12px; border: 1px solid #ff6700; background-color: #ff6700; color: white; text-align: center; font-weight: bold;">${val}</th>`;
   const formatD = (d) => Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yy");
-  const weekNumber = Utilities.formatDate(lastWeekStart, Session.getScriptTimeZone(), "w");
+  
+  let periodString = `${formatD(currentStart)} - ${formatD(currentEnd)}`;
+  if (periodType === "WEEKLY") periodString = `Semana ${Utilities.formatDate(currentStart, Session.getScriptTimeZone(), "w")} (${periodString})`;
+  
   const getTrend = (current, past) => {
       if (past === 0) return current > 0 ? "<span style='color: #4CAF50;'>📈 +100%</span>" : "<span style='color: #888;'>➖ 0%</span>";
       const diff = ((current - past) / past) * 100;
@@ -1721,6 +1785,7 @@ function generateWeeklyPDFReport() {
   // Build Accounts Table
   let accountHtml = "";
   for (const acc in cw.byAccount) {
+      if (cw.byAccount[acc].sesiones === 0 && cw.byAccount[acc].alumnos === 0) continue;
       accountHtml += `<tr>
         <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${acc}</td>
         ${td(cw.byAccount[acc].sesiones)}
@@ -1728,11 +1793,12 @@ function generateWeeklyPDFReport() {
         ${td(cw.byAccount[acc].horas.toFixed(1))}
       </tr>`;
   }
-  if (!accountHtml) accountHtml = "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #888;'>Sin datos reportados esta semana.</td></tr>";
+  if (!accountHtml) accountHtml = "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #888;'>Sin datos reportados.</td></tr>";
 
   // Build Trainer Summary Table
   let trainerHtml = "";
   for (const t in cw.byTrainer) {
+      if (cw.byTrainer[t].sesiones === 0 && cw.byTrainer[t].alumnos === 0) continue;
       trainerHtml += `<tr>
         <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${t}</td>
         ${td(cw.byTrainer[t].sesiones)}
@@ -1746,12 +1812,13 @@ function generateWeeklyPDFReport() {
   let trainerPagesHtml = "";
   for (const t in cw.byTrainer) {
       const d = cw.byTrainer[t];
+      if (d.sesiones === 0 && d.alumnos === 0) continue;
       const pieB64 = createPieChart("Horas por Metodología", d.byMethod);
       trainerPagesHtml += `
       <div style="page-break-before: always;"></div>
       <div style="padding-top: 40px;">
           <h2 style="color: #ff6700; border-bottom: 2px solid #ff6700; padding-bottom: 10px; font-size: 26px;">Informe Individual: <span style="color: #333;">${t}</span></h2>
-          <p style="color: #888;">Semana Analizada: <strong>Semana ${weekNumber} (${formatD(lastWeekStart)} - ${formatD(lastWeekEnd)})</strong></p>
+          <p style="color: #888;">Periodo Analizado: <strong>${periodString}</strong></p>
           
           <table style="width: 100%; border-collapse: collapse; margin-top: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
             <tr>
@@ -1780,9 +1847,9 @@ function generateWeeklyPDFReport() {
       
       <!-- HERO HEADER -->
       <div style="text-align: center; border-bottom: 3px solid #ff6700; padding-bottom: 20px; margin-bottom: 30px;">
-        <h1 style="color: #ff6700; margin: 0; font-size: 34px;">REPORTE SEMANAL</h1>
+        <h1 style="color: #ff6700; margin: 0; font-size: 34px;">${reportTitle}</h1>
         <h2 style="color: #333; margin: 5px 0 0 0; font-size: 20px;">XIAOMI TRAINER INTRANET</h2>
-        <p style="color: #888; margin: 10px 0 0 0; font-size: 16px;">Semana Analizada: <strong>Semana ${weekNumber} (${formatD(lastWeekStart)} - ${formatD(lastWeekEnd)})</strong></p>
+        <p style="color: #888; margin: 10px 0 0 0; font-size: 16px;">Periodo Analizado: <strong>${periodString}</strong></p>
       </div>
       
       <!-- 1. HERO METRICS -->
@@ -1804,7 +1871,7 @@ function generateWeeklyPDFReport() {
       </table>
 
       <!-- 2. DESGLOSE POR CUENTA -->
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">1. Desglose por Cuenta (Semana Analizada)</h3>
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">1. Desglose por Cuenta (${currentLabel})</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Cuenta</th>
@@ -1818,7 +1885,7 @@ function generateWeeklyPDFReport() {
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Métrica</th>
-            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">Semana Analizada</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${currentLabel}</th>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">Mismo periodo (Año Pasado)</th>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #333; color: white; text-align: center;">Tendencia</th>
         </tr>
@@ -1835,13 +1902,13 @@ function generateWeeklyPDFReport() {
           <img src="data:image/png;base64,${chartYoY_Ses}" style="width: 400px; height: auto;" />
       </div>
 
-      <!-- 4. VERSUS SEMANA ANTERIOR (WoW) -->
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">3. Versus Semana Anterior</h3>
+      <!-- 4. VERSUS PERIODO ANTERIOR -->
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">3. Versus ${pastLabel}</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Métrica</th>
-            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">Semana Analizada</th>
-            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">Semana Previa</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${currentLabel}</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${pastLabel}</th>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #333; color: white; text-align: center;">Tendencia</th>
         </tr>
         <tr>
@@ -1858,7 +1925,7 @@ function generateWeeklyPDFReport() {
       </div>
 
       <!-- 5. RESUMEN YTD -->
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">4. Resumen Anual (YTD)</h3>
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">4. Resumen Anual Acumulado (YTD)</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>${th("Formaciones Acumuladas")}${th("Alumnos Acumulados")}${th("Horas Acumuladas")}</tr>
         <tr>${td(yt.sesiones)}${td(yt.alumnos)}${td(yt.horas.toFixed(1))}</tr>
@@ -1886,13 +1953,14 @@ function generateWeeklyPDFReport() {
   // Create PDF
   const blob = Utilities.newBlob(htmlContent, MimeType.HTML);
   const pdfBlob = blob.getAs(MimeType.PDF);
-  pdfBlob.setName("Reporte_Semanal_" + formatD(lastWeekStart).replace(/\//g,'-') + ".pdf");
+  const pdfName = "Reporte_" + periodType + "_" + formatD(currentStart).replace(/\//g,'-') + ".pdf";
+  pdfBlob.setName(pdfName);
   
   const folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
   const pdfFile = folder.createFile(pdfBlob);
 
   const link = pdfFile.getUrl();
-  const msgText = "📊 ¡El reporte automatizado (Semana " + formatD(lastWeekStart) + " al " + formatD(lastWeekEnd) + ") ya está listo! Visualízalo y descárgalo aquí: " + link;
+  const msgText = "📊 ¡El " + reportTitle.toLowerCase() + " (" + periodString + ") ya está listo! Visualízalo y descárgalo aquí: " + link;
   
   // Specific users required (all admins)
   notifyUser("Admin", msgText, "System");
