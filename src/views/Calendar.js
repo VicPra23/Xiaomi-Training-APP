@@ -14,6 +14,7 @@ function renderCalendar(container) {
         { id: "tme", label: "TME", color: "#00bcd4" },
         { id: "interno", label: "Interno", color: "#ffeb3b" },
         { id: "materiales", label: "Materiales", color: "#795548" },
+        { id: "tentativa", label: "Tentativa", color: "#e2e8f0" },
         { id: "otros", label: "Otros", color: "#607d8b" }
     ];
 

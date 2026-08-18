@@ -708,6 +708,7 @@ html {
 .cat-tme { background: #00bcd4; }
 .cat-interno { background: #ffeb3b; color: #333; }
 .cat-materiales { background: #795548; }
+.cat-tentativa { background: #e2e8f0; color: #333; }
 .cat-otros { background: #607d8b; }
 .cat-vac { border: 1.5px solid #ff4d4f; background: #fff; color: #ff4d4f; text-align: center; }
 .cat-fest { background: #fff5f5; color: #d0021b; font-weight: 800; border: 1px dashed #feb2b2; text-align: center; font-size: 0.6rem; }
