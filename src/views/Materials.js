@@ -25,7 +25,7 @@ function renderMaterials(container) {
                 {
                     name: 'Redmi Series',
                     items: [
-                        { name: 'Redmi 17 Series', link: 'https://drive.google.com/drive/folders/1RlkMdkqO1G9lgDSFigpktMMe73Rjm6eg?usp=drive_link', isNew: true },
+                        { name: 'Redmi 17 Series', link: 'https://drive.google.com/drive/folders/1RlkMdkqO1G9lgDSFigpktMMe73Rjm6eg?usp=drive_link' },
                         { name: 'Redmi 17C', link: 'https://drive.google.com/drive/folders/1kIockJGytOGOnrQDRF7S2KkDt8w_pItP?usp=drive_link', isNew: true },
                         { name: 'Redmi A7 Pro', link: 'https://drive.google.com/drive/folders/1sGoos4L8TYb3cWfU-BgqWRJIGiuJVx-Z?usp=drive_link' },
                         { name: 'Redmi 15C Series', link: 'https://drive.google.com/drive/folders/1nI5668YtZ80KbzlWVq9G6W-TdmUYKL-O?usp=drive_link' },

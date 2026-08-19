@@ -403,7 +403,7 @@ function renderVacations(container) {
             const isWorkingDay = (date.getDay() !== 0 && date.getDay() !== 6 && !holidayDates.includes(iso));
             
             vacationStats.history.forEach(h => {
-                if (isInHistoryRange(date, h.fechas)) {
+                if (h.status !== 'Rechazado' && isInHistoryRange(date, h.fechas)) {
                    cell.classList.add('day-blocked');
                    if (isWorkingDay) {
                        if(h.status === 'Aprobado') cell.classList.add(h.type === 'Vacaciones' ? 'day-approved' : 'day-extra-ap');
@@ -539,7 +539,7 @@ function renderVacations(container) {
             let hasExisting = false;
             allPossibleDates.forEach(iso => {
                 const d = new Date(iso.split('-').join('/'));
-                if (vacationStats.history.some(h => isInHistoryRange(d, h.fechas))) hasExisting = true;
+                if (vacationStats.history.some(h => h.status !== 'Rechazado' && isInHistoryRange(d, h.fechas))) hasExisting = true;
             });
 
             const btnVac = document.getElementById('btnAdminVac');
