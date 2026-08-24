@@ -105,8 +105,8 @@ function renderDashboard(container) {
                         <option value="Todos">Todos</option>
                     </select>
                 </div>
-                <div style="display: flex; gap: 8px; align-self: flex-end;">
                     <button id="btnToggleRange" class="btn-secondary" aria-label="Cambiar entre periodo y rango de fechas" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Cambiar entre periodo y rango"><i data-lucide="calendar" style="width:18px;"></i></button>
+                    <button id="btnExportTop" class="btn-secondary" aria-label="Exportar CSV" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Exportar informes CSV"><i data-lucide="download" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" aria-label="Aplicar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Aplicar filtros"><i data-lucide="search" style="width:18px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" aria-label="Limpiar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Limpiar filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
                 </div>
@@ -136,6 +136,7 @@ function renderDashboard(container) {
                 </div>
                 <div style="display:flex; gap:8px; align-self: flex-end;">
                     <button id="btnToggleRange" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Alternar Rango/Periodos"><i data-lucide="calendar" style="width:18px;"></i></button>
+                    <button id="btnExportTop" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Exportar informes CSV"><i data-lucide="download" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" style="height:42px; width:42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="search" style="width:20px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="refresh-ccw" style="width:18px;"></i></button>
                 </div>
@@ -232,6 +233,9 @@ function renderDashboard(container) {
                         <div style="display: flex; gap: 10px; justify-content: flex-end;">
                             <button id="btnToggleHistoryRange" class="btn-secondary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Alternar Rango/Periodos">
                                 <i data-lucide="calendar" style="width:20px;"></i>
+                            </button>
+                            <button id="btnExportHistory" class="btn-secondary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Exportar Historial CSV">
+                                <i data-lucide="download" style="width:20px;"></i>
                             </button>
                             <button onclick="window.dashboardLoadHistory()" class="btn-primary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0;" title="Filtrar">
                                 <i data-lucide="search" style="width:20px;"></i>
@@ -1214,6 +1218,62 @@ function renderDashboard(container) {
     };
 
     window.dashboardLoadHistory = loadHistory;
+
+    window.exportDashboardToCSV = () => {
+        if (!window.dashboardHistoryData || window.dashboardHistoryData.length === 0) {
+            if (window.showToast) window.showToast("No hay datos para exportar", "error");
+            else alert("No hay datos para exportar.");
+            return;
+        }
+        
+        const headers = ["Fecha", "Trainer", "Cuenta", "Distribuidor", "Ciudad", "Provincia", "Metodología", "Sesiones", "Alumnos", "Duración", "Dispositivos", "Observaciones"];
+        let csvContent = headers.join(";") + "\n";
+        
+        window.dashboardHistoryData.forEach(r => {
+            const pD = (val) => {
+                if (!val) return 0;
+                const s = val.toString();
+                if (s.includes('T')) {
+                    const parts = s.split('T')[1].split(':');
+                    return parseFloat(parts[0]) + (parseFloat(parts[1])/60);
+                }
+                return parseFloat(s) || 0;
+            };
+
+            const row = [
+                r.fecha ? r.fecha.split('T')[0] : "",
+                r.trainer || "",
+                r.cuenta || "",
+                r.distribuidor || "",
+                r.ciudad || "",
+                r.provincia || "",
+                r.metodologia || "",
+                r.sesiones || 0,
+                r.alumnos || 0,
+                pD(r.duracion).toFixed(1),
+                (r.dispositivos && Array.isArray(r.dispositivos)) ? r.dispositivos.map(d => typeof d === 'object' ? d.modelo : d).join(", ") : (r.dispositivos || ""),
+                (r.observaciones || "").replace(/\n/g, " ")
+            ];
+            const csvRow = row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(";");
+            csvContent += csvRow + "\n";
+        });
+        
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        const d = new Date();
+        link.setAttribute("download", `informes_exportados_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const btnExportTop = document.getElementById('btnExportTop');
+    if(btnExportTop) btnExportTop.onclick = () => window.exportDashboardToCSV();
+    
+    const btnExportHistory = document.getElementById('btnExportHistory');
+    if(btnExportHistory) btnExportHistory.onclick = () => window.exportDashboardToCSV();
 
     window.sortHistory = (field) => {
         if(!window.dashboardHistoryData) return;
