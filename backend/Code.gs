@@ -1821,7 +1821,7 @@ function generateCustomPDF(p) {
 
     if (isModelComparison) {
         reportTitle = "REPORTE DE DISPOSITIVO";
-        periodString = "Histórico Completo";
+        periodString = targetDevice.toUpperCase();
         currentLabel = targetDevice.toUpperCase();
         pastLabel = previousDevice.toUpperCase();
         ly = null; 
@@ -1830,23 +1830,33 @@ function generateCustomPDF(p) {
         if (startD && endD) {
             periodString = `${formatD(startD)} - ${formatD(endD)}`;
         } else if (targetYear !== "Todos") {
-            if (selectedMonths.length > 0) periodString = `${selectedMonths.join(', ')} ${targetYear}`;
+            if (selectedMonths.length > 0 && selectedWeeks.length > 0) periodString = `${selectedMonths.join(', ')}, Semana ${selectedWeeks.join(', ')} del ${targetYear}`;
+            else if (selectedMonths.length > 0) periodString = `${selectedMonths.join(', ')} ${targetYear}`;
             else if (selectedWeeks.length > 0) periodString = `Semana ${selectedWeeks.join(', ')} del ${targetYear}`;
             else periodString = `Año ${targetYear}`;
         } else {
-            if (selectedMonths.length > 0) periodString = `${selectedMonths.join(', ')}`;
+            if (selectedMonths.length > 0 && selectedWeeks.length > 0) periodString = `${selectedMonths.join(', ')}, Semana ${selectedWeeks.join(', ')}`;
+            else if (selectedMonths.length > 0) periodString = `${selectedMonths.join(', ')}`;
             else if (selectedWeeks.length > 0) periodString = `Semana ${selectedWeeks.join(', ')}`;
+            else periodString = "Filtros Personalizados";
         }
         
-        if (selectedMonths.length === 1 && selectedWeeks.length === 0) {
+        if (targetDevice !== "todos" && targetDevice !== "") {
+            periodString += ` (${targetDevice.toUpperCase()})`;
+        }
+
+        if (selectedMonths.length > 0 && selectedWeeks.length === 0) {
             currentLabel = "Mes Analizado"; pastLabel = "Mes Anterior";
-        } else if (selectedWeeks.length === 1) {
+        } else if (selectedWeeks.length > 0) {
             currentLabel = "Semana Analizada"; pastLabel = "Semana Anterior";
-        } else if (targetYear !== "Todos" && selectedMonths.length === 0 && selectedWeeks.length === 0) {
-            currentLabel = "Año Analizado"; pastLabel = "Año Anterior";
+        } else {
+            currentLabel = "Periodo Analizado"; pastLabel = "Periodo Anterior";
         }
     } else {
         periodString = "Todos los tiempos";
+        if (targetDevice !== "todos" && targetDevice !== "") {
+            periodString += ` (${targetDevice.toUpperCase()})`;
+        }
         pw = null;
         ly = null;
         yt = null;

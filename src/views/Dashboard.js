@@ -781,11 +781,18 @@ function renderDashboard(container) {
                     }
                 }
                 const dC = document.getElementById('dashboardContent');
-                if (dC && res.data.contents) {
-                    dC.innerHTML = '<option value="Todos" selected>Todos</option>' + res.data.contents.map(c => `<option value="${c}">${c}</option>`).join('');
-                    initTomSelect('dashboardContent', 'Busca contenido...');
-                    if (window.tsInstances['dashboardContent']) {
-                        window.tsInstances['dashboardContent'].addItem('Todos', true);
+                const hC = document.getElementById('histFilterContent');
+                if (res.data.contents) {
+                    const opts = '<option value="Todos" selected>Todos</option>' + res.data.contents.map(c => `<option value="${c}">${c}</option>`).join('');
+                    if (dC) {
+                        dC.innerHTML = opts;
+                        initTomSelect('dashboardContent', 'Busca contenido...');
+                        if (window.tsInstances['dashboardContent']) window.tsInstances['dashboardContent'].addItem('Todos', true);
+                    }
+                    if (hC) {
+                        hC.innerHTML = opts;
+                        initTomSelect('histFilterContent', 'Filtra por contenido...');
+                        if (window.tsInstances['histFilterContent']) window.tsInstances['histFilterContent'].addItem('Todos', true);
                     }
                 }
             }
@@ -1117,6 +1124,15 @@ function renderDashboard(container) {
             }
         }
         const isMethodTodos = methods.length === 0 || methods.includes('Todos');
+        
+                    let contentVal = "Todos";
+          if (window.tsInstances && window.tsInstances['histFilterContent']) {
+              const vals = window.tsInstances['histFilterContent'].getValue();
+              contentVal = Array.isArray(vals) ? vals.join(',') : (vals || "Todos");
+          } else if (document.getElementById('histFilterContent')) {
+              const el = document.getElementById('histFilterContent');
+              contentVal = Array.from(el.selectedOptions).map(o => o.value).join(',');
+          }
 
         const parseDuration = (val) => {
             if (!val) return 0;
@@ -1147,6 +1163,7 @@ function renderDashboard(container) {
             account: account,
             device: device,
             methodology: "Todos", // Send Todos to bypass backend filtering, we filter client-side
+            content: contentVal,
             q: q,
             refresh: force,
             limit: 9999
