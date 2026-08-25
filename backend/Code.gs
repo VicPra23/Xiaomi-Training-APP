@@ -1589,6 +1589,239 @@ function runAnnual() {
   if (new Date().getMonth() === 0) generatePDFReport("ANNUAL");
 }
 
+function generateCustomPDF(p) {
+    const force = p.refresh === 'true' || p.refresh === true;
+    const now = new Date();
+    const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME, force);
+    const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
+    const sRef = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
+    const colMap = _getColMap(sRef);
+    
+    const target = (p.targetUser || "Total").toString().trim();
+    const targetWeeksStr = (p.weeks || p.week || "").toString().trim();
+    const targetMonth = (p.month || "Todos").toString().trim();
+    const targetYear = (p.year || "Todos").toString().trim();
+    const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
+    const targetMethodology = (p.methodology || "Todos").toString().trim().toLowerCase();
+    
+    const startDateStr = (p.startDate || "").toString().trim();
+    const endDateStr = (p.endDate || "").toString().trim();
+
+    let startD = startDateStr ? new Date(startDateStr) : null;
+    let endD = endDateStr ? new Date(endDateStr) : null;
+    if(startD) { startD.setHours(0,0,0,0); }
+    if(endD) { endD.setHours(23,59,59,999); }
+    let isTimeFiltered = startD || endD || targetMonth !== "Todos" || targetWeeksStr || targetYear !== "Todos";
+
+    let selectedWeeks = [];
+    if (targetWeeksStr) {
+      const matches = targetWeeksStr.match(/\d+/g);
+      if (matches) selectedWeeks = matches.map(Number);
+    }
+    let selectedMonths = [];
+    if (targetMonth !== "Todos") selectedMonths = targetMonth.split(',').map(m => m.trim());
+    let selectedMethodologies = [];
+    if (targetMethodology !== "todos" && targetMethodology !== "") selectedMethodologies = targetMethodology.split(',').map(m => m.trim());
+    
+    const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    
+    let previousDevice = null;
+    let isModelComparison = false;
+
+    if (!isTimeFiltered && targetDevice !== "todos" && targetDevice !== "") {
+        const allDevices = new Set();
+        for (let i = 1; i < d.length; i++) {
+            let devStr = (d[i][colMap.DISPOSITIVOS] || d[i][11] || "").toString().trim().toLowerCase();
+            if (devStr) {
+                let devs = [];
+                try {
+                    let parsed = JSON.parse(devStr);
+                    if (Array.isArray(parsed)) devs = parsed.map(x => (x.modelo || x).toString().trim().toLowerCase());
+                    else devs = [devStr];
+                } catch(e) {
+                    devs = devStr.split(',').map(x => x.trim().toLowerCase());
+                }
+                devs.forEach(x => { if(x) allDevices.add(x); });
+            }
+        }
+        
+        let match = targetDevice.match(/(\d+)/);
+        if (match) {
+            let num = parseInt(match[1]);
+            let baseNameBefore = targetDevice.substring(0, match.index);
+            let baseNameAfter = targetDevice.substring(match.index + match[1].length);
+            for (let i = num - 1; i > 0; i--) {
+                let candidate = baseNameBefore + i + baseNameAfter;
+                let found = false;
+                for (let dev of allDevices) {
+                    if (dev === candidate || dev.includes(candidate)) {
+                        previousDevice = dev;
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+        }
+        if (previousDevice) isModelComparison = true;
+    }
+
+    let cw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {}, byTrainer: {} };
+    let pw = { sesiones: 0, alumnos: 0, horas: 0 };
+    let ly = { sesiones: 0, alumnos: 0, horas: 0 };
+    let yt = { sesiones: 0, alumnos: 0, horas: 0 };
+
+    for (let i = 1; i < d.length; i++) {
+        var fVal = colMap.FECHA !== undefined ? d[i][colMap.FECHA] : d[i][2];
+        var tVal = colMap.TRAINER !== undefined ? d[i][colMap.TRAINER] : d[i][1];
+        if (!fVal || !tVal) continue; 
+        
+        var dO = parseDateStable(fVal); if (!dO) continue;
+        var rowYear = dO.getFullYear();
+        var rowMonth = dO.getMonth();
+        var rowWeek = getWeekNumber(dO);
+        const dTime = dO.getTime();
+
+        const ses = parseFloat(d[i][colMap.SESIONES] || d[i][6]) || 0;
+        const alu = parseFloat(d[i][colMap.ALUMNOS] || d[i][8]) || 0;
+        const hor = _parseDur(d[i][colMap.HORAS] || d[i][9]);
+        const trainer = tVal.toString().trim();
+        const account = (d[i][colMap.CUENTA] || "Otros").toString().trim() || "Otros";
+        const method = (d[i][colMap.METODOLOGIA] || "Otros").toString().trim() || "Otros";
+        let devStr = (d[i][colMap.DISPOSITIVOS] || d[i][11] || "").toString().trim().toLowerCase();
+
+        if (target !== "Total" && trainer !== target) continue;
+        
+        let methodMatch = true;
+        if (selectedMethodologies.length > 0) {
+            methodMatch = selectedMethodologies.includes(method);
+        }
+        if (!methodMatch) continue;
+
+        let devMatch = false;
+        let pastDevMatch = false;
+        if (isModelComparison) {
+            if (devStr.includes(targetDevice)) devMatch = true;
+            if (devStr.includes(previousDevice)) pastDevMatch = true;
+        } else {
+            if (targetDevice === "todos" || targetDevice === "") devMatch = true;
+            else if (devStr.includes(targetDevice)) devMatch = true;
+            pastDevMatch = devMatch;
+        }
+
+        let matchesTime = true;
+        let matchesPastTime = false;
+        let matchesLYTime = false;
+        let matchesYTTime = false;
+
+        if (isModelComparison) {
+            matchesTime = true;
+            matchesPastTime = true;
+            matchesLYTime = false;
+            matchesYTTime = false;
+        } else {
+            if (startD && endD) {
+               matchesTime = dTime >= startD.getTime() && dTime <= endD.getTime();
+               let dur = endD.getTime() - startD.getTime();
+               let pStart = startD.getTime() - dur - 86400000;
+               let pEnd = startD.getTime() - 1000;
+               matchesPastTime = dTime >= pStart && dTime <= pEnd;
+               let lyS = new Date(startD); lyS.setFullYear(lyS.getFullYear()-1);
+               let lyE = new Date(endD); lyE.setFullYear(lyE.getFullYear()-1);
+               matchesLYTime = dTime >= lyS.getTime() && dTime <= lyE.getTime();
+               let ytS = new Date(endD.getFullYear(), 0, 1);
+               matchesYTTime = dTime >= ytS.getTime() && dTime <= endD.getTime();
+            } else {
+               if (targetYear !== "Todos" && rowYear.toString() !== targetYear) matchesTime = false;
+               if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesTime = false;
+               if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesTime = false;
+               
+               if (selectedMonths.length === 1 && selectedWeeks.length === 0) {
+                  let mIdx = mNames.indexOf(selectedMonths[0]);
+                  let pIdx = mIdx === 0 ? 11 : mIdx - 1;
+                  let pYear = mIdx === 0 ? (targetYear !== "Todos" ? parseInt(targetYear)-1 : rowYear) : (targetYear !== "Todos" ? parseInt(targetYear) : rowYear);
+                  matchesPastTime = (rowMonth === pIdx) && (rowYear === pYear);
+               } else if (selectedWeeks.length === 1) {
+                  matchesPastTime = (rowWeek === selectedWeeks[0] - 1) && (rowYear === (targetYear !== "Todos" ? parseInt(targetYear) : rowYear));
+               } else if (targetYear !== "Todos" && selectedMonths.length === 0 && selectedWeeks.length === 0) {
+                  matchesPastTime = rowYear === parseInt(targetYear) - 1;
+               }
+        
+               if (targetYear !== "Todos") {
+                  matchesLYTime = (rowYear === parseInt(targetYear) - 1);
+                  if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
+                  if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesLYTime = false;
+                  matchesYTTime = (rowYear === parseInt(targetYear));
+               } else {
+                  matchesYTTime = (rowYear === now.getFullYear());
+               }
+            }
+        }
+
+        if (devMatch && matchesYTTime) { yt.sesiones += ses; yt.alumnos += alu; yt.horas += hor; }
+        if (devMatch && matchesTime) {
+            cw.sesiones += ses; cw.alumnos += alu; cw.horas += hor;
+            if (!cw.byAccount[account]) cw.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
+            cw.byAccount[account].sesiones += ses; cw.byAccount[account].alumnos += alu; cw.byAccount[account].horas += hor;
+            if (!cw.byTrainer[trainer]) cw.byTrainer[trainer] = { sesiones: 0, alumnos: 0, horas: 0, byMethod: {} };
+            cw.byTrainer[trainer].sesiones += ses; cw.byTrainer[trainer].alumnos += alu; cw.byTrainer[trainer].horas += hor;
+            if (!cw.byTrainer[trainer].byMethod[method]) cw.byTrainer[trainer].byMethod[method] = 0;
+            cw.byTrainer[trainer].byMethod[method] += hor;
+        }
+        if (pastDevMatch && matchesPastTime) { pw.sesiones += ses; pw.alumnos += alu; pw.horas += hor; }
+        if (devMatch && matchesLYTime) { ly.sesiones += ses; ly.alumnos += alu; ly.horas += hor; }
+    }
+
+    let reportTitle = "REPORTE PERSONALIZADO";
+    let periodString = "Filtros Personalizados";
+    let currentLabel = "Periodo Analizado";
+    let pastLabel = "Periodo Anterior";
+    const formatD = (date) => Utilities.formatDate(date, Session.getScriptTimeZone(), "dd/MM/yy");
+
+    if (isModelComparison) {
+        reportTitle = "REPORTE DE DISPOSITIVO";
+        periodString = "Histórico Completo";
+        currentLabel = targetDevice.toUpperCase();
+        pastLabel = previousDevice.toUpperCase();
+        ly = null; 
+        yt = null; 
+    } else if (isTimeFiltered) {
+        if (startD && endD) {
+            periodString = `${formatD(startD)} - ${formatD(endD)}`;
+        } else if (targetYear !== "Todos") {
+            if (selectedMonths.length > 0) periodString = `${selectedMonths.join(', ')} ${targetYear}`;
+            else if (selectedWeeks.length > 0) periodString = `Semana ${selectedWeeks.join(', ')} del ${targetYear}`;
+            else periodString = `Año ${targetYear}`;
+        } else {
+            if (selectedMonths.length > 0) periodString = `${selectedMonths.join(', ')}`;
+            else if (selectedWeeks.length > 0) periodString = `Semana ${selectedWeeks.join(', ')}`;
+        }
+        
+        if (selectedMonths.length === 1 && selectedWeeks.length === 0) {
+            currentLabel = "Mes Analizado"; pastLabel = "Mes Anterior";
+        } else if (selectedWeeks.length === 1) {
+            currentLabel = "Semana Analizada"; pastLabel = "Semana Anterior";
+        } else if (targetYear !== "Todos" && selectedMonths.length === 0 && selectedWeeks.length === 0) {
+            currentLabel = "Año Analizado"; pastLabel = "Año Anterior";
+        }
+    } else {
+        periodString = "Todos los tiempos";
+        pw = null;
+        ly = null;
+        yt = null;
+    }
+
+    const htmlContent = _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt);
+    const blob = Utilities.newBlob(htmlContent, MimeType.HTML);
+    const pdfBlob = blob.getAs(MimeType.PDF);
+    
+    return {
+        status: "success",
+        pdfBase64: Utilities.base64Encode(pdfBlob.getBytes()),
+        filename: "Reporte_Personalizado_" + formatD(now).replace(/\//g,'-') + ".pdf"
+    };
+}
+
 function testGeneratePDF() {
   generatePDFReport("WEEKLY");
 }
@@ -1703,7 +1936,29 @@ function generatePDFReport(periodType) {
     }
   }
 
-  // --- CHART GENERATION FUNCTION ---
+  const formatD = (d) => Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yy");
+  let periodString = `${formatD(currentStart)} - ${formatD(currentEnd)}`;
+  if (periodType === "WEEKLY") periodString = `Semana ${Utilities.formatDate(currentStart, Session.getScriptTimeZone(), "w")} (${periodString})`;
+  
+  const htmlContent = _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt);
+
+  // Create PDF
+  const blob = Utilities.newBlob(htmlContent, MimeType.HTML);
+  const pdfBlob = blob.getAs(MimeType.PDF);
+  const pdfName = "Reporte_" + periodType + "_" + formatD(currentStart).replace(/\//g,'-') + ".pdf";
+  pdfBlob.setName(pdfName);
+  
+  const folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
+  const pdfFile = folder.createFile(pdfBlob);
+
+  const link = pdfFile.getUrl();
+  const msgText = "📊 ¡El " + reportTitle.toLowerCase() + " (" + periodString + ") ya está listo! Visualízalo y descárgalo aquí: " + link;
+  
+  // Specific users required (all admins)
+  notifyUser("Admin", msgText, "System");
+}
+
+function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt) {
   function createVersusChart(title, currentLabel, currentSes, currentAlu, pastLabel, pastSes, pastAlu) {
       const dataTable = Charts.newDataTable()
           .addColumn(Charts.ColumnType.STRING, "Periodo")
@@ -1761,19 +2016,8 @@ function generatePDFReport(periodType) {
       return Utilities.base64Encode(chart.getAs('image/png').getBytes());
   }
 
-  // Generate charts for YoY and past period
-  const chartYoY_Ses = createVersusChart("Sesiones y Alumnos vs Año Anterior", currentLabel, cw.sesiones, cw.alumnos, "Año Pasado", ly.sesiones, ly.alumnos);
-  const chartWoW_Ses = createVersusChart("Sesiones y Alumnos vs " + pastLabel, currentLabel, cw.sesiones, cw.alumnos, pastLabel, pw.sesiones, pw.alumnos);
-  const chartTrainersImpact = createTrainersImpactChart("Impacto por Formador", cw);
-
-  // HTML helpers
   const td = (val) => `<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; color: #555;">${val}</td>`;
   const th = (val) => `<th style="padding: 12px; border: 1px solid #ff6700; background-color: #ff6700; color: white; text-align: center; font-weight: bold;">${val}</th>`;
-  const formatD = (d) => Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yy");
-  
-  let periodString = `${formatD(currentStart)} - ${formatD(currentEnd)}`;
-  if (periodType === "WEEKLY") periodString = `Semana ${Utilities.formatDate(currentStart, Session.getScriptTimeZone(), "w")} (${periodString})`;
-  
   const getTrend = (current, past) => {
       if (past === 0) return current > 0 ? "<span style='color: #4CAF50;'>📈 +100%</span>" : "<span style='color: #888;'>➖ 0%</span>";
       const diff = ((current - past) / past) * 100;
@@ -1782,7 +2026,6 @@ function generatePDFReport(periodType) {
       return "<span style='color: #888;'>➖ 0%</span>";
   };
 
-  // Build Accounts Table
   let accountHtml = "";
   for (const acc in cw.byAccount) {
       if (cw.byAccount[acc].sesiones === 0 && cw.byAccount[acc].alumnos === 0) continue;
@@ -1795,7 +2038,6 @@ function generatePDFReport(periodType) {
   }
   if (!accountHtml) accountHtml = "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #888;'>Sin datos reportados.</td></tr>";
 
-  // Build Trainer Summary Table
   let trainerHtml = "";
   for (const t in cw.byTrainer) {
       if (cw.byTrainer[t].sesiones === 0 && cw.byTrainer[t].alumnos === 0) continue;
@@ -1808,7 +2050,6 @@ function generatePDFReport(periodType) {
   }
   if (!trainerHtml) trainerHtml = "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #888;'>Sin formadores reportados.</td></tr>";
 
-  // Build Individual Trainer Pages
   let trainerPagesHtml = "";
   for (const t in cw.byTrainer) {
       const d = cw.byTrainer[t];
@@ -1841,18 +2082,15 @@ function generatePDFReport(periodType) {
       `;
   }
 
-  // Final HTML Assembly
-  const htmlContent = `
+  let htmlContent = `
     <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; background: white; padding: 30px;">
       
-      <!-- HERO HEADER -->
       <div style="text-align: center; border-bottom: 3px solid #ff6700; padding-bottom: 20px; margin-bottom: 30px;">
         <h1 style="color: #ff6700; margin: 0; font-size: 34px;">${reportTitle}</h1>
         <h2 style="color: #333; margin: 5px 0 0 0; font-size: 20px;">XIAOMI TRAINER INTRANET</h2>
         <p style="color: #888; margin: 10px 0 0 0; font-size: 16px;">Periodo Analizado: <strong>${periodString}</strong></p>
       </div>
       
-      <!-- 1. HERO METRICS -->
       <table style="width: 100%; text-align: center; margin-bottom: 40px; border-spacing: 15px 0;">
         <tr>
             <td style="padding: 20px 10px; background-color: #fff8f2; border-radius: 12px; border: 2px solid #ffccaa; width: 33%;">
@@ -1870,7 +2108,6 @@ function generatePDFReport(periodType) {
         </tr>
       </table>
 
-      <!-- 2. DESGLOSE POR CUENTA -->
       <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">1. Desglose por Cuenta (${currentLabel})</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
@@ -1879,9 +2116,14 @@ function generatePDFReport(periodType) {
         </tr>
         ${accountHtml}
       </table>
+  `;
 
-      <!-- 3. VERSUS AÑO ANTERIOR -->
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">2. Versus Año Anterior</h3>
+  let sectionCounter = 2;
+
+  if (ly) {
+      const chartYoY_Ses = createVersusChart("Sesiones y Alumnos vs Año Anterior", currentLabel, cw.sesiones, cw.alumnos, "Año Pasado", ly.sesiones, ly.alumnos);
+      htmlContent += `
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. Versus Año Anterior</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Métrica</th>
@@ -1900,10 +2142,13 @@ function generatePDFReport(periodType) {
       </table>
       <div style="text-align: center; margin-bottom: 50px;">
           <img src="data:image/png;base64,${chartYoY_Ses}" style="width: 400px; height: auto;" />
-      </div>
+      </div>`;
+  }
 
-      <!-- 4. VERSUS PERIODO ANTERIOR -->
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">3. Versus ${pastLabel}</h3>
+  if (pw) {
+      const chartWoW_Ses = createVersusChart("Sesiones y Alumnos vs " + pastLabel, currentLabel, cw.sesiones, cw.alumnos, pastLabel, pw.sesiones, pw.alumnos);
+      htmlContent += `
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. Versus ${pastLabel}</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Métrica</th>
@@ -1922,17 +2167,21 @@ function generatePDFReport(periodType) {
       </table>
       <div style="text-align: center; margin-bottom: 50px;">
           <img src="data:image/png;base64,${chartWoW_Ses}" style="width: 400px; height: auto;" />
-      </div>
+      </div>`;
+  }
 
-      <!-- 5. RESUMEN YTD -->
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">4. Resumen Anual Acumulado (YTD)</h3>
+  if (yt) {
+      htmlContent += `
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. Resumen Anual Acumulado (YTD)</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>${th("Formaciones Acumuladas")}${th("Alumnos Acumulados")}${th("Horas Acumuladas")}</tr>
         <tr>${td(yt.sesiones)}${td(yt.alumnos)}${td(yt.horas.toFixed(1))}</tr>
-      </table>
+      </table>`;
+  }
 
-      <!-- 6. DESGLOSE POR FORMADOR GLOBAL -->
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">5. Desglose Global por Formador</h3>
+  const chartTrainersImpact = createTrainersImpactChart("Impacto por Formador", cw);
+  htmlContent += `
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. Desglose Global por Formador</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Formador</th>
@@ -1944,24 +2193,9 @@ function generatePDFReport(periodType) {
           <img src="data:image/png;base64,${chartTrainersImpact}" style="width: 500px; height: auto;" />
       </div>
       
-      <!-- 7. INDIVIDUAL TRAINER PAGES -->
       ${trainerPagesHtml}
-
     </div>
   `;
 
-  // Create PDF
-  const blob = Utilities.newBlob(htmlContent, MimeType.HTML);
-  const pdfBlob = blob.getAs(MimeType.PDF);
-  const pdfName = "Reporte_" + periodType + "_" + formatD(currentStart).replace(/\//g,'-') + ".pdf";
-  pdfBlob.setName(pdfName);
-  
-  const folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
-  const pdfFile = folder.createFile(pdfBlob);
-
-  const link = pdfFile.getUrl();
-  const msgText = "📊 ¡El " + reportTitle.toLowerCase() + " (" + periodString + ") ya está listo! Visualízalo y descárgalo aquí: " + link;
-  
-  // Specific users required (all admins)
-  notifyUser("Admin", msgText, "System");
+  return htmlContent;
 }

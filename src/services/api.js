@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbzdH6sReC7SLqla2xHECEklA_F9M6uhA1pQyGVZWJEZtUpKt1bNI35StrmYxYljPkjUCQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbx-GLk-8SoegNSr0S3jlW2P43V2hZ10VnnotK0no8xXbvOTGGhzuGV9l8yHAx-uxyMrJw/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -150,6 +150,7 @@ const api = {
     getVacationData: (user) => sendGet("getVacationData", { user }),
     getAdminData: () => sendGet("getAdminData"),
     getDashboardStats: (params) => sendGet("getDashboardStats", params),
+    getCustomPDF: (params) => sendPost("exportCustomPDF", params),
     getReportsHistory: (params) => sendGet("getReportsHistory", params),
     getCitiesList: () => sendGet("getCitiesList", {}, true),
     getFilterMetadata: () => sendGet("getFilterMetadata", {}, true),

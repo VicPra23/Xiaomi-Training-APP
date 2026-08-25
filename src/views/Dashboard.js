@@ -136,7 +136,7 @@ function renderDashboard(container) {
                 </div>
                 <div style="display:flex; gap:8px; align-self: flex-end;">
                     <button id="btnToggleRange" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Alternar Rango/Periodos"><i data-lucide="calendar" style="width:18px;"></i></button>
-                    <button id="btnExportTop" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Exportar informes CSV"><i data-lucide="download" style="width:18px;"></i></button>
+                    <button id="btnExportTop" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Exportar Reporte PDF" onclick="window.exportDashboardToPDF()"><i data-lucide="file-text" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" style="height:42px; width:42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="search" style="width:20px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="refresh-ccw" style="width:18px;"></i></button>
                 </div>
@@ -1219,6 +1219,72 @@ function renderDashboard(container) {
 
     window.dashboardLoadHistory = loadHistory;
 
+    window.exportDashboardToPDF = async () => {
+        const dTarget = document.getElementById('dashboardTarget');
+        const dWeek = document.getElementById('dashboardWeek');
+        const dMonth = document.getElementById('dashboardMonth');
+        const dYear = document.getElementById('dashboardYear');
+        const dDevice = document.getElementById('dashboardDevice');
+        const isRangeMode = document.getElementById('rangeInputs').style.display !== 'none';
+        const dStart = document.getElementById('dashboardDateStart');
+        const dEnd = document.getElementById('dashboardDateEnd');
+        const currentUser = getSessionData().user;
+
+        const target = isAdmin ? (dTarget ? dTarget.value : "Total") : currentUser;
+        const device = dDevice ? dDevice.value : "Todos";
+        let methodology = "Todos";
+        if (window.tsInstances && window.tsInstances['dashboardMethodology']) {
+            const vals = window.tsInstances['dashboardMethodology'].getValue();
+            methodology = Array.isArray(vals) ? vals.join(',') : (vals || "Todos");
+        } else if (document.getElementById('dashboardMethodology')) {
+            const mEl = document.getElementById('dashboardMethodology');
+            methodology = Array.from(mEl.selectedOptions).map(o => o.value).join(',');
+        }
+
+        let params = { targetUser: target, device: device, methodology: methodology };
+        
+        if (isAdmin && isRangeMode) {
+            params.startDate = dStart ? dStart.value : "";
+            params.endDate = dEnd ? dEnd.value : "";
+        } else {
+            params.week = dWeek ? dWeek.value : "";
+            params.month = dMonth ? dMonth.value : "Todos";
+            params.year = dYear ? dYear.value : "Todos";
+        }
+
+        if (window.showToast) window.showToast("Generando PDF, por favor espera...", "info");
+        
+        const btn = document.getElementById('btnExportTop');
+        if (btn) {
+            btn.innerHTML = '<i data-lucide="loader" class="spin" style="width:18px;"></i>';
+            if (window.lucide) window.lucide.createIcons();
+            btn.disabled = true;
+        }
+
+        try {
+            const res = await api.getCustomPDF(params);
+            if (res.status === 'success') {
+                const linkSource = `data:application/pdf;base64,${res.pdfBase64}`;
+                const downloadLink = document.createElement("a");
+                downloadLink.href = linkSource;
+                downloadLink.download = res.filename || "Reporte.pdf";
+                downloadLink.click();
+                if (window.showToast) window.showToast("PDF generado exitosamente", "success");
+            } else {
+                if (window.showToast) window.showToast("Error al generar PDF: " + (res.message || "Desconocido"), "error");
+            }
+        } catch (e) {
+            console.error(e);
+            if (window.showToast) window.showToast("Error de conexión al generar PDF", "error");
+        } finally {
+            if (btn) {
+                btn.innerHTML = '<i data-lucide="file-text" style="width:18px;"></i>';
+                if (window.lucide) window.lucide.createIcons();
+                btn.disabled = false;
+            }
+        }
+    };
+
     window.exportDashboardToCSV = () => {
         if (!window.dashboardHistoryData || window.dashboardHistoryData.length === 0) {
             if (window.showToast) window.showToast("No hay datos para exportar", "error");
@@ -1270,7 +1336,7 @@ function renderDashboard(container) {
     };
 
     const btnExportTop = document.getElementById('btnExportTop');
-    if(btnExportTop) btnExportTop.onclick = () => window.exportDashboardToCSV();
+    if(btnExportTop) btnExportTop.onclick = () => window.exportDashboardToPDF();
     
     const btnExportHistory = document.getElementById('btnExportHistory');
     if(btnExportHistory) btnExportHistory.onclick = () => window.exportDashboardToCSV();
