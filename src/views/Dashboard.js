@@ -106,7 +106,7 @@ function renderDashboard(container) {
                     </select>
                 </div>
                     <button id="btnToggleRange" class="btn-secondary" aria-label="Cambiar entre periodo y rango de fechas" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Cambiar entre periodo y rango"><i data-lucide="calendar" style="width:18px;"></i></button>
-                    <button id="btnExportTop" class="btn-secondary" aria-label="Exportar CSV" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Exportar informes CSV"><i data-lucide="download" style="width:18px;"></i></button>
+                    <button id="btnExportTop" class="btn-secondary" aria-label="Exportar PDF" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Exportar Reporte PDF" onclick="window.exportDashboardToPDF()"><i data-lucide="file-text" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" aria-label="Aplicar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Aplicar filtros"><i data-lucide="search" style="width:18px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" aria-label="Limpiar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Limpiar filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
                 </div>
@@ -136,7 +136,6 @@ function renderDashboard(container) {
                 </div>
                 <div style="display:flex; gap:8px; align-self: flex-end;">
                     <button id="btnToggleRange" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Alternar Rango/Periodos"><i data-lucide="calendar" style="width:18px;"></i></button>
-                    <button id="btnExportTop" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Exportar Reporte PDF" onclick="window.exportDashboardToPDF()"><i data-lucide="file-text" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" style="height:42px; width:42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="search" style="width:20px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="refresh-ccw" style="width:18px;"></i></button>
                 </div>
@@ -234,9 +233,10 @@ function renderDashboard(container) {
                             <button id="btnToggleHistoryRange" class="btn-secondary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Alternar Rango/Periodos">
                                 <i data-lucide="calendar" style="width:20px;"></i>
                             </button>
+                            ${isAdmin ? `
                             <button id="btnExportHistory" class="btn-secondary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Exportar Historial CSV">
                                 <i data-lucide="download" style="width:20px;"></i>
-                            </button>
+                            </button>` : ''}
                             <button onclick="window.dashboardLoadHistory()" class="btn-primary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0;" title="Filtrar">
                                 <i data-lucide="search" style="width:20px;"></i>
                             </button>
