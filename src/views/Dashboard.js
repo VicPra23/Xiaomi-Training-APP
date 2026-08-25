@@ -1225,7 +1225,8 @@ function renderDashboard(container) {
         const dMonth = document.getElementById('dashboardMonth');
         const dYear = document.getElementById('dashboardYear');
         const dDevice = document.getElementById('dashboardDevice');
-        const isRangeMode = document.getElementById('rangeInputs').style.display !== 'none';
+        const rangeEl = document.getElementById('rangeInputs');
+        const isRangeMode = rangeEl ? rangeEl.style.display !== 'none' : false;
         const dStart = document.getElementById('dashboardDateStart');
         const dEnd = document.getElementById('dashboardDateEnd');
         const currentUser = getSessionData().user;
