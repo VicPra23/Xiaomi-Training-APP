@@ -264,6 +264,7 @@ function doPost(e) {
       res = saveWeeklyAssignment(req);
     }
     if (req.action === "adminProcessSelection") res = adminProcessSelection(req);
+    if (req.action === "exportCustomPDF") res = generateCustomPDF(req);
     return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
   } catch(err) { return ContentService.createTextOutput(JSON.stringify(_errorResponse(err))).setMimeType(ContentService.MimeType.JSON); }
 }
@@ -667,7 +668,7 @@ function getDashboardStats(p) {
 
   // 2️⃣ NUEVO: Soporte para Múltiples Meses (Ej: "Mayo,Junio")
   let selectedMonths = [];
-  if (targetMonth !== "Todos") {
+  if (targetMonth !== "Todos" && selectedWeeks.length === 0) {
       selectedMonths = targetMonth.split(',').map(m => m.trim());
   }
 
@@ -1619,7 +1620,9 @@ function generateCustomPDF(p) {
       if (matches) selectedWeeks = matches.map(Number);
     }
     let selectedMonths = [];
-    if (targetMonth !== "Todos") selectedMonths = targetMonth.split(',').map(m => m.trim());
+    if (targetMonth !== "Todos" && selectedWeeks.length === 0) {
+        selectedMonths = targetMonth.split(',').map(m => m.trim());
+    }
     let selectedMethodologies = [];
     if (targetMethodology !== "todos" && targetMethodology !== "") selectedMethodologies = targetMethodology.split(',').map(m => m.trim());
     
