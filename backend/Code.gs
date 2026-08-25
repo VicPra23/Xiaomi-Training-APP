@@ -668,7 +668,7 @@ function getDashboardStats(p) {
 
   // 2️⃣ NUEVO: Soporte para Múltiples Meses (Ej: "Mayo,Junio")
   let selectedMonths = [];
-  if (targetMonth !== "Todos" && selectedWeeks.length === 0) {
+  if (targetMonth !== "Todos") {
       selectedMonths = targetMonth.split(',').map(m => m.trim());
   }
 
@@ -1620,7 +1620,7 @@ function generateCustomPDF(p) {
       if (matches) selectedWeeks = matches.map(Number);
     }
     let selectedMonths = [];
-    if (targetMonth !== "Todos" && selectedWeeks.length === 0) {
+    if (targetMonth !== "Todos") {
         selectedMonths = targetMonth.split(',').map(m => m.trim());
     }
     let selectedMethodologies = [];
