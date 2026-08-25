@@ -142,6 +142,10 @@ function handleAuthFailure(result) {
     }
 }
 
+const CONFIG = {
+    VERSION: "45.9"
+};
+
 const api = {
     login: (user, pass) => sendPost("login", { user, pass }),
     logout: () => sendPost("logout"),
