@@ -650,6 +650,7 @@ function getDashboardStats(p) {
   const targetYear = (p.year || "Todos").toString().trim();
   const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
   const targetMethodology = (p.methodology || "Todos").toString().trim().toLowerCase();
+  const targetContent = (p.content || "Todos").toString().trim().toLowerCase();
 
   // 1️⃣ NUEVO: Leer Rango de Fechas (Si el Admin lo usa)
   const startDateStr = (p.startDate || "").toString().trim();
@@ -675,6 +676,10 @@ function getDashboardStats(p) {
   let selectedMethodologies = [];
   if (targetMethodology !== "todos" && targetMethodology !== "") {
       selectedMethodologies = targetMethodology.split(',').map(m => m.trim());
+  }
+  let selectedContents = [];
+  if (targetContent !== "todos" && targetContent !== "") {
+      selectedContents = targetContent.split(',').map(m => m.trim());
   }
 
   const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -719,6 +724,18 @@ function getDashboardStats(p) {
         let match = false;
         for (let j = 0; j < selectedMethodologies.length; j++) {
             if (rowMethodology === selectedMethodologies[j] || (selectedMethodologies[j] === "reunión interna" && rowMethodology.indexOf("reuni") !== -1)) {
+                match = true;
+                break;
+            }
+        }
+        if (!match) continue;
+    }
+
+    if (selectedContents.length > 0 && !selectedContents.includes("todos")) {
+        const rowContent = (colMap.CONTENIDOS !== undefined ? d[i][colMap.CONTENIDOS] : "").toString().trim().toLowerCase();
+        let match = false;
+        for (let j = 0; j < selectedContents.length; j++) {
+            if (rowContent === selectedContents[j]) {
                 match = true;
                 break;
             }
@@ -1041,7 +1058,7 @@ function getFilterMetadata() {
   const colMap = _getColMap(s);
   const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
   
-  var ys = new Set(), ms = new Set(), devs = new Set(), accounts = new Set(), methodologies = new Set();
+  var ys = new Set(), ms = new Set(), devs = new Set(), accounts = new Set(), methodologies = new Set(), contents = new Set();
   var mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   
   for (var i=1; i<d.length; i++) {
@@ -1051,6 +1068,7 @@ function getFilterMetadata() {
     if(dO) { ys.add(dO.getFullYear().toString()); ms.add(mNames[dO.getMonth()]); }
     if(d[i][colMap.CUENTA]) accounts.add(d[i][colMap.CUENTA].toString().trim());
     if(d[i][colMap.METODOLOGIA]) methodologies.add(d[i][colMap.METODOLOGIA].toString().trim());
+    if(d[i][colMap.CONTENIDOS]) contents.add(d[i][colMap.CONTENIDOS].toString().trim());
     
     var d1 = (d[i][colMap.DISP_MOVIL]||"").toString().split(',');
     var d2 = (d[i][colMap.DISP_ECO]||"").toString().split(',');
@@ -1059,7 +1077,17 @@ function getFilterMetadata() {
       if(t && t !== "0" && t !== "-") devs.add(t);
     });
   }
-  return { status:"success", data: { years: Array.from(ys).sort().reverse(), months: Array.from(ms), accounts: Array.from(accounts).sort(), methodologies: Array.from(methodologies).sort(), devices: Array.from(devs).sort() } };
+  return {
+    status: "success", 
+    data: {
+      years: Array.from(ys).sort().reverse(),
+      months: Array.from(ms),
+      devices: Array.from(devs).sort(),
+      accounts: Array.from(accounts).sort(),
+      methodologies: Array.from(methodologies).sort(),
+      contents: Array.from(contents).sort()
+    }
+  };
 }
 
 function _uploadPhotos(photos, data) {
@@ -1604,6 +1632,7 @@ function generateCustomPDF(p) {
     const targetYear = (p.year || "Todos").toString().trim();
     const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
     const targetMethodology = (p.methodology || "Todos").toString().trim().toLowerCase();
+    const targetContent = (p.content || "Todos").toString().trim().toLowerCase();
     
     const startDateStr = (p.startDate || "").toString().trim();
     const endDateStr = (p.endDate || "").toString().trim();
@@ -1625,6 +1654,8 @@ function generateCustomPDF(p) {
     }
     let selectedMethodologies = [];
     if (targetMethodology !== "todos" && targetMethodology !== "") selectedMethodologies = targetMethodology.split(',').map(m => m.trim());
+    let selectedContents = [];
+    if (targetContent !== "todos" && targetContent !== "") selectedContents = targetContent.split(',').map(m => m.trim());
     
     const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
     
@@ -1700,6 +1731,13 @@ function generateCustomPDF(p) {
             methodMatch = selectedMethodologies.includes(method);
         }
         if (!methodMatch) continue;
+
+        let contentMatch = true;
+        const rowContent = (d[i][colMap.CONTENIDOS] || "Otros").toString().trim().toLowerCase();
+        if (selectedContents.length > 0) {
+            contentMatch = selectedContents.includes(rowContent);
+        }
+        if (!contentMatch) continue;
 
         let devMatch = false;
         let pastDevMatch = false;

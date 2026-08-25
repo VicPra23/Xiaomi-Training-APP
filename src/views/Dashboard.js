@@ -99,6 +99,12 @@ function renderDashboard(container) {
                         <option value="Todos" selected>Todas</option>
                     </select>
                 </div>
+                <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Contenidos</label>
+                    <select id="dashboardContent" class="form-control" multiple style="max-height: 42px; overflow: hidden;">
+                        <option value="Todos" selected>Todos</option>
+                    </select>
+                </div>
                 <div class="form-group" style="margin:0; min-width: 110px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Dispositivo</label>
                     <select id="dashboardDevice" class="form-control">
@@ -774,6 +780,14 @@ function renderDashboard(container) {
                         window.tsInstances['dashboardMethodology'].addItem('Todos', true);
                     }
                 }
+                const dC = document.getElementById('dashboardContent');
+                if (dC && res.data.contents) {
+                    dC.innerHTML = '<option value="Todos" selected>Todos</option>' + res.data.contents.map(c => `<option value="${c}">${c}</option>`).join('');
+                    initTomSelect('dashboardContent', 'Busca contenido...');
+                    if (window.tsInstances['dashboardContent']) {
+                        window.tsInstances['dashboardContent'].addItem('Todos', true);
+                    }
+                }
             }
         });
 
@@ -865,10 +879,19 @@ function renderDashboard(container) {
             methodology = Array.from(mEl.selectedOptions).map(o => o.value).join(',');
         }
 
+        let content = "Todos";
+        if (window.tsInstances && window.tsInstances['dashboardContent']) {
+            const vals = window.tsInstances['dashboardContent'].getValue();
+            content = Array.isArray(vals) ? vals.join(',') : (vals || "Todos");
+        } else if (document.getElementById('dashboardContent')) {
+            const cEl = document.getElementById('dashboardContent');
+            content = Array.from(cEl.selectedOptions).map(o => o.value).join(',');
+        }
+
         const statsLoading = document.getElementById('stat_count');
         if (statsLoading) statsLoading.innerText = "...";
 
-        let params = { targetUser: target, device: device, methodology: methodology, refresh: force };
+        let params = { targetUser: target, device: device, methodology: methodology, content: content, refresh: force };
         
         if (isAdmin && isRangeMode) {
             params.startDate = dStart ? dStart.value : "";
@@ -923,6 +946,11 @@ function renderDashboard(container) {
                 window.tsInstances['dashboardMethodology'].setValue(['Todos']);
             } else if (document.getElementById('dashboardMethodology')) {
                 document.getElementById('dashboardMethodology').value = 'Todos';
+            }
+            if (window.tsInstances && window.tsInstances['dashboardContent']) {
+                window.tsInstances['dashboardContent'].setValue(['Todos']);
+            } else if (document.getElementById('dashboardContent')) {
+                document.getElementById('dashboardContent').value = 'Todos';
             }
             
             if(document.getElementById('dashboardDateStart')) document.getElementById('dashboardDateStart').value = '';
@@ -1242,7 +1270,16 @@ function renderDashboard(container) {
             methodology = Array.from(mEl.selectedOptions).map(o => o.value).join(',');
         }
 
-        let params = { targetUser: target, device: device, methodology: methodology };
+        let content = "Todos";
+        if (window.tsInstances && window.tsInstances['dashboardContent']) {
+            const vals = window.tsInstances['dashboardContent'].getValue();
+            content = Array.isArray(vals) ? vals.join(',') : (vals || "Todos");
+        } else if (document.getElementById('dashboardContent')) {
+            const cEl = document.getElementById('dashboardContent');
+            content = Array.from(cEl.selectedOptions).map(o => o.value).join(',');
+        }
+
+        let params = { targetUser: target, device: device, methodology: methodology, content: content };
         
         if (isAdmin && isRangeMode) {
             params.startDate = dStart ? dStart.value : "";
