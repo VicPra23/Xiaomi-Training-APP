@@ -661,11 +661,10 @@ function getDashboardStats(p) {
   if(endD) endD.setHours(23,59,59,999);
 
   let selectedWeeks = [];
-  if (targetWeeksStr) {
+  if (targetWeeksStr && targetWeeksStr !== "todos" && targetWeeksStr !== "Todos") {
     const matches = targetWeeksStr.match(/\d+/g);
     if (matches) selectedWeeks = matches.map(Number);
   }
-  if (selectedWeeks.length === 0 && targetMonth === "Todos" && !startD) selectedWeeks = [getWeekNumber(now)];
 
   // 2️⃣ NUEVO: Soporte para Múltiples Meses (Ej: "Mayo,Junio")
   let selectedMonths = [];
@@ -1665,7 +1664,7 @@ function generateCustomPDF(p) {
     if (!isTimeFiltered && targetDevice !== "todos" && targetDevice !== "") {
         const allDevices = new Set();
         for (let i = 1; i < d.length; i++) {
-            let devStr = (d[i][colMap.DISPOSITIVOS] || d[i][11] || "").toString().trim().toLowerCase();
+            let devStr = (d[i][colMap.DISP_MOVIL] || d[i][11] || "").toString().trim().toLowerCase();
             if (devStr) {
                 let devs = [];
                 try {
@@ -1722,7 +1721,7 @@ function generateCustomPDF(p) {
         const trainer = tVal.toString().trim();
         const account = (d[i][colMap.CUENTA] || "Otros").toString().trim() || "Otros";
         const method = (d[i][colMap.METODOLOGIA] || "Otros").toString().trim() || "Otros";
-        let devStr = (d[i][colMap.DISPOSITIVOS] || d[i][11] || "").toString().trim().toLowerCase();
+        let devStr = (d[i][colMap.DISP_MOVIL] || d[i][11] || "").toString().trim().toLowerCase();
 
         if (target !== "Total" && trainer !== target) continue;
         
