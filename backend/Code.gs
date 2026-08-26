@@ -1741,12 +1741,12 @@ function generateCustomPDF(p) {
 
         let devMatch = false;
         let pastDevMatch = false;
+        if (targetDevice === "todos" || targetDevice === "") devMatch = true;
+        else if (devStr.includes(targetDevice)) devMatch = true;
+        
         if (isModelComparison) {
-            if (devStr.includes(targetDevice)) devMatch = true;
             if (devStr.includes(previousDevice)) pastDevMatch = true;
         } else {
-            if (targetDevice === "todos" || targetDevice === "") devMatch = true;
-            else if (devStr.includes(targetDevice)) devMatch = true;
             pastDevMatch = devMatch;
         }
 
@@ -1755,47 +1755,44 @@ function generateCustomPDF(p) {
         let matchesLYTime = false;
         let matchesYTTime = false;
 
-        if (isModelComparison) {
-            matchesTime = true;
-            matchesPastTime = true;
-            matchesLYTime = false;
-            matchesYTTime = false;
+        if (startD && endD) {
+            matchesTime = dTime >= startD.getTime() && dTime <= endD.getTime();
+            let dur = endD.getTime() - startD.getTime();
+            let pEnd = startD.getTime() - 1;
+            let pStart = pEnd - dur;
+            matchesPastTime = isModelComparison ? matchesTime : (dTime >= pStart && dTime <= pEnd);
+            let lyS = new Date(startD); lyS.setFullYear(lyS.getFullYear()-1);
+            let lyE = new Date(endD); lyE.setFullYear(lyE.getFullYear()-1);
+            matchesLYTime = dTime >= lyS.getTime() && dTime <= lyE.getTime();
+            let ytS = new Date(endD.getFullYear(), 0, 1);
+            matchesYTTime = dTime >= ytS.getTime() && dTime <= endD.getTime();
         } else {
-            if (startD && endD) {
-               matchesTime = dTime >= startD.getTime() && dTime <= endD.getTime();
-               let dur = endD.getTime() - startD.getTime();
-               let pStart = startD.getTime() - dur - 86400000;
-               let pEnd = startD.getTime() - 1000;
-               matchesPastTime = dTime >= pStart && dTime <= pEnd;
-               let lyS = new Date(startD); lyS.setFullYear(lyS.getFullYear()-1);
-               let lyE = new Date(endD); lyE.setFullYear(lyE.getFullYear()-1);
-               matchesLYTime = dTime >= lyS.getTime() && dTime <= lyE.getTime();
-               let ytS = new Date(endD.getFullYear(), 0, 1);
-               matchesYTTime = dTime >= ytS.getTime() && dTime <= endD.getTime();
+            if (targetYear !== "Todos" && rowYear.toString() !== targetYear) matchesTime = false;
+            if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesTime = false;
+            if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesTime = false;
+            
+            if (isModelComparison) {
+                matchesPastTime = matchesTime;
             } else {
-               if (targetYear !== "Todos" && rowYear.toString() !== targetYear) matchesTime = false;
-               if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesTime = false;
-               if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesTime = false;
-               
-               if (selectedMonths.length === 1 && selectedWeeks.length === 0) {
-                  let mIdx = mNames.indexOf(selectedMonths[0]);
-                  let pIdx = mIdx === 0 ? 11 : mIdx - 1;
-                  let pYear = mIdx === 0 ? (targetYear !== "Todos" ? parseInt(targetYear)-1 : rowYear) : (targetYear !== "Todos" ? parseInt(targetYear) : rowYear);
-                  matchesPastTime = (rowMonth === pIdx) && (rowYear === pYear);
-               } else if (selectedWeeks.length === 1) {
-                  matchesPastTime = (rowWeek === selectedWeeks[0] - 1) && (rowYear === (targetYear !== "Todos" ? parseInt(targetYear) : rowYear));
-               } else if (targetYear !== "Todos" && selectedMonths.length === 0 && selectedWeeks.length === 0) {
-                  matchesPastTime = rowYear === parseInt(targetYear) - 1;
-               }
-        
-               if (targetYear !== "Todos") {
-                  matchesLYTime = (rowYear === parseInt(targetYear) - 1);
-                  if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
-                  if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesLYTime = false;
-                  matchesYTTime = (rowYear === parseInt(targetYear));
-               } else {
-                  matchesYTTime = (rowYear === now.getFullYear());
-               }
+                if (selectedMonths.length === 1 && selectedWeeks.length === 0) {
+                    let mIdx = mNames.indexOf(selectedMonths[0]);
+                    let pIdx = mIdx === 0 ? 11 : mIdx - 1;
+                    let pYear = mIdx === 0 ? (targetYear !== "Todos" ? parseInt(targetYear)-1 : rowYear) : (targetYear !== "Todos" ? parseInt(targetYear) : rowYear);
+                    matchesPastTime = (rowMonth === pIdx) && (rowYear === pYear);
+                } else if (selectedWeeks.length === 1) {
+                    matchesPastTime = (rowWeek === selectedWeeks[0] - 1) && (rowYear === (targetYear !== "Todos" ? parseInt(targetYear) : rowYear));
+                } else if (targetYear !== "Todos" && selectedMonths.length === 0 && selectedWeeks.length === 0) {
+                    matchesPastTime = rowYear === parseInt(targetYear) - 1;
+                }
+            }
+    
+            if (targetYear !== "Todos") {
+                matchesLYTime = (rowYear === parseInt(targetYear) - 1);
+                if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
+                if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesLYTime = false;
+                matchesYTTime = (rowYear === parseInt(targetYear));
+            } else {
+                matchesYTTime = (rowYear === now.getFullYear());
             }
         }
 
@@ -1819,47 +1816,53 @@ function generateCustomPDF(p) {
     let pastLabel = "Periodo Anterior";
     const formatD = (date) => Utilities.formatDate(date, Session.getScriptTimeZone(), "dd/MM/yy");
 
+    let baseTimeLabel = "";
+    if (isTimeFiltered) {
+        if (startD && endD) {
+            baseTimeLabel = `${formatD(startD)} - ${formatD(endD)}`;
+        } else if (selectedMonths.length > 0 && selectedWeeks.length > 0) {
+            baseTimeLabel = `${selectedMonths.join(', ')}, Semana ${selectedWeeks.join(', ')}`;
+            if (targetYear !== "Todos") baseTimeLabel += ` del ${targetYear}`;
+        } else if (selectedMonths.length > 0) {
+            baseTimeLabel = `${selectedMonths.join(', ')}`;
+            if (targetYear !== "Todos") baseTimeLabel += ` ${targetYear}`;
+        } else if (selectedWeeks.length > 0) {
+            baseTimeLabel = `Semana ${selectedWeeks.join(', ')}`;
+            if (targetYear !== "Todos") baseTimeLabel += ` del ${targetYear}`;
+        } else if (targetYear !== "Todos") {
+            baseTimeLabel = `Año ${targetYear}`;
+        }
+    }
+
     if (isModelComparison) {
         reportTitle = "REPORTE DE DISPOSITIVO";
-        periodString = targetDevice.toUpperCase();
-        currentLabel = targetDevice.toUpperCase();
-        pastLabel = previousDevice.toUpperCase();
+        periodString = baseTimeLabel ? `${baseTimeLabel} (${targetDevice.toUpperCase()})` : targetDevice.toUpperCase();
+        currentLabel = baseTimeLabel ? `${baseTimeLabel} (${targetDevice.toUpperCase()})` : targetDevice.toUpperCase();
+        pastLabel = baseTimeLabel ? `${baseTimeLabel} (${previousDevice.toUpperCase()})` : previousDevice.toUpperCase();
         ly = null; 
         yt = null; 
-    } else if (isTimeFiltered) {
-        if (startD && endD) {
-            periodString = `${formatD(startD)} - ${formatD(endD)}`;
-        } else if (targetYear !== "Todos") {
-            if (selectedMonths.length > 0 && selectedWeeks.length > 0) periodString = `${selectedMonths.join(', ')}, Semana ${selectedWeeks.join(', ')} del ${targetYear}`;
-            else if (selectedMonths.length > 0) periodString = `${selectedMonths.join(', ')} ${targetYear}`;
-            else if (selectedWeeks.length > 0) periodString = `Semana ${selectedWeeks.join(', ')} del ${targetYear}`;
-            else periodString = `Año ${targetYear}`;
-        } else {
-            if (selectedMonths.length > 0 && selectedWeeks.length > 0) periodString = `${selectedMonths.join(', ')}, Semana ${selectedWeeks.join(', ')}`;
-            else if (selectedMonths.length > 0) periodString = `${selectedMonths.join(', ')}`;
-            else if (selectedWeeks.length > 0) periodString = `Semana ${selectedWeeks.join(', ')}`;
-            else periodString = "Filtros Personalizados";
-        }
-        
-        if (targetDevice !== "todos" && targetDevice !== "") {
-            periodString += ` (${targetDevice.toUpperCase()})`;
-        }
-
-        if (selectedMonths.length > 0 && selectedWeeks.length === 0) {
-            currentLabel = "Mes Analizado"; pastLabel = "Mes Anterior";
-        } else if (selectedWeeks.length > 0) {
-            currentLabel = "Semana Analizada"; pastLabel = "Semana Anterior";
-        } else {
-            currentLabel = "Periodo Analizado"; pastLabel = "Periodo Anterior";
-        }
     } else {
-        periodString = "Todos los tiempos";
-        if (targetDevice !== "todos" && targetDevice !== "") {
-            periodString += ` (${targetDevice.toUpperCase()})`;
+        if (baseTimeLabel) {
+            if (targetDevice !== "todos" && targetDevice !== "") {
+                periodString = `${baseTimeLabel} (${targetDevice.toUpperCase()})`;
+                currentLabel = periodString;
+                if (selectedMonths.length > 0 && selectedWeeks.length === 0) pastLabel = `Mes Anterior (${targetDevice.toUpperCase()})`;
+                else if (selectedWeeks.length > 0) pastLabel = `Semana Anterior (${targetDevice.toUpperCase()})`;
+                else pastLabel = `Periodo Anterior (${targetDevice.toUpperCase()})`;
+            } else {
+                periodString = baseTimeLabel;
+                currentLabel = periodString;
+                if (selectedMonths.length > 0 && selectedWeeks.length === 0) pastLabel = "Mes Anterior";
+                else if (selectedWeeks.length > 0) pastLabel = "Semana Anterior";
+                else pastLabel = "Periodo Anterior";
+            }
+        } else {
+            periodString = "Todos los tiempos";
+            if (targetDevice !== "todos" && targetDevice !== "") periodString += ` (${targetDevice.toUpperCase()})`;
+            currentLabel = "Periodo Analizado";
+            pastLabel = "Periodo Anterior";
         }
-        pw = null;
-        ly = null;
-        yt = null;
+        pw = pw; ly = ly; yt = yt;
     }
 
     const htmlContent = _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt);
