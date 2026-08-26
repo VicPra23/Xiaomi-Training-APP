@@ -1759,10 +1759,10 @@ function generateCustomPDF(p) {
             let dur = endD.getTime() - startD.getTime();
             let pEnd = startD.getTime() - 1;
             let pStart = pEnd - dur;
-            matchesPastTime = isModelComparison ? matchesTime : (dTime >= pStart && dTime <= pEnd);
+            matchesPastTime = (dTime >= pStart && dTime <= pEnd);
             let lyS = new Date(startD); lyS.setFullYear(lyS.getFullYear()-1);
             let lyE = new Date(endD); lyE.setFullYear(lyE.getFullYear()-1);
-            matchesLYTime = dTime >= lyS.getTime() && dTime <= lyE.getTime();
+            matchesLYTime = isModelComparison ? matchesTime : (dTime >= lyS.getTime() && dTime <= lyE.getTime());
             let ytS = new Date(endD.getFullYear(), 0, 1);
             matchesYTTime = dTime >= ytS.getTime() && dTime <= endD.getTime();
         } else {
@@ -1770,21 +1770,26 @@ function generateCustomPDF(p) {
             if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesTime = false;
             if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesTime = false;
             
-            if (isModelComparison) {
-                matchesPastTime = matchesTime;
-            } else {
-                if (selectedMonths.length === 1 && selectedWeeks.length === 0) {
-                    let mIdx = mNames.indexOf(selectedMonths[0]);
-                    let pIdx = mIdx === 0 ? 11 : mIdx - 1;
-                    let pYear = mIdx === 0 ? (targetYear !== "Todos" ? parseInt(targetYear)-1 : rowYear) : (targetYear !== "Todos" ? parseInt(targetYear) : rowYear);
-                    matchesPastTime = (rowMonth === pIdx) && (rowYear === pYear);
-                } else if (selectedWeeks.length === 1) {
-                    matchesPastTime = (rowWeek === selectedWeeks[0] - 1) && (rowYear === (targetYear !== "Todos" ? parseInt(targetYear) : rowYear));
-                } else if (targetYear !== "Todos" && selectedMonths.length === 0 && selectedWeeks.length === 0) {
-                    matchesPastTime = rowYear === parseInt(targetYear) - 1;
-                }
+            if (selectedMonths.length === 1 && selectedWeeks.length === 0) {
+                let mIdx = mNames.indexOf(selectedMonths[0]);
+                let pIdx = mIdx === 0 ? 11 : mIdx - 1;
+                let pYear = mIdx === 0 ? (targetYear !== "Todos" ? parseInt(targetYear)-1 : rowYear) : (targetYear !== "Todos" ? parseInt(targetYear) : rowYear);
+                matchesPastTime = (rowMonth === pIdx) && (rowYear === pYear);
+            } else if (selectedWeeks.length === 1) {
+                matchesPastTime = (rowWeek === selectedWeeks[0] - 1) && (rowYear === (targetYear !== "Todos" ? parseInt(targetYear) : rowYear));
+            } else if (targetYear !== "Todos" && selectedMonths.length === 0 && selectedWeeks.length === 0) {
+                matchesPastTime = rowYear === parseInt(targetYear) - 1;
             }
     
+            if (isModelComparison) {
+                matchesLYTime = matchesTime;
+            } else {
+                if (targetYear !== "Todos") {
+                    matchesLYTime = (rowYear === parseInt(targetYear) - 1);
+                    if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
+                    if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesLYTime = false;
+                }
+            }
             if (targetYear !== "Todos") {
                 matchesLYTime = (rowYear === parseInt(targetYear) - 1);
                 if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
@@ -1805,8 +1810,24 @@ function generateCustomPDF(p) {
             if (!cw.byTrainer[trainer].byMethod[method]) cw.byTrainer[trainer].byMethod[method] = 0;
             cw.byTrainer[trainer].byMethod[method] += hor;
         }
-        if (pastDevMatch && matchesPastTime) { pw.sesiones += ses; pw.alumnos += alu; pw.horas += hor; }
-        if (devMatch && matchesLYTime) { ly.sesiones += ses; ly.alumnos += alu; ly.horas += hor; }
+        if (devMatch && matchesPastTime) { 
+            pw.sesiones += ses; pw.alumnos += alu; pw.horas += hor; 
+            if (!pw.byAccount[account]) pw.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
+            pw.byAccount[account].sesiones += ses; pw.byAccount[account].alumnos += alu; pw.byAccount[account].horas += hor;
+        }
+        if (isModelComparison) {
+            if (pastDevMatch && matchesLYTime) { 
+                ly.sesiones += ses; ly.alumnos += alu; ly.horas += hor; 
+                if (!ly.byAccount[account]) ly.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
+                ly.byAccount[account].sesiones += ses; ly.byAccount[account].alumnos += alu; ly.byAccount[account].horas += hor;
+            }
+        } else {
+            if (devMatch && matchesLYTime) { 
+                ly.sesiones += ses; ly.alumnos += alu; ly.horas += hor; 
+                if (!ly.byAccount[account]) ly.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
+                ly.byAccount[account].sesiones += ses; ly.byAccount[account].alumnos += alu; ly.byAccount[account].horas += hor;
+            }
+        }
     }
 
     let reportTitle = "REPORTE PERSONALIZADO";
@@ -1833,12 +1854,16 @@ function generateCustomPDF(p) {
         }
     }
 
+    let lyTitle = "Versus Año Anterior";
+    let lyColLabel = "Mismo periodo (Año Pasado)";
+
     if (isModelComparison) {
         reportTitle = "REPORTE DE DISPOSITIVO";
         periodString = baseTimeLabel ? `${baseTimeLabel} (${targetDevice.toUpperCase()})` : targetDevice.toUpperCase();
         currentLabel = baseTimeLabel ? `${baseTimeLabel} (${targetDevice.toUpperCase()})` : targetDevice.toUpperCase();
-        pastLabel = baseTimeLabel ? `${baseTimeLabel} (${previousDevice.toUpperCase()})` : previousDevice.toUpperCase();
-        ly = null; 
+        pastLabel = "Periodo Anterior";
+        lyTitle = `Versus Modelo Anterior (${previousDevice.toUpperCase()})`;
+        lyColLabel = previousDevice.toUpperCase();
         yt = null; 
     } else {
         if (baseTimeLabel) {
@@ -1864,7 +1889,7 @@ function generateCustomPDF(p) {
         pw = pw; ly = ly; yt = yt;
     }
 
-    const htmlContent = _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt);
+    const htmlContent = _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt, lyTitle, lyColLabel);
     const blob = Utilities.newBlob(htmlContent, MimeType.HTML);
     const pdfBlob = blob.getAs(MimeType.PDF);
     
@@ -1946,8 +1971,8 @@ function generatePDFReport(periodType) {
   const lastYearEnd = new Date(currentEnd); lastYearEnd.setFullYear(currentEnd.getFullYear() - 1);
 
   let cw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {}, byTrainer: {} };
-  let pw = { sesiones: 0, alumnos: 0, horas: 0 };
-  let ly = { sesiones: 0, alumnos: 0, horas: 0 };
+  let pw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {} };
+  let ly = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {} };
   let yt = { sesiones: 0, alumnos: 0, horas: 0 };
 
   for (let i = 1; i < data.length; i++) {
@@ -2011,7 +2036,7 @@ function generatePDFReport(periodType) {
   notifyUser("Admin", msgText, "System");
 }
 
-function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt) {
+function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt, lyTitle = "Versus Año Anterior", lyColLabel = "Mismo periodo (Año Pasado)") {
   function createVersusChart(title, currentLabel, currentSes, currentAlu, pastLabel, pastSes, pastAlu) {
       const dataTable = Charts.newDataTable()
           .addColumn(Charts.ColumnType.STRING, "Periodo")
@@ -2080,8 +2105,9 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
   };
 
   let accountHtml = "";
-  for (const acc in cw.byAccount) {
-      if (cw.byAccount[acc].sesiones === 0 && cw.byAccount[acc].alumnos === 0) continue;
+  let sortedAccounts = Object.keys(cw.byAccount).sort();
+  for (let i = 0; i < sortedAccounts.length; i++) {
+      let acc = sortedAccounts[i];
       accountHtml += `<tr>
         <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${acc}</td>
         ${td(cw.byAccount[acc].sesiones)}
@@ -2090,6 +2116,32 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
       </tr>`;
   }
   if (!accountHtml) accountHtml = "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #888;'>Sin datos reportados.</td></tr>";
+
+  const renderByAccountTable = (dataObj, label, colLabel) => {
+      let accHtml = "";
+      let sortedAcc = Object.keys(dataObj.byAccount || {}).sort();
+      for (let i = 0; i < sortedAcc.length; i++) {
+          let acc = sortedAcc[i];
+          accHtml += `<tr>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${acc}</td>
+            ${td(dataObj.byAccount[acc].sesiones)}
+            ${td(dataObj.byAccount[acc].alumnos)}
+            ${td(dataObj.byAccount[acc].horas.toFixed(1))}
+          </tr>`;
+      }
+      if (!accHtml) return "";
+      return `
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <tr>
+            <th colspan="4" style="padding: 12px; border: 1px solid #ddd; background-color: #eaeaea; color: #333; text-align: left;">Desglose por Cuenta (${colLabel})</th>
+        </tr>
+        <tr>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Cuenta</th>
+            ${th("Formaciones")}${th("Impactados")}${th("Horas")}
+        </tr>
+        ${accHtml}
+      </table>`;
+  };
 
   let trainerHtml = "";
   for (const t in cw.byTrainer) {
@@ -2174,14 +2226,14 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
   let sectionCounter = 2;
 
   if (ly) {
-      const chartYoY_Ses = createVersusChart("Sesiones y Alumnos vs Año Anterior", currentLabel, cw.sesiones, cw.alumnos, "Año Pasado", ly.sesiones, ly.alumnos);
+      const chartYoY_Ses = createVersusChart(`Sesiones y Alumnos vs ${lyColLabel}`, currentLabel, cw.sesiones, cw.alumnos, lyColLabel, ly.sesiones, ly.alumnos);
       htmlContent += `
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. Versus Año Anterior</h3>
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. ${lyTitle}</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Métrica</th>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${currentLabel}</th>
-            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">Mismo periodo (Año Pasado)</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${lyColLabel}</th>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #333; color: white; text-align: center;">Tendencia</th>
         </tr>
         <tr>
@@ -2192,7 +2244,12 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
             <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Alumnos Impactados</td>
             ${td(cw.alumnos)}${td(ly.alumnos)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.alumnos, ly.alumnos)}</td>
         </tr>
+        <tr>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Horas Impartidas</td>
+            ${td(cw.horas.toFixed(1))}${td(ly.horas.toFixed(1))}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.horas, ly.horas)}</td>
+        </tr>
       </table>
+      ${renderByAccountTable(ly, lyTitle, lyColLabel)}
       <div style="text-align: center; margin-bottom: 50px;">
           <img src="data:image/png;base64,${chartYoY_Ses}" style="width: 400px; height: auto;" />
       </div>`;
@@ -2217,7 +2274,12 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
             <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Alumnos Impactados</td>
             ${td(cw.alumnos)}${td(pw.alumnos)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.alumnos, pw.alumnos)}</td>
         </tr>
+        <tr>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Horas Impartidas</td>
+            ${td(cw.horas.toFixed(1))}${td(pw.horas.toFixed(1))}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.horas, pw.horas)}</td>
+        </tr>
       </table>
+      ${renderByAccountTable(pw, `Versus ${pastLabel}`, pastLabel)}
       <div style="text-align: center; margin-bottom: 50px;">
           <img src="data:image/png;base64,${chartWoW_Ses}" style="width: 400px; height: auto;" />
       </div>`;

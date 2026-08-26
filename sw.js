@@ -1,4 +1,4 @@
-const CACHE_NAME = 'xiaomi-trainer-v46.1';
+const CACHE_NAME = 'xiaomi-trainer-v46.3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -27,7 +27,6 @@ self.addEventListener('install', event => {
           })
           .catch(() => null)
       )))
-      .then(() => self.skipWaiting())
   );
 });
 
