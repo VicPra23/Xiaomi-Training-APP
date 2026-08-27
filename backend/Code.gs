@@ -1863,8 +1863,8 @@ function generateCustomPDF(p) {
         reportTitle = "REPORTE DE DISPOSITIVO";
         periodString = baseTimeLabel ? `${baseTimeLabel} (${targetDevice.toUpperCase()})` : targetDevice.toUpperCase();
         currentLabel = baseTimeLabel ? `${baseTimeLabel} (${targetDevice.toUpperCase()})` : targetDevice.toUpperCase();
-        pastLabel = "Periodo Anterior";
-        lyTitle = `Versus Modelo Anterior (${previousDevice.toUpperCase()})`;
+        pastLabel = "Periodo Anterior (Mismo Modelo)";
+        lyTitle = `Versus Modelo Anterior en el Mismo Período (${previousDevice.toUpperCase()})`;
         lyColLabel = previousDevice.toUpperCase();
         yt = null; 
     } else {
@@ -1888,8 +1888,8 @@ function generateCustomPDF(p) {
             currentLabel = "Periodo Analizado";
             pastLabel = "Periodo Anterior";
         }
-        pw = pw; ly = ly; yt = yt;
     }
+    pw = pw; ly = ly; yt = yt;
 
     const htmlContent = _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt, lyTitle, lyColLabel);
     const blob = Utilities.newBlob(htmlContent, MimeType.HTML);

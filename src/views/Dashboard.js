@@ -149,6 +149,18 @@ function renderDashboard(container) {
         </div>`;
 
     const html = `
+        <style>
+            #mainChartsContainer, #adminWidgets {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 1.5rem !important;
+            }
+            @media (max-width: 980px) {
+                #mainChartsContainer, #adminWidgets {
+                    grid-template-columns: 1fr !important;
+                }
+            }
+        </style>
         <div class="dash-module fade-in">
             <header class="dash-header">
                 <div>
@@ -197,7 +209,7 @@ function renderDashboard(container) {
                 </div>
             </section>
 
-            <div class="charts-container">
+            <div id="mainChartsContainer" class="charts-container">
                 <section class="workspace-panel workspace-panel-primary">
                     <div class="workspace-panel-heading"><div><span class="page-eyebrow">Evolución</span><h3>Tendencia semanal</h3></div><i data-lucide="bar-chart-3"></i></div>
                     <div class="chart-wrapper"><canvas id="chartWeekly" role="img" aria-label="Tendencia semanal de actividad"></canvas></div>
