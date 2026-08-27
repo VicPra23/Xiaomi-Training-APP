@@ -1580,8 +1580,11 @@ function renderDashboard(container) {
 }
 
 let weeklyChart, methodsChart, trainersChart;
+let inlineDataLabelsRegistered = false;
 
-        Chart.register({
+function registerInlineDataLabels() {
+    if (inlineDataLabelsRegistered || typeof Chart === 'undefined') return;
+    Chart.register({
             id: 'inlineDataLabels',
             afterDatasetsDraw: (chart) => {
                 const ctx = chart.ctx;
@@ -1616,10 +1619,22 @@ let weeklyChart, methodsChart, trainersChart;
                     });
                 });
             }
-        });
+    });
+    inlineDataLabelsRegistered = true;
+}
 
-function renderCharts(data) {
+async function renderCharts(data) {
     if (!data) return;
+    if (typeof Chart === 'undefined') {
+        try {
+            await window.loadScriptOnce('https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js', 'Chart');
+        } catch (error) {
+            console.error('No se pudo cargar Chart.js.', error);
+            return;
+        }
+    }
+    if (window.location.hash !== '#dashboard') return;
+    registerInlineDataLabels();
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const isMobile = window.innerWidth < 768;
     const primaryColor = getComputedStyle(document.querySelector('.btn-primary') || document.documentElement).backgroundColor || '#ff6700';
@@ -1632,11 +1647,6 @@ function renderCharts(data) {
     const fontSize = isMobile ? (isLandscape ? 8 : 9) : 12;
     const tickSize = isMobile ? (isLandscape ? 7 : 8) : 11;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    if (typeof Chart === 'undefined') {
-        console.error("Chart.js is NOT defined.");
-        return;
-    }
 
     try {
         // Configuración global de Chart.js
@@ -1825,4 +1835,10 @@ function renderCharts(data) {
         }
     } catch(e) { console.error("Error renderCharts:", e); }
 }
+window.destroyDashboardCharts = () => {
+    [weeklyChart, methodsChart, trainersChart].forEach(chart => chart?.destroy?.());
+    weeklyChart = null;
+    methodsChart = null;
+    trainersChart = null;
+};
 window.renderDashboard = renderDashboard;

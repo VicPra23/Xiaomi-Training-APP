@@ -19,6 +19,65 @@ const navbar = document.getElementById('navbar');
 const navLinks = document.getElementById('navLinks');
 let lastSeenMsgId = 0;
 let pollerInterval = null;
+const externalAssetPromises = new Map();
+
+window.loadScriptOnce = (src, globalName) => {
+    if (globalName && window[globalName]) return Promise.resolve(window[globalName]);
+    if (externalAssetPromises.has(src)) return externalAssetPromises.get(src);
+    const promise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        script.onload = () => resolve(globalName ? window[globalName] : true);
+        script.onerror = () => reject(new Error(`No se pudo cargar el recurso ${src}`));
+        document.head.appendChild(script);
+    }).catch(error => {
+        externalAssetPromises.delete(src);
+        throw error;
+    });
+    externalAssetPromises.set(src, promise);
+    return promise;
+};
+
+window.loadStyleOnce = href => {
+    if (document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) return Promise.resolve(true);
+    if (externalAssetPromises.has(href)) return externalAssetPromises.get(href);
+    const promise = new Promise((resolve, reject) => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.onload = () => resolve(true);
+        link.onerror = () => reject(new Error(`No se pudo cargar el recurso ${href}`));
+        document.head.appendChild(link);
+    }).catch(error => {
+        externalAssetPromises.delete(href);
+        throw error;
+    });
+    externalAssetPromises.set(href, promise);
+    return promise;
+};
+
+const routeViews = {
+    '#dashboard': { src: 'src/views/Dashboard.js?v=46.7', global: 'renderDashboard', needsTomSelect: true },
+    '#report': { src: 'src/views/ReportForm.js?v=46.7', global: 'renderReport', needsTomSelect: true },
+    '#calendar': { src: 'src/views/Calendar.js?v=46.7', global: 'renderCalendar', needsTomSelect: true },
+    '#vacations': { src: 'src/views/Vacations.js?v=46.7', global: 'renderVacations' },
+    '#materials': { src: 'src/views/Materials.js?v=46.7', global: 'renderMaterials' },
+    '#mensajes': { src: 'src/views/Messages.js?v=46.7', global: 'renderMessages' }
+};
+
+async function ensureRouteView(hash) {
+    const view = routeViews[hash];
+    if (!view || window[view.global]) return;
+    const dependencies = [];
+    if (view.needsTomSelect) {
+        dependencies.push(window.loadStyleOnce('https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css'));
+        dependencies.push(window.loadScriptOnce('https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js', 'TomSelect'));
+    }
+    await Promise.all(dependencies);
+    await window.loadScriptOnce(view.src, view.global);
+}
 
 // GESTIÓN DE TEMAS (V1.0)
 const getTheme = () => localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -149,7 +208,9 @@ function installConnectivityStatus() {
 
 let hasShownNews = false;
 
-function navigateRouter() {
+let navigationSequence = 0;
+async function navigateRouter() {
+    const sequence = ++navigationSequence;
     let hash = window.location.hash || '#';
     document.getElementById('appStatusRegion')?.replaceChildren();
     const routeTitles = {
@@ -170,6 +231,13 @@ function navigateRouter() {
     if (user && hash === '#') { window.location.hash = '#dashboard'; return; }
 
     navbar.style.display = user ? 'block' : 'none';
+    if (hash !== '#dashboard') {
+        window.destroyDashboardCharts?.();
+        if (window._dashResizeHandler) {
+            window.removeEventListener('resize', window._dashResizeHandler);
+            window._dashResizeHandler = null;
+        }
+    }
     document.querySelectorAll('.nav-link[href^="#"]').forEach(link => {
         const active = link.getAttribute('href') === hash;
         link.classList.toggle('is-current', active);
@@ -202,6 +270,11 @@ function navigateRouter() {
     }
 
     try {
+        if (routeViews[hash] && !window[routeViews[hash].global]) {
+            app.innerHTML = '<div class="route-loader" role="status"><span class="button-spinner" aria-hidden="true"></span><span>Abriendo vista…</span></div>';
+            await ensureRouteView(hash);
+            if (sequence !== navigationSequence || window.location.hash !== hash) return;
+        }
         switch (hash) {
             case '#': renderLogin(app); break;
             case '#dashboard': renderDashboard(app); break;
@@ -383,6 +456,7 @@ document.addEventListener('visibilitychange', () => document.hidden ? stopPoller
 window.addEventListener('online', startPoller);
 window.addEventListener('offline', stopPoller);
 
-window.onload = initApp;
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp, { once: true });
+else initApp();
 window.navigate = (h) => { window.location.hash = h; };
 window.showToast = showToast;

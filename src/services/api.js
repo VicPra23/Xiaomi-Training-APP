@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbyfR6REfiiSUswJdfBZTJ4hG8s1trZ7bqi_f0zTFJETe2asiNjDprGocvsYSVd6XeyIxQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyuXlb87MdYyw5SuQBYR7phsrOTHZrd8yuAPozAWf-XCRmXz3UauHCRh401AoE4hEdbIg/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -42,7 +42,7 @@ function sendGet(action, params = {}, useCache = false) {
     }
 
     return new Promise((resolve, reject) => {
-        const callbackName = 'jsonp_' + Math.round(100000 * Math.random());
+        const callbackName = 'jsonp_' + (window.crypto?.randomUUID?.().replace(/-/g, '') || `${Date.now()}_${Math.round(1000000 * Math.random())}`);
         const script = document.createElement('script');
         
         const timeout = setTimeout(() => {
@@ -60,7 +60,10 @@ function sendGet(action, params = {}, useCache = false) {
 
         window[callbackName] = function(data) {
             cleanup();
-            handleAuthFailure(data);
+            if (handleAuthFailure(data)) {
+                reject(new Error(data.message || "Tu sesión ha caducado."));
+                return;
+            }
             setOfflineCacheEntry(action, params, data);
             if (useCache) _metadataCache.set(cacheKey, data);
             resolve(data);
@@ -89,10 +92,13 @@ async function sendPost(action, data = {}) {
     const session = getSessionData();
     const payload = JSON.stringify({ action, ...data, ...(session?.token && action !== "login" ? { token: session.token } : {}) });
     
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
     try {
         const res = await fetch(API_URL, { 
             method: 'POST', 
             body: payload, 
+            signal: controller.signal,
             headers: {
                 'Content-Type': 'text/plain;charset=utf-8' // Obligatorio para evitar preflight
             }
@@ -100,13 +106,16 @@ async function sendPost(action, data = {}) {
         
         if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         const result = await res.json();
-        handleAuthFailure(result);
+        if (handleAuthFailure(result)) throw new Error(result.message || "Tu sesión ha caducado.");
         
         _metadataCache.clear(); // Limpiamos caché porque hubo cambios
         return result;
     } catch (e) {
         console.error(`[API] fetch error:`, e);
+        if (e.name === 'AbortError') throw new Error("La operación ha tardado demasiado. Revisa la conexión y vuelve a intentarlo.");
         throw new Error("Error de red o conexión bloqueada al enviar datos.");
+    } finally {
+        clearTimeout(timeout);
     }
 }
 
@@ -139,11 +148,13 @@ function handleAuthFailure(result) {
     if (result && (result.code === "AUTH_REQUIRED" || result.code === "SESSION_EXPIRED")) {
         clearSessionData();
         if (window.location.hash !== "#") window.location.hash = "#";
+        return true;
     }
+    return false;
 }
 
 const CONFIG = {
-    VERSION: "46.6"
+    VERSION: "46.7"
 };
 
 const api = {

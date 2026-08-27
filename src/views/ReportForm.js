@@ -522,17 +522,21 @@ function renderReport(container, editData = null) {
         
         // Soporte para HEIC/HEIF (Apple)
         if (file.type === "image/heic" || file.type === "image/heif" || file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif")) {
-            if (typeof heic2any !== 'undefined') {
-                try {
+            try {
+                if (typeof heic2any === 'undefined') {
+                    await window.loadScriptOnce('https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js', 'heic2any');
+                }
+                if (typeof heic2any !== 'undefined') {
                     const blob = await heic2any({
                         blob: file,
                         toType: "image/jpeg",
                         quality: 0.8
                     });
                     fileToProcess = Array.isArray(blob) ? blob[0] : blob;
-                } catch (e) {
-                    console.error("Error al convertir HEIC:", e);
                 }
+            } catch (e) {
+                console.error("Error al convertir HEIC:", e);
+                throw new Error("No se ha podido convertir la foto HEIC. Revisa la conexión o selecciona una imagen JPEG/PNG.");
             }
         }
 

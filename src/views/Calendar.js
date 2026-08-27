@@ -153,6 +153,7 @@ function renderCalendar(container) {
                     api.getUsersList(),
                     api.getWeekly({ start, end })
                 ]);
+                if (!container.isConnected || window.location.hash !== "#calendar") return;
                 if (usersRes.status !== "success" || scheduleRes.status !== "success") {
                     throw new Error(usersRes.message || scheduleRes.message || "No se pudo cargar el calendario.");
                 }
@@ -188,8 +189,10 @@ function renderCalendar(container) {
                 else scrollToMonth(focusMonth, false);
             });
         } catch (error) {
+            const monthsContainer = container.querySelector("#calendarMonths");
+            if (!container.isConnected || window.location.hash !== "#calendar" || !monthsContainer) return;
             console.error(error);
-            container.querySelector("#calendarMonths").innerHTML = `
+            monthsContainer.innerHTML = `
                 <div class="calendar-error">
                     <i data-lucide="cloud-off"></i>
                     <strong>No hemos podido sincronizar el calendario</strong>
@@ -199,8 +202,8 @@ function renderCalendar(container) {
             `;
             container.querySelector("#calendarRetry")?.addEventListener("click", () => loadYear(selectedYear, focusMonth));
         } finally {
-            loading.hidden = true;
-            yearScroll.classList.remove("is-loading");
+            if (loading.isConnected) loading.hidden = true;
+            if (yearScroll.isConnected) yearScroll.classList.remove("is-loading");
             if (typeof lucide !== "undefined") lucide.createIcons();
         }
     }
@@ -384,43 +387,43 @@ function renderCalendar(container) {
     }
 
     function bindCalendarInteractions() {
-        container.querySelectorAll(".day-cell[data-date]").forEach(cell => {
-            const getCellItems = () => getItems(cell.dataset.date, cell.dataset.user);
-            const editable = cell.tabIndex === 0;
+        const monthsContainer = container.querySelector("#calendarMonths");
+        if (!monthsContainer || monthsContainer.dataset.interactionsBound === "true") return;
+        monthsContainer.dataset.interactionsBound = "true";
 
-            if (editable) {
-                cell.addEventListener("click", event => {
-                    if (!event.target.closest(".calendar-cell-actions") && event.target.tagName !== "A") {
-                        openEditPanel(cell.dataset.user, cell.dataset.date, getCellItems());
-                    }
-                });
-                cell.addEventListener("keydown", event => {
-                    if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openEditPanel(cell.dataset.user, cell.dataset.date, getCellItems());
-                    }
-                    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
-                        event.preventDefault();
-                        pickClipboard().then(clipboard => {
-                            if (clipboard?.items?.length) openEditPanel(cell.dataset.user, cell.dataset.date, clipboard.items, true);
-                        });
-                    }
+        monthsContainer.addEventListener("click", async event => {
+            const cell = event.target.closest(".day-cell[data-date]");
+            if (!cell || !monthsContainer.contains(cell)) return;
+            const items = () => getItems(cell.dataset.date, cell.dataset.user);
+            const action = event.target.closest("[data-copy-day], [data-paste-day], [data-delete-day]");
+            if (action) {
+                event.stopPropagation();
+                if (action.matches("[data-copy-day]")) copyDay(items(), cell.dataset.user, cell.dataset.date);
+                if (action.matches("[data-paste-day]")) {
+                    const clipboard = await pickClipboard();
+                    if (clipboard?.items?.length) openEditPanel(cell.dataset.user, cell.dataset.date, clipboard.items, true);
+                }
+                if (action.matches("[data-delete-day]")) await deleteDay(cell.dataset.user, cell.dataset.date, items(), action);
+                return;
+            }
+            if (cell.tabIndex === 0 && !event.target.closest("a")) {
+                openEditPanel(cell.dataset.user, cell.dataset.date, items());
+            }
+        });
+
+        monthsContainer.addEventListener("keydown", event => {
+            const cell = event.target.closest(".day-cell[data-date]");
+            if (!cell || cell.tabIndex !== 0 || event.target.closest("button, a, input, select, textarea")) return;
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openEditPanel(cell.dataset.user, cell.dataset.date, getItems(cell.dataset.date, cell.dataset.user));
+            }
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
+                event.preventDefault();
+                pickClipboard().then(clipboard => {
+                    if (clipboard?.items?.length) openEditPanel(cell.dataset.user, cell.dataset.date, clipboard.items, true);
                 });
             }
-
-            cell.querySelector("[data-copy-day]")?.addEventListener("click", event => {
-                event.stopPropagation();
-                copyDay(getCellItems(), cell.dataset.user, cell.dataset.date);
-            });
-            cell.querySelector("[data-paste-day]")?.addEventListener("click", async event => {
-                event.stopPropagation();
-                const clipboard = await pickClipboard();
-                if (clipboard?.items?.length) openEditPanel(cell.dataset.user, cell.dataset.date, clipboard.items, true);
-            });
-            cell.querySelector("[data-delete-day]")?.addEventListener("click", async event => {
-                event.stopPropagation();
-                await deleteDay(cell.dataset.user, cell.dataset.date, getCellItems(), event.currentTarget);
-            });
         });
     }
 

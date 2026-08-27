@@ -1636,8 +1636,8 @@ function generateCustomPDF(p) {
     const startDateStr = (p.startDate || "").toString().trim();
     const endDateStr = (p.endDate || "").toString().trim();
 
-    let startD = startDateStr ? new Date(startDateStr) : null;
-    let endD = endDateStr ? new Date(endDateStr) : null;
+    let startD = startDateStr ? parseDateStable(startDateStr) : null;
+    let endD = endDateStr ? parseDateStable(endDateStr) : null;
     if(startD) { startD.setHours(0,0,0,0); }
     if(endD) { endD.setHours(23,59,59,999); }
     let isTimeFiltered = startD || endD || targetMonth !== "Todos" || targetWeeksStr || targetYear !== "Todos";
@@ -1655,27 +1655,27 @@ function generateCustomPDF(p) {
     if (targetMethodology !== "todos" && targetMethodology !== "") selectedMethodologies = targetMethodology.split(',').map(m => m.trim());
     let selectedContents = [];
     if (targetContent !== "todos" && targetContent !== "") selectedContents = targetContent.split(',').map(m => m.trim());
+    const parseDeviceList = function(value) {
+        const raw = String(value || "").trim().toLowerCase();
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                return parsed.map(function(item) { return String(item && item.modelo ? item.modelo : item).trim().toLowerCase(); }).filter(Boolean);
+            }
+        } catch (error) {}
+        return raw.split(',').map(function(item) { return item.trim().toLowerCase(); }).filter(Boolean);
+    };
     
     const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
     
     let previousDevice = null;
     let isModelComparison = false;
 
-    if (!isTimeFiltered && targetDevice !== "todos" && targetDevice !== "") {
+    if (targetDevice !== "todos" && targetDevice !== "") {
         const allDevices = new Set();
         for (let i = 1; i < d.length; i++) {
-            let devStr = (d[i][colMap.DISP_MOVIL] || d[i][11] || "").toString().trim().toLowerCase();
-            if (devStr) {
-                let devs = [];
-                try {
-                    let parsed = JSON.parse(devStr);
-                    if (Array.isArray(parsed)) devs = parsed.map(x => (x.modelo || x).toString().trim().toLowerCase());
-                    else devs = [devStr];
-                } catch(e) {
-                    devs = devStr.split(',').map(x => x.trim().toLowerCase());
-                }
-                devs.forEach(x => { if(x) allDevices.add(x); });
-            }
+            parseDeviceList(d[i][colMap.DISP_MOVIL] || d[i][11]).forEach(function(device) { allDevices.add(device); });
         }
         
         let match = targetDevice.match(/(\d+)/);
@@ -1687,7 +1687,7 @@ function generateCustomPDF(p) {
                 let candidate = baseNameBefore + i + baseNameAfter;
                 let found = false;
                 for (let dev of allDevices) {
-                    if (dev === candidate || dev.includes(candidate)) {
+                    if (dev === candidate) {
                         previousDevice = dev;
                         found = true;
                         break;
@@ -1700,8 +1700,8 @@ function generateCustomPDF(p) {
     }
 
     let cw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {}, byTrainer: {} };
-    let pw = { sesiones: 0, alumnos: 0, horas: 0 };
-    let ly = { sesiones: 0, alumnos: 0, horas: 0 };
+    let pw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {} };
+    let ly = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {} };
     let yt = { sesiones: 0, alumnos: 0, horas: 0 };
 
     for (let i = 1; i < d.length; i++) {
@@ -1721,7 +1721,7 @@ function generateCustomPDF(p) {
         const trainer = tVal.toString().trim();
         const account = (d[i][colMap.CUENTA] || "Otros").toString().trim() || "Otros";
         const method = (d[i][colMap.METODOLOGIA] || "Otros").toString().trim() || "Otros";
-        let devStr = (d[i][colMap.DISP_MOVIL] || d[i][11] || "").toString().trim().toLowerCase();
+        const rowDevices = parseDeviceList(d[i][colMap.DISP_MOVIL] || d[i][11]);
 
         if (target !== "Total" && trainer !== target) continue;
         
@@ -1741,10 +1741,10 @@ function generateCustomPDF(p) {
         let devMatch = false;
         let pastDevMatch = false;
         if (targetDevice === "todos" || targetDevice === "") devMatch = true;
-        else if (devStr.includes(targetDevice)) devMatch = true;
+        else if (rowDevices.indexOf(targetDevice) !== -1) devMatch = true;
         
         if (isModelComparison) {
-            if (devStr.includes(previousDevice)) pastDevMatch = true;
+            if (rowDevices.indexOf(previousDevice) !== -1) pastDevMatch = true;
         } else {
             pastDevMatch = devMatch;
         }
@@ -1754,17 +1754,24 @@ function generateCustomPDF(p) {
         let matchesLYTime = false;
         let matchesYTTime = false;
 
-        if (startD && endD) {
-            matchesTime = dTime >= startD.getTime() && dTime <= endD.getTime();
-            let dur = endD.getTime() - startD.getTime();
-            let pEnd = startD.getTime() - 1;
-            let pStart = pEnd - dur;
-            matchesPastTime = (dTime >= pStart && dTime <= pEnd);
-            let lyS = new Date(startD); lyS.setFullYear(lyS.getFullYear()-1);
-            let lyE = new Date(endD); lyE.setFullYear(lyE.getFullYear()-1);
-            matchesLYTime = isModelComparison ? matchesTime : (dTime >= lyS.getTime() && dTime <= lyE.getTime());
-            let ytS = new Date(endD.getFullYear(), 0, 1);
-            matchesYTTime = dTime >= ytS.getTime() && dTime <= endD.getTime();
+        if (startD || endD) {
+            const currentStartTime = startD ? startD.getTime() : -Infinity;
+            const currentEndTime = endD ? endD.getTime() : Infinity;
+            matchesTime = dTime >= currentStartTime && dTime <= currentEndTime;
+            if (startD && endD) {
+                let dur = endD.getTime() - startD.getTime();
+                let pEnd = startD.getTime() - 1;
+                let pStart = pEnd - dur;
+                matchesPastTime = (dTime >= pStart && dTime <= pEnd);
+                let lyS = new Date(startD); lyS.setFullYear(lyS.getFullYear()-1);
+                let lyE = new Date(endD); lyE.setFullYear(lyE.getFullYear()-1);
+                matchesLYTime = isModelComparison ? matchesTime : (dTime >= lyS.getTime() && dTime <= lyE.getTime());
+            } else {
+                matchesLYTime = isModelComparison ? matchesTime : false;
+            }
+            const ytdEnd = endD || now;
+            let ytS = new Date(ytdEnd.getFullYear(), 0, 1);
+            matchesYTTime = dTime >= ytS.getTime() && dTime <= ytdEnd.getTime();
         } else {
             if (targetYear !== "Todos" && rowYear.toString() !== targetYear) matchesTime = false;
             if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesTime = false;
@@ -1783,17 +1790,12 @@ function generateCustomPDF(p) {
     
             if (isModelComparison) {
                 matchesLYTime = matchesTime;
-            } else {
-                if (targetYear !== "Todos") {
+            } else if (targetYear !== "Todos") {
                     matchesLYTime = (rowYear === parseInt(targetYear) - 1);
                     if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
                     if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesLYTime = false;
-                }
             }
             if (targetYear !== "Todos") {
-                matchesLYTime = (rowYear === parseInt(targetYear) - 1);
-                if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
-                if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesLYTime = false;
                 matchesYTTime = (rowYear === parseInt(targetYear));
             } else {
                 matchesYTTime = (rowYear === now.getFullYear());
@@ -2037,6 +2039,9 @@ function generatePDFReport(periodType) {
 }
 
 function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt, lyTitle = "Versus Año Anterior", lyColLabel = "Mismo periodo (Año Pasado)") {
+  const esc = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, function(char) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char];
+  });
   function createVersusChart(title, currentLabel, currentSes, currentAlu, pastLabel, pastSes, pastAlu) {
       const dataTable = Charts.newDataTable()
           .addColumn(Charts.ColumnType.STRING, "Periodo")
@@ -2109,13 +2114,12 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
   for (let i = 0; i < sortedAccounts.length; i++) {
       let acc = sortedAccounts[i];
       accountHtml += `<tr>
-        <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${acc}</td>
+        <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${esc(acc)}</td>
         ${td(cw.byAccount[acc].sesiones)}
         ${td(cw.byAccount[acc].alumnos)}
-        ${td(cw.byAccount[acc].horas.toFixed(1))}
       </tr>`;
   }
-  if (!accountHtml) accountHtml = "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #888;'>Sin datos reportados.</td></tr>";
+  if (!accountHtml) accountHtml = "<tr><td colspan='3' style='text-align: center; padding: 20px; color: #888;'>Sin datos reportados.</td></tr>";
 
   const renderByAccountTable = (dataObj, label, colLabel) => {
       let accHtml = "";
@@ -2123,7 +2127,7 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
       for (let i = 0; i < sortedAcc.length; i++) {
           let acc = sortedAcc[i];
           accHtml += `<tr>
-            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${acc}</td>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${esc(acc)}</td>
             ${td(dataObj.byAccount[acc].sesiones)}
             ${td(dataObj.byAccount[acc].alumnos)}
           </tr>`;
@@ -2132,7 +2136,7 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
       return `
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
-            <th colspan="3" style="padding: 12px; border: 1px solid #ddd; background-color: #eaeaea; color: #333; text-align: left;">Desglose por Cuenta (${colLabel})</th>
+            <th colspan="3" style="padding: 12px; border: 1px solid #ddd; background-color: #eaeaea; color: #333; text-align: left;">Desglose por Cuenta (${esc(colLabel)})</th>
         </tr>
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Cuenta</th>
@@ -2146,7 +2150,7 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
   for (const t in cw.byTrainer) {
       if (cw.byTrainer[t].sesiones === 0 && cw.byTrainer[t].alumnos === 0) continue;
       trainerHtml += `<tr>
-        <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${t}</td>
+        <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${esc(t)}</td>
         ${td(cw.byTrainer[t].sesiones)}
         ${td(cw.byTrainer[t].alumnos)}
         ${td(cw.byTrainer[t].horas.toFixed(1))}
@@ -2162,8 +2166,8 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
       trainerPagesHtml += `
       <div style="page-break-before: always;"></div>
       <div style="padding-top: 40px;">
-          <h2 style="color: #ff6700; border-bottom: 2px solid #ff6700; padding-bottom: 10px; font-size: 26px;">Informe Individual: <span style="color: #333;">${t}</span></h2>
-          <p style="color: #888;">Periodo Analizado: <strong>${periodString}</strong></p>
+          <h2 style="color: #ff6700; border-bottom: 2px solid #ff6700; padding-bottom: 10px; font-size: 26px;">Informe Individual: <span style="color: #333;">${esc(t)}</span></h2>
+          <p style="color: #888;">Periodo Analizado: <strong>${esc(periodString)}</strong></p>
           
           <table style="width: 100%; border-collapse: collapse; margin-top: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
             <tr>
@@ -2190,9 +2194,9 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
     <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; background: white; padding: 30px;">
       
       <div style="text-align: center; border-bottom: 3px solid #ff6700; padding-bottom: 20px; margin-bottom: 30px;">
-        <h1 style="color: #ff6700; margin: 0; font-size: 34px;">${reportTitle}</h1>
+        <h1 style="color: #ff6700; margin: 0; font-size: 34px;">${esc(reportTitle)}</h1>
         <h2 style="color: #333; margin: 5px 0 0 0; font-size: 20px;">XIAOMI TRAINER INTRANET</h2>
-        <p style="color: #888; margin: 10px 0 0 0; font-size: 16px;">Periodo Analizado: <strong>${periodString}</strong></p>
+        <p style="color: #888; margin: 10px 0 0 0; font-size: 16px;">Periodo Analizado: <strong>${esc(periodString)}</strong></p>
       </div>
       
       <table style="width: 100%; text-align: center; margin-bottom: 40px; border-spacing: 15px 0;">
@@ -2212,11 +2216,11 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
         </tr>
       </table>
 
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">1. Desglose por Cuenta (${currentLabel})</h3>
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">1. Desglose por Cuenta (${esc(currentLabel)})</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 50px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Cuenta</th>
-            ${th("Formaciones")}${th("Impactados")}${th("Horas")}
+            ${th("Formaciones")}${th("Impactados")}
         </tr>
         ${accountHtml}
       </table>
@@ -2227,12 +2231,12 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
   if (ly) {
       const chartYoY_Ses = createVersusChart(`Sesiones y Alumnos vs ${lyColLabel}`, currentLabel, cw.sesiones, cw.alumnos, lyColLabel, ly.sesiones, ly.alumnos);
       htmlContent += `
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. ${lyTitle}</h3>
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. ${esc(lyTitle)}</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Métrica</th>
-            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${currentLabel}</th>
-            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${lyColLabel}</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${esc(currentLabel)}</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${esc(lyColLabel)}</th>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #333; color: white; text-align: center;">Tendencia</th>
         </tr>
         <tr>
@@ -2257,12 +2261,12 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
   if (pw) {
       const chartWoW_Ses = createVersusChart("Sesiones y Alumnos vs " + pastLabel, currentLabel, cw.sesiones, cw.alumnos, pastLabel, pw.sesiones, pw.alumnos);
       htmlContent += `
-      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. Versus ${pastLabel}</h3>
+      <h3 style="color: #444; border-left: 4px solid #ff6700; padding-left: 10px; margin-bottom: 15px; font-size: 20px;">${sectionCounter++}. Versus ${esc(pastLabel)}</h3>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Métrica</th>
-            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${currentLabel}</th>
-            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${pastLabel}</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${esc(currentLabel)}</th>
+            <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: center;">${esc(pastLabel)}</th>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #333; color: white; text-align: center;">Tendencia</th>
         </tr>
         <tr>

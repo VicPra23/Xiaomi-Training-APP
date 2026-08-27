@@ -405,6 +405,7 @@ function renderMaterials(container) {
 
     updateView();
     api.getMaterials().then(res => {
+        if (!container.isConnected || window.location.hash !== '#materials') return;
         if (res.status === 'success' && Array.isArray(res.data) && res.data.length) {
             categories = res.data;
             activeCatId = categories[0].id;

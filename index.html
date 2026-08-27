@@ -12,16 +12,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Lucide Icons (Vectorial) -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <!-- HEIC to JPEG Converter (v0.0.4) -->
-    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+    <script src="https://unpkg.com/lucide@1.34.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
     
     <!-- Custom Style -->
-    <link rel="stylesheet" href="style.css?v=46.6">
-    
-    <!-- TomSelect (Necesario para ReportForm) -->
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=46.7">
     
     <!-- PWA & Mobile Meta -->
     <link rel="manifest" href="manifest.json">
@@ -82,54 +76,54 @@
     </main>
     
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
-    
     <!-- Vistas y Lógica -->
-    <script src="src/services/api.js?v=46.6"></script>
-    <script src="src/views/Login.js?v=46.6"></script>
-    <script src="src/views/Dashboard.js?v=46.6"></script>
-    <script src="src/views/ReportForm.js?v=46.6"></script>
-    <script src="src/views/Calendar.js?v=46.6"></script>
-    <script src="src/views/Vacations.js?v=46.6"></script>
-    <script src="src/views/Materials.js?v=46.6"></script>
-    <script src="src/views/Messages.js?v=46.6"></script>
-    <script src="src/main.js?v=46.6"></script>
+    <script src="src/services/api.js?v=46.7"></script>
+    <script src="src/views/Login.js?v=46.7"></script>
+    <script src="src/main.js?v=46.7"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').then(reg => {
-                    reg.onupdatefound = () => {
-                        const installingWorker = reg.installing;
-                        installingWorker.onstatechange = () => {
-                            if (installingWorker.state === 'installed') {
-                                if (navigator.serviceWorker.controller) {
-                                    const notice = document.createElement('button');
-                                    notice.type = 'button';
-                                    notice.className = 'app-update-notice';
-                                    notice.textContent = 'Nueva versión disponible · Actualizar';
-                                    notice.onclick = () => {
-                                        installingWorker.postMessage('SKIP_WAITING');
-                                        window.location.reload();
-                                    };
-                                    document.body.appendChild(notice);
-                                }
-                            // Insert update button next to user in sidebar
-                            const navUser = document.getElementById('navUser');
-                            if (navUser && !document.getElementById('sidebarUpdateBtn')) {
-                                const sidebarBtn = document.createElement('button');
-                                sidebarBtn.id = 'sidebarUpdateBtn';
-                                sidebarBtn.className = 'btn-primary btn-compact';
-                                sidebarBtn.style = 'margin-left: auto; font-size: 0.7rem; padding: 4px 8px; background: var(--xiaomi-orange); color: white; display: flex; align-items: center; gap: 4px;';
-                                sidebarBtn.innerHTML = '<i data-lucide="download" style="width:14px; height:14px;"></i> Actualizar';
-                                sidebarBtn.onclick = () => window.location.reload(true);
-                                navUser.appendChild(sidebarBtn);
-                                if (typeof lucide !== 'undefined') lucide.createIcons();
+                let hadController = Boolean(navigator.serviceWorker.controller);
+                let refreshing = false;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (!hadController) {
+                        hadController = true;
+                        return;
+                    }
+                    if (refreshing) return;
+                    refreshing = true;
+                    window.location.reload();
+                });
+
+                const showUpdateNotice = worker => {
+                    if (!worker || document.getElementById('appUpdateNotice')) return;
+                    const notice = document.createElement('button');
+                    notice.id = 'appUpdateNotice';
+                    notice.type = 'button';
+                    notice.className = 'app-update-notice';
+                    notice.textContent = 'Nueva versión disponible · Actualizar';
+                    notice.addEventListener('click', () => {
+                        notice.disabled = true;
+                        notice.textContent = 'Actualizando…';
+                        worker.postMessage('SKIP_WAITING');
+                    }, { once: true });
+                    document.body.appendChild(notice);
+                };
+
+                navigator.serviceWorker.register('./sw.js').then(registration => {
+                    if (registration.waiting && navigator.serviceWorker.controller) {
+                        showUpdateNotice(registration.waiting);
+                    }
+                    registration.addEventListener('updatefound', () => {
+                        const worker = registration.installing;
+                        if (!worker) return;
+                        worker.addEventListener('statechange', () => {
+                            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                                showUpdateNotice(worker);
                             }
-                            }
-                        };
-                    };
-                }).catch(() => {});
+                        });
+                    });
+                }).catch(error => console.warn('No se pudo registrar el modo offline.', error));
             });
         }
     </script>
