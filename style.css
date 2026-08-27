@@ -2000,7 +2000,7 @@ html {
     .calendar-editor-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .calendar-editor-tools .calendar-editor-delete { grid-column: 1 / -1; }
     .calendar-editor-tools button { justify-content: center; }
-    .calendar-cell-actions { opacity: 1; transform: none; }
+    .calendar-editor-tools button { justify-content: center; }
 
     .app-update-notice,
     .connectivity-status {
@@ -2022,9 +2022,7 @@ html {
 }
 
 @media (hover: none), (pointer: coarse) {
-    .calendar-cell-actions { top: auto; bottom: 0.2rem; opacity: 1; transform: none; }
-    .calendar-cell-actions button { width: 26px; height: 26px; }
-    .day-cell:not(.day-outside) { padding-bottom: 2rem; }
+    .calendar-cell-actions { display: none !important; }
     .mat-tab-btn:hover, .glass-card:hover { transform: none; }
 }
 
@@ -3081,7 +3079,7 @@ button.toast {
     font-size: 0.82rem;
 }
 
-@container dashboard (max-width: 900px) {
+@container dashboard (max-width: 760px) {
     .metric-strip {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -5040,7 +5038,7 @@ p,
     box-shadow: none;
 }
 
-@container dashboard (max-width: 900px) {
+@container dashboard (max-width: 760px) {
     .metric-strip {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
