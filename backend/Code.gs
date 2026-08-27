@@ -2126,18 +2126,17 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
             <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: 600; color: #333;">${acc}</td>
             ${td(dataObj.byAccount[acc].sesiones)}
             ${td(dataObj.byAccount[acc].alumnos)}
-            ${td(dataObj.byAccount[acc].horas.toFixed(1))}
           </tr>`;
       }
       if (!accHtml) return "";
       return `
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
         <tr>
-            <th colspan="4" style="padding: 12px; border: 1px solid #ddd; background-color: #eaeaea; color: #333; text-align: left;">Desglose por Cuenta (${colLabel})</th>
+            <th colspan="3" style="padding: 12px; border: 1px solid #ddd; background-color: #eaeaea; color: #333; text-align: left;">Desglose por Cuenta (${colLabel})</th>
         </tr>
         <tr>
             <th style="padding: 12px; border: 1px solid #ddd; background-color: #f5f5f5; color: #333; text-align: left;">Cuenta</th>
-            ${th("Formaciones")}${th("Impactados")}${th("Horas")}
+            ${th("Formaciones")}${th("Impactados")}
         </tr>
         ${accHtml}
       </table>`;
@@ -2241,7 +2240,7 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
             ${td(cw.sesiones)}${td(ly.sesiones)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.sesiones, ly.sesiones)}</td>
         </tr>
         <tr>
-            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Alumnos Impactados</td>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Impactados</td>
             ${td(cw.alumnos)}${td(ly.alumnos)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.alumnos, ly.alumnos)}</td>
         </tr>
         <tr>
@@ -2271,7 +2270,7 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
             ${td(cw.sesiones)}${td(pw.sesiones)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.sesiones, pw.sesiones)}</td>
         </tr>
         <tr>
-            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Alumnos Impactados</td>
+            <td style="padding: 10px; border: 1px solid #e0e0e0; font-weight: bold; color: #444;">Impactados</td>
             ${td(cw.alumnos)}${td(pw.alumnos)}<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; font-weight: bold;">${getTrend(cw.alumnos, pw.alumnos)}</td>
         </tr>
         <tr>

@@ -5123,3 +5123,31 @@ p,
     margin-bottom: 0 !important;
     margin-top: 0 !important;
 }
+
+/* --- LAYOUT FIXES V46.5 --- */
+.dash-module .charts-container {
+    display: grid !important;
+    gap: 1.5rem !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+@media (max-width: 980px) {
+    .dash-module .charts-container {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+.metric-strip {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+@media (max-width: 980px) {
+    .metric-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 980px), (hover: none), (pointer: coarse) {
+    .calendar-cell-actions {
+        display: none !important;
+    }
+}
