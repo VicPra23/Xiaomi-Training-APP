@@ -867,9 +867,14 @@ function renderDashboard(container) {
         if (isAdmin) return; // Admins use the multi-picker
         const sel = document.getElementById('dashboardWeek');
         if (!sel) return;
+        
+        let allWeeks = Array.from(new Set([...(weeks || []), currentWeek]));
+        allWeeks.sort((a, b) => b - a);
+
         const currentVal = sel.value || currentWeek.toString();
         sel.innerHTML = `<option value="${weeksList.join(',')}">Todas</option>`;
-        (weeks || []).sort((a, b) => b - a).forEach(w => {
+        
+        allWeeks.forEach(w => {
             const opt = document.createElement('option');
             opt.value = w;
             opt.innerText = `Semana ${w}`;

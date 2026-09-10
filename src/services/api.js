@@ -154,7 +154,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "46.9"
+    VERSION: "47.0"
 };
 
 const api = {

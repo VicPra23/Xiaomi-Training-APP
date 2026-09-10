@@ -1700,8 +1700,9 @@ function generateCustomPDF(p) {
     }
 
     let cw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {}, byTrainer: {} };
-    let pw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {} };
-    let ly = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {} };
+    let pw = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {} };  // mismo dispositivo, período anterior
+    let ly = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {} };  // mismo dispositivo, mismo período año anterior
+    let lyModel = { sesiones: 0, alumnos: 0, horas: 0, byAccount: {} }; // modelo anterior, mismo período seleccionado
     let yt = { sesiones: 0, alumnos: 0, horas: 0 };
 
     for (let i = 1; i < d.length; i++) {
@@ -1751,7 +1752,7 @@ function generateCustomPDF(p) {
 
         let matchesTime = true;
         let matchesPastTime = false;
-        let matchesLYTime = false;
+        let matchesLYTime = false;  // mismo dispositivo, año anterior
         let matchesYTTime = false;
 
         if (startD || endD) {
@@ -1765,9 +1766,9 @@ function generateCustomPDF(p) {
                 matchesPastTime = (dTime >= pStart && dTime <= pEnd);
                 let lyS = new Date(startD); lyS.setFullYear(lyS.getFullYear()-1);
                 let lyE = new Date(endD); lyE.setFullYear(lyE.getFullYear()-1);
-                matchesLYTime = isModelComparison ? matchesTime : (dTime >= lyS.getTime() && dTime <= lyE.getTime());
+                matchesLYTime = (dTime >= lyS.getTime() && dTime <= lyE.getTime());
             } else {
-                matchesLYTime = isModelComparison ? matchesTime : false;
+                matchesLYTime = false;
             }
             const ytdEnd = endD || now;
             let ytS = new Date(ytdEnd.getFullYear(), 0, 1);
@@ -1788,12 +1789,10 @@ function generateCustomPDF(p) {
                 matchesPastTime = rowYear === parseInt(targetYear) - 1;
             }
     
-            if (isModelComparison) {
-                matchesLYTime = matchesTime;
-            } else if (targetYear !== "Todos") {
-                    matchesLYTime = (rowYear === parseInt(targetYear) - 1);
-                    if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
-                    if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesLYTime = false;
+            if (targetYear !== "Todos") {
+                matchesLYTime = (rowYear === parseInt(targetYear) - 1);
+                if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
+                if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesLYTime = false;
             }
             if (targetYear !== "Todos") {
                 matchesYTTime = (rowYear === parseInt(targetYear));
@@ -1812,23 +1811,23 @@ function generateCustomPDF(p) {
             if (!cw.byTrainer[trainer].byMethod[method]) cw.byTrainer[trainer].byMethod[method] = 0;
             cw.byTrainer[trainer].byMethod[method] += hor;
         }
+        // Mismo dispositivo, período anterior
         if (devMatch && matchesPastTime) { 
             pw.sesiones += ses; pw.alumnos += alu; pw.horas += hor; 
             if (!pw.byAccount[account]) pw.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
             pw.byAccount[account].sesiones += ses; pw.byAccount[account].alumnos += alu; pw.byAccount[account].horas += hor;
         }
-        if (isModelComparison) {
-            if (pastDevMatch && matchesLYTime) { 
-                ly.sesiones += ses; ly.alumnos += alu; ly.horas += hor; 
-                if (!ly.byAccount[account]) ly.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
-                ly.byAccount[account].sesiones += ses; ly.byAccount[account].alumnos += alu; ly.byAccount[account].horas += hor;
-            }
-        } else {
-            if (devMatch && matchesLYTime) { 
-                ly.sesiones += ses; ly.alumnos += alu; ly.horas += hor; 
-                if (!ly.byAccount[account]) ly.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
-                ly.byAccount[account].sesiones += ses; ly.byAccount[account].alumnos += alu; ly.byAccount[account].horas += hor;
-            }
+        // Mismo dispositivo, mismo período, año anterior
+        if (devMatch && matchesLYTime) { 
+            ly.sesiones += ses; ly.alumnos += alu; ly.horas += hor; 
+            if (!ly.byAccount[account]) ly.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
+            ly.byAccount[account].sesiones += ses; ly.byAccount[account].alumnos += alu; ly.byAccount[account].horas += hor;
+        }
+        // Modelo anterior, mismo período seleccionado
+        if (isModelComparison && pastDevMatch && matchesTime) { 
+            lyModel.sesiones += ses; lyModel.alumnos += alu; lyModel.horas += hor; 
+            if (!lyModel.byAccount[account]) lyModel.byAccount[account] = { sesiones: 0, alumnos: 0, horas: 0 };
+            lyModel.byAccount[account].sesiones += ses; lyModel.byAccount[account].alumnos += alu; lyModel.byAccount[account].horas += hor;
         }
     }
 
@@ -1858,15 +1857,24 @@ function generateCustomPDF(p) {
 
     let lyTitle = "Versus Año Anterior";
     let lyColLabel = "Mismo periodo (Año Pasado)";
+    let lyModelTitle = null;
+    let lyModelColLabel = null;
 
     if (isModelComparison) {
         reportTitle = "REPORTE DE DISPOSITIVO";
         periodString = baseTimeLabel ? `${baseTimeLabel} (${targetDevice.toUpperCase()})` : targetDevice.toUpperCase();
         currentLabel = baseTimeLabel ? `${baseTimeLabel} (${targetDevice.toUpperCase()})` : targetDevice.toUpperCase();
-        pastLabel = "Periodo Anterior (Mismo Modelo)";
-        lyTitle = `Versus Modelo Anterior en el Mismo Período (${previousDevice.toUpperCase()})`;
-        lyColLabel = previousDevice.toUpperCase();
-        yt = null; 
+        // Both time comparisons remain active
+        if (selectedMonths.length > 0 && selectedWeeks.length === 0) pastLabel = `Mes Anterior (${targetDevice.toUpperCase()})`;
+        else if (selectedWeeks.length > 0) pastLabel = `Semana Anterior (${targetDevice.toUpperCase()})`;
+        else if (targetYear !== "Todos") pastLabel = `Periodo Anterior (${targetDevice.toUpperCase()})`;
+        else pastLabel = `Periodo Anterior (${targetDevice.toUpperCase()})`;
+        // Model comparison labels
+        lyModelTitle = `Versus Modelo Anterior — Mismo Período (${previousDevice.toUpperCase()} vs ${targetDevice.toUpperCase()})`;
+        lyModelColLabel = previousDevice.toUpperCase();
+        // lyTitle/lyColLabel still used for year-over-year
+        lyTitle = `Versus Año Anterior (${targetDevice.toUpperCase()})`;
+        lyColLabel = `${baseTimeLabel || "Periodo"} (Año Pasado)`;
     } else {
         if (baseTimeLabel) {
             if (targetDevice !== "todos" && targetDevice !== "") {
@@ -1891,7 +1899,7 @@ function generateCustomPDF(p) {
     }
     pw = pw; ly = ly; yt = yt;
 
-    const htmlContent = _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt, lyTitle, lyColLabel);
+    const htmlContent = _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt, lyTitle, lyColLabel, lyModel, lyModelTitle, lyModelColLabel);
     const blob = Utilities.newBlob(htmlContent, MimeType.HTML);
     const pdfBlob = blob.getAs(MimeType.PDF);
     
@@ -2038,7 +2046,7 @@ function generatePDFReport(periodType) {
   notifyUser("Admin", msgText, "System");
 }
 
-function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt, lyTitle = "Versus Año Anterior", lyColLabel = "Mismo periodo (Año Pasado)") {
+function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, pw, ly, yt, lyTitle = "Versus Año Anterior", lyColLabel = "Mismo periodo (Año Pasado)", lyModel = null, lyModelTitle = null, lyModelColLabel = null) {
   const esc = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, function(char) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char];
   });
