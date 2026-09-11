@@ -47,6 +47,60 @@ function _getColMap(sheet) {
 }
 
 const CACHE_EXPIRATION = 300; // 5 minutos en segundos
+const CACHE_CHUNK_SIZE = 75000;
+
+function _dataCacheKey(ssId, sheetName) {
+  return "SHEET_" + _digest(ssId + "|" + sheetName).slice(0, 32);
+}
+
+function _removeCachedChunks(cache, baseKey) {
+  const rawMeta = cache.get(baseKey + "_META");
+  let chunkCount = 0;
+  if (rawMeta) {
+    try { chunkCount = parseInt(JSON.parse(rawMeta).chunks, 10) || 0; } catch (error) {}
+  }
+  const keys = [baseKey + "_META"];
+  for (let i = 0; i < chunkCount; i++) keys.push(baseKey + "_" + i);
+  cache.removeAll(keys);
+}
+
+function _readCachedSheet(cache, baseKey) {
+  const rawMeta = cache.get(baseKey + "_META");
+  if (!rawMeta) return null;
+  try {
+    const meta = JSON.parse(rawMeta);
+    const keys = [];
+    for (let i = 0; i < meta.chunks; i++) keys.push(baseKey + "_" + i);
+    const parts = cache.getAll(keys);
+    let serialized = "";
+    for (let i = 0; i < keys.length; i++) {
+      if (typeof parts[keys[i]] !== "string") return null;
+      serialized += parts[keys[i]];
+    }
+    return JSON.parse(serialized);
+  } catch (error) {
+    _removeCachedChunks(cache, baseKey);
+    return null;
+  }
+}
+
+function _writeCachedSheet(cache, baseKey, data) {
+  try {
+    const serialized = JSON.stringify(data);
+    const entries = {};
+    let chunkCount = 0;
+    for (let offset = 0; offset < serialized.length; offset += CACHE_CHUNK_SIZE) {
+      entries[baseKey + "_" + chunkCount] = serialized.slice(offset, offset + CACHE_CHUNK_SIZE);
+      chunkCount++;
+    }
+    if (chunkCount === 0 || chunkCount > 80) return;
+    _removeCachedChunks(cache, baseKey);
+    cache.putAll(entries, CACHE_EXPIRATION);
+    cache.put(baseKey + "_META", JSON.stringify({ chunks: chunkCount }), CACHE_EXPIRATION);
+  } catch (cacheError) {
+    _removeCachedChunks(cache, baseKey);
+  }
+}
 
 // MEJORA SENIOR: Super-calculadora de duraciones (V5.6)
 function _parseDur(val) {
@@ -80,15 +134,13 @@ function _parseDur(val) {
 // 🛠️ FIX 2: CACHÉ REAL DE APPS SCRIPT CON SOPORTE PARA REFRESH FORZADO
 function _getValuesCached(ssId, sheetName, forceRefresh = false) {
   const cache = CacheService.getScriptCache();
-  const key = ssId + "_" + sheetName;
+  const key = _dataCacheKey(ssId, sheetName);
   
   if (!forceRefresh) {
-    const cachedData = cache.get(key);
-    if (cachedData) {
-      try { return JSON.parse(cachedData); } catch(e) { cache.remove(key); }
-    }
+    const cachedData = _readCachedSheet(cache, key);
+    if (cachedData) return cachedData;
   } else {
-    cache.remove(key);
+    _removeCachedChunks(cache, key);
   }
   
   try {
@@ -96,17 +148,14 @@ function _getValuesCached(ssId, sheetName, forceRefresh = false) {
     const s = ss.getSheetByName(sheetName);
     if (!s) return [];
     const d = s.getDataRange().getValues();
-    try {
-      cache.put(key, JSON.stringify(d), CACHE_EXPIRATION);
-    } catch(cacheError) {
-      // CacheService limit is 100KB. If it fails, ignore and return data anyway.
-    }
+    _writeCachedSheet(cache, key, d);
     return d;
   } catch(e) { return []; }
 }
 
 function _invalidateCache(ssId, sheetName) {
-  CacheService.getScriptCache().remove(ssId + "_" + sheetName);
+  const cache = CacheService.getScriptCache();
+  _removeCachedChunks(cache, _dataCacheKey(ssId, sheetName));
 }
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -200,7 +249,9 @@ function doGet(e) {
   
   let res = { status: "error", message: "Accion [" + action + "] no encontrada" };
   try {
-    const forceRefresh = p._t ? true : false;
+    // `_t` solo evita el caché HTTP/JSONP del navegador. El recálculo de Sheets
+    // debe ocurrir únicamente cuando la interfaz solicita refresh explícito.
+    const forceRefresh = p.refresh === "true" || p.refresh === true;
     if (action === "getLoginUsers") {
       // Endpoint público mínimo para completar el selector de acceso.
       // No expone contraseña, rol, sede, correo ni ningún otro dato privado.
@@ -211,7 +262,7 @@ function doGet(e) {
       if (action === "getUsersList")      res = getUsersList();
       if (action === "getVacationData")   res = getVacationData(session.role === "Admin" && p.user ? p.user : session.user, forceRefresh);
       if (action === "getAdminData")      res = getAdminData(forceRefresh);
-      if (action === "getDashboardStats") res = getDashboardStats(p);
+      if (action === "getDashboardStats") res = getDashboardStats(p, session);
       if (action === "getReportsHistory") res = getReportsHistory(p);
       if (action === "getCitiesList")     res = getCitiesList();
       if (action === "getFilterMetadata") res = getFilterMetadata();
@@ -635,7 +686,7 @@ function attemptLogin(u, p) {
   return { status: "error", message: "Credenciales incorrectas" };
 }
 
-function getDashboardStats(p) {
+function getDashboardStats(p, session) {
   const force = p.refresh === 'true' || p.refresh === true;
   const now = new Date();
   const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME, force);
@@ -644,10 +695,15 @@ function getDashboardStats(p) {
   const sRef = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
   const colMap = _getColMap(sRef);
   
-  const target = (p.targetUser || "Total").toString().trim();
-  const targetWeeksStr = (p.weeks || p.week || "").toString().trim();
-  const targetMonth = (p.month || "Todos").toString().trim();
-  const targetYear = (p.year || "Todos").toString().trim();
+  const isStandardUser = session && session.role !== "Admin";
+  const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const defaultWeek = getWeekNumber(now).toString();
+  const defaultMonth = mNames[now.getMonth()];
+  const defaultYear = now.getFullYear().toString();
+  const target = (isStandardUser ? session.user : (p.targetUser || "Total")).toString().trim();
+  const targetWeeksStr = (isStandardUser ? defaultWeek : (p.weeks || p.week || "")).toString().trim();
+  const targetMonth = (isStandardUser ? defaultMonth : (p.month || "Todos")).toString().trim();
+  const targetYear = (isStandardUser ? defaultYear : (p.year || "Todos")).toString().trim();
   const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
   const targetMethodology = (p.methodology || "Todos").toString().trim().toLowerCase();
   const targetContent = (p.content || "Todos").toString().trim().toLowerCase();
@@ -681,13 +737,28 @@ function getDashboardStats(p) {
       selectedContents = targetContent.split(',').map(m => m.trim());
   }
 
-  const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   let tS=0, tA=0, tH=0, count=0; 
   let mS={}; 
   let monthlyWS = {}; 
   let statsByAccount = {}; 
   let statsByTrainer = {};
   let availableWeeks = new Set();
+  const currentWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  currentWeekStart.setDate(currentWeekStart.getDate() - ((currentWeekStart.getDay() + 6) % 7));
+  currentWeekStart.setHours(0, 0, 0, 0);
+  const currentWeekEnd = new Date(currentWeekStart);
+  currentWeekEnd.setDate(currentWeekEnd.getDate() + 7);
+
+  // Los trainers comparan todas las semanas del mes actual, incluidas las que están a cero.
+  if (isStandardUser) {
+    const cursor = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0, 12, 0, 0).getDate();
+    for (let day = 1; day <= lastDay; day++) {
+      cursor.setDate(day);
+      const week = getWeekNumber(cursor);
+      if (!monthlyWS[week]) monthlyWS[week] = { sesiones:0, alumnos:0 };
+    }
+  }
 
   for (var i=1; i<d.length; i++) {
     var fVal = colMap.FECHA !== undefined ? d[i][colMap.FECHA] : d[i][2];
@@ -704,6 +775,9 @@ function getDashboardStats(p) {
         // Modo Rango de Fechas
         if (dO.getTime() < startD.getTime() || dO.getTime() > endD.getTime()) continue;
         availableWeeks.add(rowWeek);
+    } else if (isStandardUser) {
+        // Las métricas y la gráfica usan periodos diferentes; se filtran al acumular.
+        availableWeeks.add(defaultWeek);
     } else {
         // Modo Estándar (Año, Mes, Semana)
         if (targetYear !== "Todos" && rowYear.toString() !== targetYear) continue;
@@ -754,7 +828,9 @@ function getDashboardStats(p) {
     var cuenta = (d[i][colMap.CUENTA]||"Otros").toString().trim();
 
     // Sumar a totales si coincide la semana (o si estamos en modo Rango de Fechas)
-    const inSelectedWeek = (startD && endD) ? true : (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek));
+    const inSelectedWeek = isStandardUser
+      ? (dO.getTime() >= currentWeekStart.getTime() && dO.getTime() < currentWeekEnd.getTime())
+      : ((startD && endD) ? true : (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek)));
 
     if (inSelectedWeek) {
       if (matchesUser) {
@@ -770,7 +846,9 @@ function getDashboardStats(p) {
 
     // Acumular para el gráfico de barras semanal
     if (matchesUser) {
-        const matchesMonthForChart = (startD && endD) ? true : (selectedMonths.length === 0 || selectedMonths.includes(mNames[rowMonth]));
+        const matchesMonthForChart = isStandardUser
+          ? (rowYear === now.getFullYear() && rowMonth === now.getMonth())
+          : ((startD && endD) ? true : (selectedMonths.length === 0 || selectedMonths.includes(mNames[rowMonth])));
         if (matchesMonthForChart) {
             if(!monthlyWS[rowWeek]) monthlyWS[rowWeek] = { sesiones:0, alumnos:0 };
             monthlyWS[rowWeek].sesiones += ses; monthlyWS[rowWeek].alumnos += alu;
@@ -795,12 +873,22 @@ function getReportsHistory(p) {
   try {
     const force = p.refresh === 'true' || p.refresh === true;
     const target = (p.targetUser || "").toString().trim();
-    const limit = parseInt(p.limit) || 20;
+    const limit = Math.min(Math.max(parseInt(p.limit, 10) || 100, 1), 500);
     const weekFilter = p.week ? parseInt(p.week) : null;
     const monthFilter = (p.month || "").toString().trim();
     const accountFilter = (p.account || "").toString().trim();
     const deviceFilter = (p.device || "").toString().trim().toLowerCase();
     const methodologyFilter = (p.methodology || "").toString().trim();
+    const methodologyFilters = methodologyFilter.split(',').map(function(value) {
+      return value.trim().toLowerCase();
+    }).filter(Boolean);
+    const contentFilters = (p.content || "").toString().split(',').map(function(value) {
+      return value.trim().toLowerCase();
+    }).filter(Boolean);
+    const startDate = p.startDate ? parseDateStable(p.startDate) : null;
+    const endDate = p.endDate ? parseDateStable(p.endDate) : null;
+    if (startDate) startDate.setHours(0, 0, 0, 0);
+    if (endDate) endDate.setHours(23, 59, 59, 999);
     const query = (p.q || "").toString().trim().toLowerCase();
     
     const d = _getValuesCached(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME, force);
@@ -853,10 +941,19 @@ function getReportsHistory(p) {
       const dO = parseDateStable(fVal);
       if (!dO) continue;
       
+      if (startDate && dO.getTime() < startDate.getTime()) continue;
+      if (endDate && dO.getTime() > endDate.getTime()) continue;
       if (weekFilter && weekFilter !== "Todos" && getWeekNumber(dO) != weekFilter) continue;
       if (monthFilter && monthFilter !== "Todos" && mNames[dO.getMonth()] !== monthFilter) continue;
       if (accountFilter && accountFilter !== "Todos" && (d[i][colMap.CUENTA]||"").toString().trim() !== accountFilter) continue;
-      if (methodologyFilter && methodologyFilter !== "Todos" && (d[i][colMap.METODOLOGIA]||"").toString().trim() !== methodologyFilter) continue;
+      if (methodologyFilters.length > 0 && methodologyFilters.indexOf("todos") === -1) {
+        const rowMethodology = (d[i][colMap.METODOLOGIA] || "").toString().trim().toLowerCase();
+        if (methodologyFilters.indexOf(rowMethodology) === -1) continue;
+      }
+      if (contentFilters.length > 0 && contentFilters.indexOf("todos") === -1) {
+        const rowContent = (d[i][colMap.CONTENIDOS] || "").toString().trim().toLowerCase();
+        if (contentFilters.indexOf(rowContent) === -1) continue;
+      }
       
       if (deviceFilter && deviceFilter !== "todos") {
         const mobiles = (d[i][colMap.DISP_MOVIL]||"").toString().toLowerCase();

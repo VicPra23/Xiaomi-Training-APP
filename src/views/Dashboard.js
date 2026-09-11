@@ -126,24 +126,12 @@ function renderDashboard(container) {
             <div class="dashboard-filter-content">
                 <div id="periodFiltersContainer" style="display:flex; gap:12px;">
                     <div class="form-group" style="margin:0; min-width: 180px; flex: 0 1 auto; text-align: center;">
-                        <label class="form-label" style="display: block; width: 100%;">Semana</label>
-                        <select id="dashboardWeek" class="form-control"></select>
-                    </div>
-                </div>
-                <div id="rangeFiltersContainer" style="display:none; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:flex-start;">
-                    <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
-                        <label class="form-label" style="display: block; width: 100%;">Desde</label>
-                        <input type="date" id="dashboardDateStart" class="form-control" style="height: 42px; font-size: 0.85rem; text-align:center;">
-                    </div>
-                    <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
-                        <label class="form-label" style="display: block; width: 100%;">Hasta</label>
-                        <input type="date" id="dashboardDateEnd" class="form-control" style="height: 42px; font-size: 0.85rem; text-align:center;">
+                        <label class="form-label" style="display: block; width: 100%;">Periodo de métricas</label>
+                        <select id="dashboardWeek" class="form-control" disabled aria-label="Semana actual"></select>
                     </div>
                 </div>
                 <div style="display:flex; gap:8px; align-self: flex-end;">
-                    <button id="btnToggleRange" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Alternar Rango/Periodos"><i data-lucide="calendar" style="width:18px;"></i></button>
-                    <button id="btnFilter" class="btn-primary" style="height:42px; width:42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="search" style="width:20px;"></i></button>
-                    <button id="btnClearFilters" class="btn-secondary" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;"><i data-lucide="refresh-ccw" style="width:18px;"></i></button>
+                    <button id="btnClearFilters" class="btn-secondary" aria-label="Actualizar dashboard" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Actualizar"><i data-lucide="refresh-ccw" style="width:18px;"></i></button>
                 </div>
             </div>
         </div>`;
@@ -165,7 +153,7 @@ function renderDashboard(container) {
             <header class="dash-header">
                 <div>
                     <span class="page-eyebrow">Centro de operaciones</span>
-                    <h2>&iexcl;Hola, ${realName}!</h2>
+                    <h2>&iexcl;Hola, ${esc(realName)}!</h2>
                     <p id="dashPeriodText">
                         ${isAdmin ? 'Visión global del equipo y actividad reciente.' : 'Tu actividad, objetivos y próximos pasos.'}
                     </p>
@@ -481,6 +469,10 @@ function renderDashboard(container) {
     const sW = document.getElementById('dashboardWeek');
     const hW = document.getElementById('histFilterWeek');
     const mWeekCont = document.getElementById('multiWeekContainer');
+    if (!isAdmin && sW) {
+        sW.innerHTML = `<option value="${currentWeek}">Semana ${currentWeek} (actual)</option>`;
+        sW.value = currentWeek.toString();
+    }
     
     // El usuario ha pedido cambiar el filtro base para que arranque con la semana actual de nuevo,
     // pero manteniendo el mes actual para la gráfica de tendencia semanal.
@@ -868,19 +860,8 @@ function renderDashboard(container) {
         const sel = document.getElementById('dashboardWeek');
         if (!sel) return;
         
-        let allWeeks = Array.from(new Set([...(weeks || []), currentWeek]));
-        allWeeks.sort((a, b) => b - a);
-
-        const currentVal = sel.value || currentWeek.toString();
-        sel.innerHTML = `<option value="${weeksList.join(',')}">Todas</option>`;
-        
-        allWeeks.forEach(w => {
-            const opt = document.createElement('option');
-            opt.value = w;
-            opt.innerText = `Semana ${w}`;
-            if (w.toString() === currentVal) opt.selected = true;
-            sel.appendChild(opt);
-        });
+        sel.innerHTML = `<option value="${currentWeek}">Semana ${currentWeek} (actual)</option>`;
+        sel.value = currentWeek.toString();
     };
 
     const loadStats = (force = false) => {
@@ -926,7 +907,7 @@ function renderDashboard(container) {
             params.year = dYear ? dYear.value : "Todos";
         }
         
-        api.getDashboardStats(params).then(res => {
+        return api.getDashboardStats(params).then(res => {
             if (res.status === 'success') {
                 try {
                     const sCount = document.getElementById('stat_count'); if(sCount) sCount.innerText = (res.currentWeekData && res.currentWeekData.count !== undefined) ? res.currentWeekData.count : (res.count || 0);
@@ -950,7 +931,17 @@ function renderDashboard(container) {
                         if (isAdmin && res.adminStats) renderAdminStats(res.adminStats);
                     }, 250);
                 } catch(e) { console.error("Shielding error in stats rendering:", e); }
+            } else {
+                throw new Error(res.message || 'No se pudo cargar el resumen.');
             }
+        }).catch(error => {
+            console.error('Error loading dashboard stats:', error);
+            const ids = ['stat_count', 'stat_sesiones', 'stat_alumnos', 'stat_horas'];
+            ids.forEach(id => {
+                const element = document.getElementById(id);
+                if (element && element.innerText === '...') element.innerText = '—';
+            });
+            window.showToast?.('No se pudo cargar el dashboard. Revisa la conexión.', 'error');
         });
     };
 
@@ -1179,11 +1170,13 @@ function renderDashboard(container) {
             month: month,
             account: account,
             device: device,
-            methodology: "Todos", // Send Todos to bypass backend filtering, we filter client-side
+            methodology: isMethodTodos ? "Todos" : methods.join(','),
             content: contentVal,
+            startDate: useRange ? dateStart : "",
+            endDate: useRange ? dateEnd : "",
             q: q,
             refresh: force,
-            limit: 9999
+            limit: 250
         };
 
         api.getReportsHistory(historyParams).then(res => {
@@ -1244,6 +1237,10 @@ function renderDashboard(container) {
             } else {
                 body.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">${q ? 'No hay resultados para esa búsqueda.' : 'No se encontraron reportes.'}</td></tr>`;
             }
+        }).catch(error => {
+            console.error('Error loading report history:', error);
+            const body = document.getElementById('historyBody');
+            if (body) body.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">No se pudo cargar el historial.</td></tr>`;
         }).finally(() => { 
             const loader = document.getElementById('historyLoading');
             if(loader) loader.style.visibility = 'hidden'; 
@@ -1262,7 +1259,7 @@ function renderDashboard(container) {
             totalSes += s; totalAlu += a;
             rows += `
                 <tr class="table-row-hover" style="border-bottom:1px solid var(--border-main); transition: background 0.2s;">
-                    <td data-label="Cuenta" style="padding:12px 15px; color:var(--text-main); font-weight:600;">${acc}</td>
+                    <td data-label="Cuenta" style="padding:12px 15px; color:var(--text-main); font-weight:600;">${esc(acc)}</td>
                     <td data-label="Sesiones" style="padding:12px 15px; text-align:center; font-weight:700; color:var(--xiaomi-orange);">${s}</td>
                     <td data-label="Personas" style="padding:12px 15px; text-align:center; font-weight:700; color:var(--text-main);">${a}</td>
                 </tr>`;
@@ -1588,8 +1585,7 @@ function renderDashboard(container) {
     if(historySearch) historySearch.onkeyup = (e) => { if(e.key === 'Enter') loadHistory(); };
     
         // CARGA INICIAL DIFERIDA (Performance V1.1)
-        loadStats();
-        setTimeout(loadHistory, 300); // Retrasar carga de historial para priorizar los números principales
+        loadStats().finally(() => loadHistory());
     } catch(e) {
         console.error("Dashboard Render Error:", e);
         container.innerHTML = `<div class="glass-card" style="padding:40px; text-align:center;"><h3>Error al cargar el Dashboard</h3><p>${e.message}</p></div>`;

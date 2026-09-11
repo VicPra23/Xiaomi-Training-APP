@@ -1,6 +1,37 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 46.7
-Fecha: 27/08/2026
+Versión revisada: 47.2
+Fecha: 11/09/2026
+
+CONEXIÓN 47.2
+=================
+
+- Frontend conectado al nuevo despliegue de Google Apps Script proporcionado por el usuario.
+- Caché PWA y versiones de recursos actualizadas a 47.2 para retirar la URL anterior.
+
+CORRECCIONES 47.1
+=================
+
+1. Dashboard de usuarios estándar
+   - Las cuatro métricas quedan limitadas en backend a la semana natural actual (lunes-domingo),
+     aunque el cliente omita o manipule los filtros.
+   - La tendencia semanal usa exclusivamente el mes natural actual y muestra también las semanas
+     sin actividad, evitando mezclar datos de otros meses o años.
+   - El selector de periodo se muestra bloqueado como "Semana actual" para que la interfaz refleje
+     el alcance real aplicado por el servidor.
+
+2. Rendimiento para usuarios con mucho histórico (incluido Hamza)
+   - El historial se filtra en el servidor por metodología, contenido y rango de fechas antes de
+     serializar la respuesta, y queda limitado a 500 registros por petición (250 desde la interfaz).
+   - La carga principal y el historial se ejecutan en secuencia para reutilizar el caché de datos.
+   - Las hojas que superan 100 KB se guardan ahora en fragmentos compatibles con CacheService;
+     antes el caché fallaba silenciosamente y cada petición volvía a leer la hoja completa.
+   - El parámetro JSONP `_t` ya no invalida los cachés de Google Sheets en cada lectura.
+
+3. Robustez y despliegue
+   - Los errores de estadísticas e historial dejan un estado visible y recuperable en la interfaz.
+   - Se añadió filtrado de servidor para consultas del historial y un límite defensivo de respuesta.
+   - Se escaparon el nombre mostrado y las cuentas de las tablas administrativas.
+   - Se alinearon las versiones de assets, vistas dinámicas y service worker en 47.1.
 
 ALCANCE
 ======
