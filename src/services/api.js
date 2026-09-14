@@ -93,7 +93,7 @@ async function sendPost(action, data = {}) {
     const payload = JSON.stringify({ action, ...data, ...(session?.token && action !== "login" ? { token: session.token } : {}) });
     
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(() => controller.abort(), action === "uploadPhoto" ? 180000 : 30000);
     try {
         const res = await fetch(API_URL, { 
             method: 'POST', 
@@ -154,7 +154,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "47.2"
+    VERSION: "47.4"
 };
 
 const api = {
@@ -174,6 +174,7 @@ const api = {
     getWeekly: (params) => sendGet("getWeekly", params),
     
     saveReport: (data, photos) => sendPost("saveReport", { data, photos }),
+    uploadPhoto: (photo, data) => sendPost("uploadPhoto", { photo, data }),
     updateReport: (req) => sendPost("updateReport", req),
     requestVacation: (req) => sendPost("requestVacation", req),
     updateRequest: (id, status) => sendPost("updateRequest", { id, status }),

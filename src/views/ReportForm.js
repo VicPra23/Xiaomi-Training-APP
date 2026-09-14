@@ -368,7 +368,7 @@ function renderReport(container, editData = null) {
                 </div>
                 <input type="file" id="photoInput" style="display: none;" accept="image/*,.heic,.heif" multiple>
                 <input type="hidden" id="photoData" name="photoData">
-                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 10 MB cada una. Se comprimirán antes de enviarse.</p>
+                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 25 MB cada una. Se optimizarán y subirán individualmente.</p>
             </div>
 
             <div style="margin-top: 3rem; display: flex; gap: 15px;">
@@ -517,7 +517,16 @@ function renderReport(container, editData = null) {
     }
 
     // --- NUEVO COMPRESOR DE IMÁGENES PARA MÓVIL ---
-    async function compressImage(file, maxWidth = 1200, quality = 0.7) {
+    const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
+
+    function getDataUrlByteLength(dataUrl) {
+        const base64 = String(dataUrl || '').split(',').pop().replace(/\s/g, '');
+        if (!base64) return 0;
+        const padding = base64.endsWith('==') ? 2 : (base64.endsWith('=') ? 1 : 0);
+        return Math.floor((base64.length * 3) / 4) - padding;
+    }
+
+    async function compressImage(file, maxWidth = 2560, quality = 0.86) {
         let fileToProcess = file;
         
         // Soporte para HEIC/HEIF (Apple)
@@ -594,9 +603,9 @@ function renderReport(container, editData = null) {
             showToast("Límite de fotos", "Puedes adjuntar un máximo de 20 fotos por reporte."); 
             return; 
         }
-        const oversized = files.find(file => file.size > 10 * 1024 * 1024);
+        const oversized = files.find(file => file.size > MAX_PHOTO_BYTES);
         if (oversized) {
-            showToast("Foto demasiado grande", `“${oversized.name}” supera 10 MB. Redúcela antes de subirla.`);
+            showToast("Foto demasiado grande", `“${oversized.name}” supera 25 MB. Redúcela antes de subirla.`);
             photoInput.value = "";
             return;
         }
@@ -606,14 +615,13 @@ function renderReport(container, editData = null) {
         for (let i = 0; i < files.length; i++) {
             try {
                 const compressedBase64 = await compressImage(files[i]);
-                const estimatedBytes = Math.ceil((compressedBase64.length * 3) / 4);
-                const currentBytes = photosArray.reduce((total, photo) => total + Math.ceil((photo.base64Data.length * 3) / 4), 0);
-                if (estimatedBytes > 1.8 * 1024 * 1024 || currentBytes + estimatedBytes > 12 * 1024 * 1024) {
-                    throw new Error("La imagen comprimida supera el límite seguro de envío.");
+                const processedBytes = getDataUrlByteLength(compressedBase64);
+                if (processedBytes > MAX_PHOTO_BYTES) {
+                    throw new Error("La imagen procesada supera 25 MB.");
                 }
                 photosArray.push({
-                    name: files[i].name,
-                    mimeType: files[i].type,
+                    name: files[i].name.replace(/\.[^.]+$/, '') + '.jpg',
+                    mimeType: 'image/jpeg',
                     base64Data: compressedBase64
                 });
                 renderPhotos(); 
@@ -761,17 +769,30 @@ function renderReport(container, editData = null) {
             btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Enviando reporte...';
         }
 
-        // Formateo exacto de las fotos para el backend V5.0
+        // Cada foto se sube en su propia petición para que el tamaño combinado no bloquee el reporte.
         const formattedPhotos = photosArray.map((photoObj, index) => ({
-            base64Data: photoObj.base64Data, // Extraemos solo el texto base64
+            base64Data: photoObj.base64Data,
             name: photoObj.name || `foto_${index}.jpg`,
             mimeType: photoObj.mimeType || 'image/jpeg'
         }));
 
         try {
+            for (let index = 0; index < formattedPhotos.length; index++) {
+                btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Subiendo foto ${index + 1} de ${formattedPhotos.length}...`;
+                const uploadResult = await api.uploadPhoto(formattedPhotos[index], data);
+                if (uploadResult.status !== 'success' || !uploadResult.url) {
+                    throw new Error(uploadResult.message || `No se pudo subir la foto ${index + 1}.`);
+                }
+                existingPhotos.push(uploadResult.url);
+                photosArray.shift();
+                data.existingPhotos = existingPhotos.join('\n');
+                renderPhotos();
+            }
+
+            btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Guardando reporte...';
             const res = editData && editData.mode === 'edit'
-                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: formattedPhotos })
-                : await api.saveReport(data, formattedPhotos);
+                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: [] })
+                : await api.saveReport(data, []);
 
             if(res.status === 'success') {
                 reportDirty = false;

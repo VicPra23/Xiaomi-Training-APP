@@ -1,6 +1,15 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 47.2
-Fecha: 11/09/2026
+Versión revisada: 47.4
+Fecha: 14/09/2026
+
+FOTOS 47.4
+==========
+
+- Límite real ampliado a 25 MB por foto en frontend y backend.
+- Eliminados los límites ocultos anteriores de 1,8 MB en el navegador y ~1,95 MB en Apps Script.
+- Las fotos se optimizan con mayor resolución y se suben individualmente antes de guardar el reporte.
+- El timeout de cada subida se amplía a 180 segundos para conexiones móviles lentas.
+- Se normaliza el archivo procesado a JPEG para que extensión, MIME y contenido coincidan.
 
 CONEXIÓN 47.2
 =================
