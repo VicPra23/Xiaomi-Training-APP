@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxGxy72LdOGY28hBVaXksoIBs3uIM6yOfboH6bDpCVndts00PebZtNdB3KzxUQUg3f0SA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzH7raJ4dN8dR4iAwwRMJZ9b6kdEib22piw4y_ecMr_gLu0ID8PED9_6IGAuwE6cZveoA/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -93,7 +93,7 @@ async function sendPost(action, data = {}) {
     const payload = JSON.stringify({ action, ...data, ...(session?.token && action !== "login" ? { token: session.token } : {}) });
     
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), action === "uploadPhoto" ? 300000 : 30000);
+    const timeout = setTimeout(() => controller.abort(), 30000);
     try {
         const res = await fetch(API_URL, { 
             method: 'POST', 
@@ -113,9 +113,7 @@ async function sendPost(action, data = {}) {
     } catch (e) {
         console.error(`[API] fetch error:`, e);
         if (e.name === 'AbortError') throw new Error("La operación ha tardado demasiado. Revisa la conexión y vuelve a intentarlo.");
-        throw new Error(e.message && e.message !== 'Failed to fetch'
-            ? e.message
-            : "Error de red o conexión bloqueada al enviar datos.");
+        throw new Error("Error de red o conexión bloqueada al enviar datos.");
     } finally {
         clearTimeout(timeout);
     }
@@ -156,7 +154,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "47.12"
+    VERSION: "47.2"
 };
 
 const api = {
@@ -176,7 +174,6 @@ const api = {
     getWeekly: (params) => sendGet("getWeekly", params),
     
     saveReport: (data, photos) => sendPost("saveReport", { data, photos }),
-    uploadPhoto: (photo, data) => sendPost("uploadPhoto", { photo, data }),
     updateReport: (req) => sendPost("updateReport", req),
     requestVacation: (req) => sendPost("requestVacation", req),
     updateRequest: (id, status) => sendPost("updateRequest", { id, status }),

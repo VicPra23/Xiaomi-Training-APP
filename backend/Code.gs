@@ -291,10 +291,6 @@ function doPost(e) {
     const adminActions = ["updateRequest", "modifyExtra", "modifyBase", "adminProcessSelection"];
     const session = _requireSession(req, adminActions.indexOf(req.action) !== -1);
     let res = { status: "error", message: "Accion no encontrada" };
-    if (req.action === "uploadPhoto") {
-      if (session.role !== "Admin") req.data.trainer = session.user;
-      res = handleUploadPhoto(req.photo, req.data);
-    }
     if (req.action === "saveReport") {
       if (session.role !== "Admin") req.data.trainer = session.user;
       res = handleSaveReport(req.data, req.photos);
@@ -1052,8 +1048,13 @@ function updateReport(p, session) {
     }
 
     var newPhotoUrls = _uploadPhotos(p.photos, data);
-    // Respetar la selección del frontend, eliminar duplicados y limitar el reporte a 20 fotos.
-    var finalPhotos = _mergePhotoLinks(data.existingPhotos, newPhotoUrls).join("\n");
+    // IMPORTANTE: Respetar la selección de fotos del frontend (permite borrar fotos antiguas)
+    const keptPhotos = (data.existingPhotos || "").toString().trim();
+    
+    let finalPhotos = keptPhotos;
+    if (newPhotoUrls.length > 0) {
+        finalPhotos = keptPhotos ? (keptPhotos + "\n" + newPhotoUrls.join("\n")) : newPhotoUrls.join("\n");
+    }
 
     // Limpiar y convertir a número
     const cleanNum = (v) => {
@@ -1186,7 +1187,6 @@ function getFilterMetadata() {
 }
 
 function _uploadPhotos(photos, data) {
-  const maxPhotoBytes = 10 * 1024 * 1024;
   var photoUrls = [];
   if (photos && photos.length > 0) {
     try {
@@ -1205,17 +1205,11 @@ function _uploadPhotos(photos, data) {
       
       for (var i=0; i<Math.min(photos.length, 20); i++) {
           var p = photos[i];
-          if (p && p.base64Data && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(p.base64Data)) {
+          if (p && p.base64Data && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(p.base64Data) && p.base64Data.length < 2600000) {
               try {
                 var splitted = p.base64Data.split(',');
                 // El replace(/\s/g, '') arregla los saltos de línea de iOS/Android que rompen el decodificador
                 var base64 = (splitted.length > 1 ? splitted[1] : splitted[0]).replace(/\s/g, ''); 
-                var padding = /==$/.test(base64) ? 2 : (/=$/.test(base64) ? 1 : 0);
-                var decodedBytes = Math.floor((base64.length * 3) / 4) - padding;
-                if (decodedBytes <= 0 || decodedBytes > maxPhotoBytes) {
-                  console.error("Foto omitida: supera el límite de 10 MB.");
-                  continue;
-                }
                 
                 var ext = "jpg";
                 if (p.mimeType && p.mimeType.indexOf("/") !== -1) {
@@ -1232,34 +1226,6 @@ function _uploadPhotos(photos, data) {
     } catch(e) { console.error("Error uploading photos:", e); }
   }
   return photoUrls;
-}
-
-function handleUploadPhoto(photo, data) {
-  try {
-    const safeData = _validateReportData(data);
-    const urls = _uploadPhotos([photo], safeData);
-    if (!urls.length) {
-      return { status: "error", message: "La foto no es válida o supera el límite de 10 MB." };
-    }
-    return { status: "success", url: urls[0] };
-  } catch (error) {
-    return _errorResponse(error);
-  }
-}
-
-function _mergePhotoLinks(existingPhotos, uploadedPhotos) {
-  var links = [];
-  var seen = {};
-  var candidates = String(existingPhotos || "").split(/[\n,]+/);
-  if (uploadedPhotos && uploadedPhotos.length) candidates = candidates.concat(uploadedPhotos);
-
-  for (var i = 0; i < candidates.length && links.length < 20; i++) {
-    var link = String(candidates[i] || "").trim();
-    if (!/^https?:\/\//i.test(link) || seen[link]) continue;
-    seen[link] = true;
-    links.push(link);
-  }
-  return links;
 }
 
 function _validateReportData(input) {
@@ -1318,9 +1284,7 @@ function handleSaveReport(data, photos) {
     };
 
     var photoUrls = _uploadPhotos(photos, data);
-    // Las subidas individuales ya llegan como existingPhotos. Antes se ignoraban aquí,
-    // por eso el archivo aparecía en Drive pero la columna FOTOS quedaba vacía.
-    var urlsString = _mergePhotoLinks(data.existingPhotos, photoUrls).join("\n");
+    var urlsString = photoUrls.join("\n");
     
     // Obtenemos el número real de columnas de la hoja
     const totalCols = Math.max(s.getLastColumn(), 20); // Asegura al menos 20 huecos de memoria
@@ -1349,7 +1313,7 @@ function handleSaveReport(data, photos) {
     
     s.appendRow(rowData);
     _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
-    return { status:"success", photoLinks: urlsString };
+    return { status:"success" };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { lock.releaseLock(); }
 }
 

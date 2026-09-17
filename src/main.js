@@ -59,12 +59,12 @@ window.loadStyleOnce = href => {
 };
 
 const routeViews = {
-    '#dashboard': { src: 'src/views/Dashboard.js?v=47.12', global: 'renderDashboard', needsTomSelect: true },
-    '#report': { src: 'src/views/ReportForm.js?v=47.12', global: 'renderReport', needsTomSelect: true },
-    '#calendar': { src: 'src/views/Calendar.js?v=47.12', global: 'renderCalendar', needsTomSelect: true },
-    '#vacations': { src: 'src/views/Vacations.js?v=47.12', global: 'renderVacations' },
-    '#materials': { src: 'src/views/Materials.js?v=47.12', global: 'renderMaterials' },
-    '#mensajes': { src: 'src/views/Messages.js?v=47.12', global: 'renderMessages' }
+    '#dashboard': { src: 'src/views/Dashboard.js?v=47.2', global: 'renderDashboard', needsTomSelect: true },
+    '#report': { src: 'src/views/ReportForm.js?v=47.2', global: 'renderReport', needsTomSelect: true },
+    '#calendar': { src: 'src/views/Calendar.js?v=47.2', global: 'renderCalendar', needsTomSelect: true },
+    '#vacations': { src: 'src/views/Vacations.js?v=47.2', global: 'renderVacations' },
+    '#materials': { src: 'src/views/Materials.js?v=47.2', global: 'renderMaterials' },
+    '#mensajes': { src: 'src/views/Messages.js?v=47.2', global: 'renderMessages' }
 };
 
 async function ensureRouteView(hash) {
@@ -225,10 +225,6 @@ async function navigateRouter() {
     if (hash !== '#report' && window._reportBeforeUnload) {
         window.removeEventListener('beforeunload', window._reportBeforeUnload);
         window._reportBeforeUnload = null;
-    }
-    if (hash !== '#report' && window._reportPhotoCleanup) {
-        window._reportPhotoCleanup();
-        window._reportPhotoCleanup = null;
     }
     let user = getUser();
     if (!user && hash !== '#') { window.location.hash = '#'; return; }

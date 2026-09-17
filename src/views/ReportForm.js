@@ -368,7 +368,7 @@ function renderReport(container, editData = null) {
                 </div>
                 <input type="file" id="photoInput" style="display: none;" accept="image/*,.heic,.heif" multiple>
                 <input type="hidden" id="photoData" name="photoData">
-                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos. Se optimizan a alta calidad y nunca se envían con más de 10 MB.</p>
+                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 10 MB cada una. Se comprimirán antes de enviarse.</p>
             </div>
 
             <div style="margin-top: 3rem; display: flex; gap: 15px;">
@@ -517,86 +517,7 @@ function renderReport(container, editData = null) {
     }
 
     // --- NUEVO COMPRESOR DE IMÁGENES PARA MÓVIL ---
-    const MAX_SOURCE_PHOTO_BYTES = 25 * 1024 * 1024;
-    const MAX_UPLOAD_PHOTO_BYTES = 10 * 1024 * 1024;
-
-    function getDataUrlByteLength(dataUrl) {
-        const base64 = String(dataUrl || '').split(',').pop().replace(/\s/g, '');
-        if (!base64) return 0;
-        const padding = base64.endsWith('==') ? 2 : (base64.endsWith('=') ? 1 : 0);
-        return Math.floor((base64.length * 3) / 4) - padding;
-    }
-
-    function inferImageMime(file) {
-        const declared = String(file?.type || '').toLowerCase();
-        if (/^image\/(jpeg|jpg|png|webp)$/.test(declared)) {
-            return declared === 'image/jpg' ? 'image/jpeg' : declared;
-        }
-        const extension = String(file?.name || '').split('.').pop().toLowerCase();
-        return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' })[extension] || '';
-    }
-
-    function extensionForMime(mimeType) {
-        return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' })[mimeType] || 'jpg';
-    }
-
-    function readImageDirectly(file, mimeType) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const raw = String(reader.result || '');
-                const commaIndex = raw.indexOf(',');
-                if (commaIndex === -1) {
-                    reject(new Error('No se ha podido leer el archivo seleccionado.'));
-                    return;
-                }
-                resolve(`data:${mimeType};base64,${raw.slice(commaIndex + 1)}`);
-            };
-            reader.onerror = () => reject(new Error('El navegador no ha podido leer la fotografía.'));
-            reader.onabort = () => reject(new Error('La lectura de la fotografía se ha cancelado.'));
-            reader.readAsDataURL(file);
-        });
-    }
-
-    function canvasToBlob(canvas, mimeType, quality) {
-        return new Promise((resolve, reject) => {
-            canvas.toBlob(blob => {
-                if (blob) resolve(blob);
-                else reject(new Error('El navegador no ha podido generar la imagen optimizada.'));
-            }, mimeType, quality);
-        });
-    }
-
-    async function decodeImage(file) {
-        if (typeof createImageBitmap === 'function') {
-            try {
-                return await createImageBitmap(file, { imageOrientation: 'from-image' });
-            } catch (firstError) {
-                try {
-                    return await createImageBitmap(file);
-                } catch (secondError) {
-                    console.warn('createImageBitmap no pudo decodificar la foto; se probará el método compatible.', secondError);
-                }
-            }
-        }
-
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            const url = URL.createObjectURL(file);
-            const cleanup = () => URL.revokeObjectURL(url);
-            img.onload = () => {
-                cleanup();
-                resolve(img);
-            };
-            img.onerror = () => {
-                cleanup();
-                reject(new Error('El navegador no ha podido decodificar la imagen.'));
-            };
-            img.src = url;
-        });
-    }
-
-    async function compressImage(file, maxDimension = 2880, quality = 0.9) {
+    async function compressImage(file, maxWidth = 1200, quality = 0.7) {
         let fileToProcess = file;
         
         // Soporte para HEIC/HEIF (Apple)
@@ -609,7 +530,7 @@ function renderReport(container, editData = null) {
                     const blob = await heic2any({
                         blob: file,
                         toType: "image/jpeg",
-                        quality: 0.92
+                        quality: 0.8
                     });
                     fileToProcess = Array.isArray(blob) ? blob[0] : blob;
                 }
@@ -619,53 +540,39 @@ function renderReport(container, editData = null) {
             }
         }
 
-        const sourceMime = inferImageMime(file) || String(fileToProcess.type || '').toLowerCase();
-        let image;
-        try {
-            image = await decodeImage(fileToProcess);
-            const sourceWidth = Number(image.width || image.naturalWidth || 0);
-            const sourceHeight = Number(image.height || image.naturalHeight || 0);
-            if (!sourceWidth || !sourceHeight) throw new Error('La fotografía no contiene dimensiones válidas.');
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const url = URL.createObjectURL(fileToProcess);
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
 
-            const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
-            const initialWidth = Math.max(1, Math.round(sourceWidth * scale));
-            const initialHeight = Math.max(1, Math.round(sourceHeight * scale));
-            const canvas = document.createElement('canvas');
-            const attempts = [
-                { scale: 1, quality },
-                { scale: 0.9, quality: 0.86 },
-                { scale: 0.8, quality: 0.82 },
-                { scale: 0.7, quality: 0.78 }
-            ];
-            let blob = null;
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round(height * (maxWidth / width));
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxWidth) {
+                        width = Math.round(width * (maxWidth / height));
+                        height = maxWidth;
+                    }
+                }
 
-            for (let attempt = 0; attempt < attempts.length; attempt++) {
-                const settings = attempts[attempt];
-                const width = Math.max(1, Math.round(initialWidth * settings.scale));
-                const height = Math.max(1, Math.round(initialHeight * settings.scale));
                 canvas.width = width;
                 canvas.height = height;
-                const ctx = canvas.getContext('2d', { alpha: sourceMime === 'image/png' });
-                if (!ctx) throw new Error('El navegador no permite optimizar esta imagen.');
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(image, 0, 0, width, height);
-                blob = await canvasToBlob(canvas, 'image/webp', settings.quality);
-                if (blob.size <= MAX_UPLOAD_PHOTO_BYTES) break;
-                await new Promise(resolve => requestAnimationFrame(resolve));
-            }
-
-            if (!blob || blob.size > MAX_UPLOAD_PHOTO_BYTES) {
-                throw new Error('No se ha podido reducir la fotografía por debajo de 10 MB.');
-            }
-
-            const outputMime = ['image/webp', 'image/jpeg', 'image/png'].includes(blob.type)
-                ? blob.type
-                : 'image/jpeg';
-            return { blob, mimeType: outputMime, compressed: true };
-        } finally {
-            if (image && typeof image.close === 'function') image.close();
-        }
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = (err) => {
+                URL.revokeObjectURL(url);
+                reject(new Error("Error al cargar la imagen para compresión"));
+            };
+            img.src = url;
+        });
     }
 
     const photoInput = document.getElementById('photoInput');
@@ -673,14 +580,6 @@ function renderReport(container, editData = null) {
     const photoContainer = document.getElementById('photoContainer');
     let photosArray = [];
     let existingPhotos = [];
-
-    if (window._reportPhotoCleanup) window._reportPhotoCleanup();
-    window._reportPhotoCleanup = () => {
-        photosArray.forEach(photo => {
-            if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
-        });
-        photosArray = [];
-    };
 
     if (editData && editData.photoLinks) {
         existingPhotos = editData.photoLinks.split(/[\n,]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
@@ -695,9 +594,9 @@ function renderReport(container, editData = null) {
             showToast("Límite de fotos", "Puedes adjuntar un máximo de 20 fotos por reporte."); 
             return; 
         }
-        const oversized = files.find(file => file.size > MAX_SOURCE_PHOTO_BYTES);
+        const oversized = files.find(file => file.size > 10 * 1024 * 1024);
         if (oversized) {
-            showToast("Foto demasiado grande", `“${oversized.name}” supera 25 MB. Redúcela antes de subirla.`);
+            showToast("Foto demasiado grande", `“${oversized.name}” supera 10 MB. Redúcela antes de subirla.`);
             photoInput.value = "";
             return;
         }
@@ -706,34 +605,16 @@ function renderReport(container, editData = null) {
         
         for (let i = 0; i < files.length; i++) {
             try {
-                const sourceMime = inferImageMime(files[i]);
-                let prepared;
-                try {
-                    prepared = await compressImage(files[i]);
-                } catch (compressionError) {
-                    // Algunos Android entregan JPEG válidos que su decodificador de canvas rechaza.
-                    // En ese caso la foto sigue siendo utilizable y se sube sin transformar.
-                    if (!sourceMime) throw compressionError;
-                    console.warn(`No se pudo comprimir ${files[i].name}; se conserva el original.`, compressionError);
-                    if (files[i].size > MAX_UPLOAD_PHOTO_BYTES) {
-                        throw new Error('El móvil no ha podido comprimirla y el original supera 10 MB.');
-                    }
-                    prepared = { blob: files[i], mimeType: sourceMime, compressed: false };
+                const compressedBase64 = await compressImage(files[i]);
+                const estimatedBytes = Math.ceil((compressedBase64.length * 3) / 4);
+                const currentBytes = photosArray.reduce((total, photo) => total + Math.ceil((photo.base64Data.length * 3) / 4), 0);
+                if (estimatedBytes > 1.8 * 1024 * 1024 || currentBytes + estimatedBytes > 12 * 1024 * 1024) {
+                    throw new Error("La imagen comprimida supera el límite seguro de envío.");
                 }
-                const processedBytes = prepared.blob.size;
-                if (processedBytes > MAX_UPLOAD_PHOTO_BYTES) {
-                    throw new Error("La imagen procesada supera 10 MB.");
-                }
-                const finalMime = prepared.mimeType || sourceMime || 'image/jpeg';
-                const baseName = files[i].name.replace(/\.[^.]+$/, '') || `foto_${i + 1}`;
                 photosArray.push({
-                    name: `${baseName}.${extensionForMime(finalMime)}`,
-                    mimeType: finalMime,
-                    blob: prepared.blob,
-                    previewUrl: URL.createObjectURL(prepared.blob),
-                    compressed: prepared.compressed,
-                    originalBytes: files[i].size,
-                    processedBytes
+                    name: files[i].name,
+                    mimeType: files[i].type,
+                    base64Data: compressedBase64
                 });
                 renderPhotos(); 
             } catch (err) {
@@ -780,14 +661,9 @@ function renderReport(container, editData = null) {
         photosArray.forEach((p, idx) => {
             const div = document.createElement('div');
             div.className = 'photo-thumb-v9 fade-in';
-            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url("${p.previewUrl}") center/cover; position: relative; border: 2px solid var(--xiaomi-orange);`;
+            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${p.base64Data}) center/cover; position: relative; border: 2px solid var(--xiaomi-orange);`;
             div.innerHTML = `<button type="button" style="position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; z-index:10;">×</button>`;
-            div.querySelector('button').onclick = (e) => {
-                e.stopPropagation();
-                const removed = photosArray.splice(idx, 1)[0];
-                if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
-                renderPhotos();
-            };
+            div.querySelector('button').onclick = (e) => { e.stopPropagation(); photosArray.splice(idx, 1); renderPhotos(); };
             photoContainer.insertBefore(div, photoTrigger);
         });
         
@@ -885,39 +761,17 @@ function renderReport(container, editData = null) {
             btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Enviando reporte...';
         }
 
-        // Se conserva cada foto como Blob y sólo se convierte una a Base64 en el momento de subirla.
-        // Así evitamos mantener varias cadenas grandes en memoria en móviles modestos.
-        const queuedPhotos = [...photosArray];
+        // Formateo exacto de las fotos para el backend V5.0
+        const formattedPhotos = photosArray.map((photoObj, index) => ({
+            base64Data: photoObj.base64Data, // Extraemos solo el texto base64
+            name: photoObj.name || `foto_${index}.jpg`,
+            mimeType: photoObj.mimeType || 'image/jpeg'
+        }));
 
         try {
-            for (let index = 0; index < queuedPhotos.length; index++) {
-                const photoObj = queuedPhotos[index];
-                btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Preparando foto ${index + 1} de ${queuedPhotos.length}...`;
-                const base64Data = await readImageDirectly(photoObj.blob, photoObj.mimeType || 'image/jpeg');
-                if (getDataUrlByteLength(base64Data) > MAX_UPLOAD_PHOTO_BYTES) {
-                    throw new Error(`La foto ${index + 1} supera el límite de 10 MB.`);
-                }
-                btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Subiendo foto ${index + 1} de ${queuedPhotos.length}...`;
-                const uploadResult = await api.uploadPhoto({
-                    base64Data,
-                    name: photoObj.name || `foto_${index}.jpg`,
-                    mimeType: photoObj.mimeType || 'image/jpeg'
-                }, data);
-                if (uploadResult.status !== 'success' || !uploadResult.url) {
-                    throw new Error(uploadResult.message || `No se pudo subir la foto ${index + 1}.`);
-                }
-                existingPhotos.push(uploadResult.url);
-                const currentIndex = photosArray.indexOf(photoObj);
-                if (currentIndex !== -1) photosArray.splice(currentIndex, 1);
-                if (photoObj.previewUrl) URL.revokeObjectURL(photoObj.previewUrl);
-                data.existingPhotos = existingPhotos.join('\n');
-                renderPhotos();
-            }
-
-            btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Guardando reporte...';
             const res = editData && editData.mode === 'edit'
-                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: [] })
-                : await api.saveReport(data, []);
+                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: formattedPhotos })
+                : await api.saveReport(data, formattedPhotos);
 
             if(res.status === 'success') {
                 reportDirty = false;
@@ -931,8 +785,7 @@ function renderReport(container, editData = null) {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
         } catch(err) {
-            console.error('Error al guardar el reporte con fotos:', err);
-            showToast("No se pudo enviar", err.message || "Comprueba la conexión e inténtalo de nuevo.");
+            showToast("Error de conexión", "No se pudo enviar el reporte. Comprueba la conexión e inténtalo de nuevo.");
             btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte');
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
