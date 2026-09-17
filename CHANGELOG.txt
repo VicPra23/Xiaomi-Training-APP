@@ -1,5 +1,12 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 47.11
+Versión revisada: 47.12
+
+CONEXIÓN 47.12
+==============
+
+- Frontend conectado al nuevo despliegue público de Google Apps Script proporcionado por el usuario.
+- Respuesta JSONP y acción getLoginUsers verificadas antes del empaquetado.
+- Caché PWA y recursos propios actualizados a 47.12 para retirar el endpoint anterior.
 
 SUBIDA MÓVIL DE FOTOS 47.11
 =============================

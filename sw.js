@@ -1,18 +1,18 @@
-const CACHE_NAME = 'xiaomi-trainer-v47.11';
+const CACHE_NAME = 'xiaomi-trainer-v47.12';
 const APP_SHELL = [
   './',
   './index.html',
-  './style.css?v=47.11',
+  './style.css?v=47.12',
   './manifest.json',
-  './src/main.js?v=47.11',
-  './src/services/api.js?v=47.11',
-  './src/views/Login.js?v=47.11',
-  './src/views/Dashboard.js?v=47.11',
-  './src/views/ReportForm.js?v=47.11',
-  './src/views/Calendar.js?v=47.11',
-  './src/views/Vacations.js?v=47.11',
-  './src/views/Materials.js?v=47.11',
-  './src/views/Messages.js?v=47.11',
+  './src/main.js?v=47.12',
+  './src/services/api.js?v=47.12',
+  './src/views/Login.js?v=47.12',
+  './src/views/Dashboard.js?v=47.12',
+  './src/views/ReportForm.js?v=47.12',
+  './src/views/Calendar.js?v=47.12',
+  './src/views/Vacations.js?v=47.12',
+  './src/views/Materials.js?v=47.12',
+  './src/views/Messages.js?v=47.12',
   './Xiaomi_logo_(2021-).svg.png'
 ];
 
