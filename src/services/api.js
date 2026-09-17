@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxdQ17_O8jVCEqKvkqdhL_u5p97tSQI6lQEKc0TiBwlz-fvEApgHkM2XcfNxM8OjpOkFA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxGxy72LdOGY28hBVaXksoIBs3uIM6yOfboH6bDpCVndts00PebZtNdB3KzxUQUg3f0SA/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -93,7 +93,7 @@ async function sendPost(action, data = {}) {
     const payload = JSON.stringify({ action, ...data, ...(session?.token && action !== "login" ? { token: session.token } : {}) });
     
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), action === "uploadPhoto" ? 180000 : 30000);
+    const timeout = setTimeout(() => controller.abort(), action === "uploadPhoto" ? 300000 : 30000);
     try {
         const res = await fetch(API_URL, { 
             method: 'POST', 
@@ -156,7 +156,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "47.8"
+    VERSION: "47.11"
 };
 
 const api = {

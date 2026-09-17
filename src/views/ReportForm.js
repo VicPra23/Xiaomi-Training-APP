@@ -368,7 +368,7 @@ function renderReport(container, editData = null) {
                 </div>
                 <input type="file" id="photoInput" style="display: none;" accept="image/*,.heic,.heif" multiple>
                 <input type="hidden" id="photoData" name="photoData">
-                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 25 MB cada una. Se subirán individualmente sin recomprimir JPEG, PNG o WebP.</p>
+                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos. Se optimizan a alta calidad y nunca se envían con más de 10 MB.</p>
             </div>
 
             <div style="margin-top: 3rem; display: flex; gap: 15px;">
@@ -517,7 +517,8 @@ function renderReport(container, editData = null) {
     }
 
     // --- NUEVO COMPRESOR DE IMÁGENES PARA MÓVIL ---
-    const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
+    const MAX_SOURCE_PHOTO_BYTES = 25 * 1024 * 1024;
+    const MAX_UPLOAD_PHOTO_BYTES = 10 * 1024 * 1024;
 
     function getDataUrlByteLength(dataUrl) {
         const base64 = String(dataUrl || '').split(',').pop().replace(/\s/g, '');
@@ -557,7 +558,45 @@ function renderReport(container, editData = null) {
         });
     }
 
-    async function compressImage(file, maxWidth = 2560, quality = 0.86) {
+    function canvasToBlob(canvas, mimeType, quality) {
+        return new Promise((resolve, reject) => {
+            canvas.toBlob(blob => {
+                if (blob) resolve(blob);
+                else reject(new Error('El navegador no ha podido generar la imagen optimizada.'));
+            }, mimeType, quality);
+        });
+    }
+
+    async function decodeImage(file) {
+        if (typeof createImageBitmap === 'function') {
+            try {
+                return await createImageBitmap(file, { imageOrientation: 'from-image' });
+            } catch (firstError) {
+                try {
+                    return await createImageBitmap(file);
+                } catch (secondError) {
+                    console.warn('createImageBitmap no pudo decodificar la foto; se probará el método compatible.', secondError);
+                }
+            }
+        }
+
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            const cleanup = () => URL.revokeObjectURL(url);
+            img.onload = () => {
+                cleanup();
+                resolve(img);
+            };
+            img.onerror = () => {
+                cleanup();
+                reject(new Error('El navegador no ha podido decodificar la imagen.'));
+            };
+            img.src = url;
+        });
+    }
+
+    async function compressImage(file, maxDimension = 2880, quality = 0.9) {
         let fileToProcess = file;
         
         // Soporte para HEIC/HEIF (Apple)
@@ -570,7 +609,7 @@ function renderReport(container, editData = null) {
                     const blob = await heic2any({
                         blob: file,
                         toType: "image/jpeg",
-                        quality: 0.8
+                        quality: 0.92
                     });
                     fileToProcess = Array.isArray(blob) ? blob[0] : blob;
                 }
@@ -580,39 +619,53 @@ function renderReport(container, editData = null) {
             }
         }
 
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            const url = URL.createObjectURL(fileToProcess);
-            img.onload = () => {
-                URL.revokeObjectURL(url);
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
+        const sourceMime = inferImageMime(file) || String(fileToProcess.type || '').toLowerCase();
+        let image;
+        try {
+            image = await decodeImage(fileToProcess);
+            const sourceWidth = Number(image.width || image.naturalWidth || 0);
+            const sourceHeight = Number(image.height || image.naturalHeight || 0);
+            if (!sourceWidth || !sourceHeight) throw new Error('La fotografía no contiene dimensiones válidas.');
 
-                if (width > height) {
-                    if (width > maxWidth) {
-                        height = Math.round(height * (maxWidth / width));
-                        width = maxWidth;
-                    }
-                } else {
-                    if (height > maxWidth) {
-                        width = Math.round(width * (maxWidth / height));
-                        height = maxWidth;
-                    }
-                }
+            const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+            const initialWidth = Math.max(1, Math.round(sourceWidth * scale));
+            const initialHeight = Math.max(1, Math.round(sourceHeight * scale));
+            const canvas = document.createElement('canvas');
+            const attempts = [
+                { scale: 1, quality },
+                { scale: 0.9, quality: 0.86 },
+                { scale: 0.8, quality: 0.82 },
+                { scale: 0.7, quality: 0.78 }
+            ];
+            let blob = null;
 
+            for (let attempt = 0; attempt < attempts.length; attempt++) {
+                const settings = attempts[attempt];
+                const width = Math.max(1, Math.round(initialWidth * settings.scale));
+                const height = Math.max(1, Math.round(initialHeight * settings.scale));
                 canvas.width = width;
                 canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', quality));
-            };
-            img.onerror = (err) => {
-                URL.revokeObjectURL(url);
-                reject(new Error("Error al cargar la imagen para compresión"));
-            };
-            img.src = url;
-        });
+                const ctx = canvas.getContext('2d', { alpha: sourceMime === 'image/png' });
+                if (!ctx) throw new Error('El navegador no permite optimizar esta imagen.');
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(image, 0, 0, width, height);
+                blob = await canvasToBlob(canvas, 'image/webp', settings.quality);
+                if (blob.size <= MAX_UPLOAD_PHOTO_BYTES) break;
+                await new Promise(resolve => requestAnimationFrame(resolve));
+            }
+
+            if (!blob || blob.size > MAX_UPLOAD_PHOTO_BYTES) {
+                throw new Error('No se ha podido reducir la fotografía por debajo de 10 MB.');
+            }
+
+            const outputMime = ['image/webp', 'image/jpeg', 'image/png'].includes(blob.type)
+                ? blob.type
+                : 'image/jpeg';
+            return { blob, mimeType: outputMime, compressed: true };
+        } finally {
+            if (image && typeof image.close === 'function') image.close();
+        }
     }
 
     const photoInput = document.getElementById('photoInput');
@@ -620,6 +673,14 @@ function renderReport(container, editData = null) {
     const photoContainer = document.getElementById('photoContainer');
     let photosArray = [];
     let existingPhotos = [];
+
+    if (window._reportPhotoCleanup) window._reportPhotoCleanup();
+    window._reportPhotoCleanup = () => {
+        photosArray.forEach(photo => {
+            if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
+        });
+        photosArray = [];
+    };
 
     if (editData && editData.photoLinks) {
         existingPhotos = editData.photoLinks.split(/[\n,]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
@@ -634,7 +695,7 @@ function renderReport(container, editData = null) {
             showToast("Límite de fotos", "Puedes adjuntar un máximo de 20 fotos por reporte."); 
             return; 
         }
-        const oversized = files.find(file => file.size > MAX_PHOTO_BYTES);
+        const oversized = files.find(file => file.size > MAX_SOURCE_PHOTO_BYTES);
         if (oversized) {
             showToast("Foto demasiado grande", `“${oversized.name}” supera 25 MB. Redúcela antes de subirla.`);
             photoInput.value = "";
@@ -645,20 +706,34 @@ function renderReport(container, editData = null) {
         
         for (let i = 0; i < files.length; i++) {
             try {
-                const directMime = inferImageMime(files[i]);
-                const preparedBase64 = directMime
-                    ? await readImageDirectly(files[i], directMime)
-                    : await compressImage(files[i]);
-                const processedBytes = getDataUrlByteLength(preparedBase64);
-                if (processedBytes > MAX_PHOTO_BYTES) {
-                    throw new Error("La imagen procesada supera 25 MB.");
+                const sourceMime = inferImageMime(files[i]);
+                let prepared;
+                try {
+                    prepared = await compressImage(files[i]);
+                } catch (compressionError) {
+                    // Algunos Android entregan JPEG válidos que su decodificador de canvas rechaza.
+                    // En ese caso la foto sigue siendo utilizable y se sube sin transformar.
+                    if (!sourceMime) throw compressionError;
+                    console.warn(`No se pudo comprimir ${files[i].name}; se conserva el original.`, compressionError);
+                    if (files[i].size > MAX_UPLOAD_PHOTO_BYTES) {
+                        throw new Error('El móvil no ha podido comprimirla y el original supera 10 MB.');
+                    }
+                    prepared = { blob: files[i], mimeType: sourceMime, compressed: false };
                 }
-                const finalMime = directMime || 'image/jpeg';
+                const processedBytes = prepared.blob.size;
+                if (processedBytes > MAX_UPLOAD_PHOTO_BYTES) {
+                    throw new Error("La imagen procesada supera 10 MB.");
+                }
+                const finalMime = prepared.mimeType || sourceMime || 'image/jpeg';
                 const baseName = files[i].name.replace(/\.[^.]+$/, '') || `foto_${i + 1}`;
                 photosArray.push({
                     name: `${baseName}.${extensionForMime(finalMime)}`,
                     mimeType: finalMime,
-                    base64Data: preparedBase64
+                    blob: prepared.blob,
+                    previewUrl: URL.createObjectURL(prepared.blob),
+                    compressed: prepared.compressed,
+                    originalBytes: files[i].size,
+                    processedBytes
                 });
                 renderPhotos(); 
             } catch (err) {
@@ -705,9 +780,14 @@ function renderReport(container, editData = null) {
         photosArray.forEach((p, idx) => {
             const div = document.createElement('div');
             div.className = 'photo-thumb-v9 fade-in';
-            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${p.base64Data}) center/cover; position: relative; border: 2px solid var(--xiaomi-orange);`;
+            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url("${p.previewUrl}") center/cover; position: relative; border: 2px solid var(--xiaomi-orange);`;
             div.innerHTML = `<button type="button" style="position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; z-index:10;">×</button>`;
-            div.querySelector('button').onclick = (e) => { e.stopPropagation(); photosArray.splice(idx, 1); renderPhotos(); };
+            div.querySelector('button').onclick = (e) => {
+                e.stopPropagation();
+                const removed = photosArray.splice(idx, 1)[0];
+                if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+                renderPhotos();
+            };
             photoContainer.insertBefore(div, photoTrigger);
         });
         
@@ -805,22 +885,31 @@ function renderReport(container, editData = null) {
             btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Enviando reporte...';
         }
 
-        // Cada foto se sube en su propia petición para que el tamaño combinado no bloquee el reporte.
-        const formattedPhotos = photosArray.map((photoObj, index) => ({
-            base64Data: photoObj.base64Data,
-            name: photoObj.name || `foto_${index}.jpg`,
-            mimeType: photoObj.mimeType || 'image/jpeg'
-        }));
+        // Se conserva cada foto como Blob y sólo se convierte una a Base64 en el momento de subirla.
+        // Así evitamos mantener varias cadenas grandes en memoria en móviles modestos.
+        const queuedPhotos = [...photosArray];
 
         try {
-            for (let index = 0; index < formattedPhotos.length; index++) {
-                btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Subiendo foto ${index + 1} de ${formattedPhotos.length}...`;
-                const uploadResult = await api.uploadPhoto(formattedPhotos[index], data);
+            for (let index = 0; index < queuedPhotos.length; index++) {
+                const photoObj = queuedPhotos[index];
+                btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Preparando foto ${index + 1} de ${queuedPhotos.length}...`;
+                const base64Data = await readImageDirectly(photoObj.blob, photoObj.mimeType || 'image/jpeg');
+                if (getDataUrlByteLength(base64Data) > MAX_UPLOAD_PHOTO_BYTES) {
+                    throw new Error(`La foto ${index + 1} supera el límite de 10 MB.`);
+                }
+                btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Subiendo foto ${index + 1} de ${queuedPhotos.length}...`;
+                const uploadResult = await api.uploadPhoto({
+                    base64Data,
+                    name: photoObj.name || `foto_${index}.jpg`,
+                    mimeType: photoObj.mimeType || 'image/jpeg'
+                }, data);
                 if (uploadResult.status !== 'success' || !uploadResult.url) {
                     throw new Error(uploadResult.message || `No se pudo subir la foto ${index + 1}.`);
                 }
                 existingPhotos.push(uploadResult.url);
-                photosArray.shift();
+                const currentIndex = photosArray.indexOf(photoObj);
+                if (currentIndex !== -1) photosArray.splice(currentIndex, 1);
+                if (photoObj.previewUrl) URL.revokeObjectURL(photoObj.previewUrl);
                 data.existingPhotos = existingPhotos.join('\n');
                 renderPhotos();
             }

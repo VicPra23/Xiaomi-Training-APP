@@ -1052,13 +1052,8 @@ function updateReport(p, session) {
     }
 
     var newPhotoUrls = _uploadPhotos(p.photos, data);
-    // IMPORTANTE: Respetar la selección de fotos del frontend (permite borrar fotos antiguas)
-    const keptPhotos = (data.existingPhotos || "").toString().trim();
-    
-    let finalPhotos = keptPhotos;
-    if (newPhotoUrls.length > 0) {
-        finalPhotos = keptPhotos ? (keptPhotos + "\n" + newPhotoUrls.join("\n")) : newPhotoUrls.join("\n");
-    }
+    // Respetar la selección del frontend, eliminar duplicados y limitar el reporte a 20 fotos.
+    var finalPhotos = _mergePhotoLinks(data.existingPhotos, newPhotoUrls).join("\n");
 
     // Limpiar y convertir a número
     const cleanNum = (v) => {
@@ -1191,7 +1186,7 @@ function getFilterMetadata() {
 }
 
 function _uploadPhotos(photos, data) {
-  const maxPhotoBytes = 25 * 1024 * 1024;
+  const maxPhotoBytes = 10 * 1024 * 1024;
   var photoUrls = [];
   if (photos && photos.length > 0) {
     try {
@@ -1218,7 +1213,7 @@ function _uploadPhotos(photos, data) {
                 var padding = /==$/.test(base64) ? 2 : (/=$/.test(base64) ? 1 : 0);
                 var decodedBytes = Math.floor((base64.length * 3) / 4) - padding;
                 if (decodedBytes <= 0 || decodedBytes > maxPhotoBytes) {
-                  console.error("Foto omitida: supera el límite de 25 MB.");
+                  console.error("Foto omitida: supera el límite de 10 MB.");
                   continue;
                 }
                 
@@ -1244,12 +1239,27 @@ function handleUploadPhoto(photo, data) {
     const safeData = _validateReportData(data);
     const urls = _uploadPhotos([photo], safeData);
     if (!urls.length) {
-      return { status: "error", message: "La foto no es válida o supera el límite de 25 MB." };
+      return { status: "error", message: "La foto no es válida o supera el límite de 10 MB." };
     }
     return { status: "success", url: urls[0] };
   } catch (error) {
     return _errorResponse(error);
   }
+}
+
+function _mergePhotoLinks(existingPhotos, uploadedPhotos) {
+  var links = [];
+  var seen = {};
+  var candidates = String(existingPhotos || "").split(/[\n,]+/);
+  if (uploadedPhotos && uploadedPhotos.length) candidates = candidates.concat(uploadedPhotos);
+
+  for (var i = 0; i < candidates.length && links.length < 20; i++) {
+    var link = String(candidates[i] || "").trim();
+    if (!/^https?:\/\//i.test(link) || seen[link]) continue;
+    seen[link] = true;
+    links.push(link);
+  }
+  return links;
 }
 
 function _validateReportData(input) {
@@ -1308,7 +1318,9 @@ function handleSaveReport(data, photos) {
     };
 
     var photoUrls = _uploadPhotos(photos, data);
-    var urlsString = photoUrls.join("\n");
+    // Las subidas individuales ya llegan como existingPhotos. Antes se ignoraban aquí,
+    // por eso el archivo aparecía en Drive pero la columna FOTOS quedaba vacía.
+    var urlsString = _mergePhotoLinks(data.existingPhotos, photoUrls).join("\n");
     
     // Obtenemos el número real de columnas de la hoja
     const totalCols = Math.max(s.getLastColumn(), 20); // Asegura al menos 20 huecos de memoria
@@ -1337,7 +1349,7 @@ function handleSaveReport(data, photos) {
     
     s.appendRow(rowData);
     _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
-    return { status:"success" };
+    return { status:"success", photoLinks: urlsString };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { lock.releaseLock(); }
 }
 
