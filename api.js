@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwesqD5PQHV-C3-g3n3douyVRV-otMZj6Hys-7-DW0Oken1NGLgC4gaAh3z7jVpoNqy3Q/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxTLQXEfEleG1C0ynB6NlUmUzd1-OitpjynYWEhiti2JdWPkLpNxNk2NulxS2Xqpc94dA/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -113,9 +113,7 @@ async function sendPost(action, data = {}) {
     } catch (e) {
         console.error(`[API] fetch error:`, e);
         if (e.name === 'AbortError') throw new Error("La operación ha tardado demasiado. Revisa la conexión y vuelve a intentarlo.");
-        throw new Error(e.message && e.message !== 'Failed to fetch'
-            ? e.message
-            : "Error de red o conexión bloqueada al enviar datos.");
+        throw new Error("Error de red o conexión bloqueada al enviar datos.");
     } finally {
         clearTimeout(timeout);
     }
@@ -156,7 +154,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "47.10"
+    VERSION: "47.4"
 };
 
 const api = {

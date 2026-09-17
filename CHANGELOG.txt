@@ -1,58 +1,6 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 47.10
-
-CONEXIÓN 47.10
-==============
-
-- Frontend conectado al nuevo despliegue de Google Apps Script facilitado por el usuario.
-- Caché PWA y recursos versionados actualizados para impedir que los dispositivos sigan usando
-  el endpoint anterior.
-
-PERSISTENCIA Y COMPRESIÓN DE FOTOS 47.9
-========================================
-
-- Corregido el guardado del reporte: las URLs obtenidas en la subida individual se escriben ahora
-  en la columna FOTOS y vuelven a mostrarse en el historial de la aplicación.
-- Las URLs se validan, se eliminan duplicados y se limita el resultado a 20 fotografías.
-- Las imágenes se reducen hasta 2880 px por su lado mayor y se codifican como WebP con calidad 90%,
-  conservando detalle suficiente para visualización QHD en una pantalla de 24 pulgadas.
-- Se prioriza createImageBitmap para decodificar con menos bloqueo en móviles. Si el navegador no
-  puede comprimir un JPEG, PNG o WebP válido, se conserva el original para no impedir el reporte.
-- Caché y recursos propios actualizados a 47.9 para desplegar la corrección sin reutilizar JS antiguo.
-
-FOTOS MÓVILES Y RENDIMIENTO 47.8
-================================
-
-- JPEG, PNG y WebP de hasta 25 MB se leen directamente, sin canvas ni recompresión.
-- Se evita el error de Chrome móvil "Error al cargar la imagen para compresión".
-- HEIC y formatos no compatibles conservan la conversión a JPEG como alternativa.
-- Los recursos propios se precargan con URLs versionadas y se reutilizan desde caché exacta,
-  evitando tanto las descargas repetidas como la reutilización de versiones antiguas.
-- Lucide deja de bloquear el análisis inicial del documento.
-
-RECUPERACIÓN DE REPORTES 47.7
-=============================
-
-- Eliminada completamente la ruta antigua/fallback de subida de fotografías.
-- El Service Worker activa la versión nueva inmediatamente y elimina las cachés anteriores.
-- Los archivos JavaScript y CSS propios usan red primero, con caché únicamente como respaldo offline.
-- Los errores reales de POST se conservan para facilitar el diagnóstico.
-
-CONEXIÓN 47.6
-=============
-
-- Frontend conectado al nuevo despliegue de Google Apps Script indicado por el usuario.
-- Versiones de recursos y caché PWA actualizadas para retirar el endpoint anterior.
-Fecha: 16/09/2026
-
-COMPATIBILIDAD DE FOTOS 47.5
-============================
-
-- Si el despliegue de Apps Script reconoce `uploadPhoto`, mantiene la subida individual de 25 MB.
-- Si el despliegue todavía no contiene ese endpoint, adapta automáticamente las imágenes al flujo
-  anterior y las adjunta al guardado del reporte.
-- La interfaz muestra ahora el error concreto devuelto por el servidor en lugar de ocultarlo bajo
-  un mensaje genérico de conexión.
+Versión revisada: 47.4
+Fecha: 14/09/2026
 
 FOTOS 47.4
 ==========

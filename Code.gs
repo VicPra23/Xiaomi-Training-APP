@@ -1052,8 +1052,13 @@ function updateReport(p, session) {
     }
 
     var newPhotoUrls = _uploadPhotos(p.photos, data);
-    // Respetar la selección del frontend, eliminar duplicados y limitar el reporte a 20 fotos.
-    var finalPhotos = _mergePhotoLinks(data.existingPhotos, newPhotoUrls).join("\n");
+    // IMPORTANTE: Respetar la selección de fotos del frontend (permite borrar fotos antiguas)
+    const keptPhotos = (data.existingPhotos || "").toString().trim();
+    
+    let finalPhotos = keptPhotos;
+    if (newPhotoUrls.length > 0) {
+        finalPhotos = keptPhotos ? (keptPhotos + "\n" + newPhotoUrls.join("\n")) : newPhotoUrls.join("\n");
+    }
 
     // Limpiar y convertir a número
     const cleanNum = (v) => {
@@ -1247,21 +1252,6 @@ function handleUploadPhoto(photo, data) {
   }
 }
 
-function _mergePhotoLinks(existingPhotos, uploadedPhotos) {
-  var links = [];
-  var seen = {};
-  var candidates = String(existingPhotos || "").split(/[\n,]+/);
-  if (uploadedPhotos && uploadedPhotos.length) candidates = candidates.concat(uploadedPhotos);
-
-  for (var i = 0; i < candidates.length && links.length < 20; i++) {
-    var link = String(candidates[i] || "").trim();
-    if (!/^https?:\/\//i.test(link) || seen[link]) continue;
-    seen[link] = true;
-    links.push(link);
-  }
-  return links;
-}
-
 function _validateReportData(input) {
   const data = input || {};
   const text = function(value, max) {
@@ -1318,9 +1308,7 @@ function handleSaveReport(data, photos) {
     };
 
     var photoUrls = _uploadPhotos(photos, data);
-    // Las subidas individuales ya llegan como existingPhotos. Antes se ignoraban aquí,
-    // por eso el archivo aparecía en Drive pero la columna FOTOS quedaba vacía.
-    var urlsString = _mergePhotoLinks(data.existingPhotos, photoUrls).join("\n");
+    var urlsString = photoUrls.join("\n");
     
     // Obtenemos el número real de columnas de la hoja
     const totalCols = Math.max(s.getLastColumn(), 20); // Asegura al menos 20 huecos de memoria
@@ -1349,7 +1337,7 @@ function handleSaveReport(data, photos) {
     
     s.appendRow(rowData);
     _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
-    return { status:"success", photoLinks: urlsString };
+    return { status:"success" };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { lock.releaseLock(); }
 }
 
