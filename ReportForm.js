@@ -368,7 +368,7 @@ function renderReport(container, editData = null) {
                 </div>
                 <input type="file" id="photoInput" style="display: none;" accept="image/*,.heic,.heif" multiple>
                 <input type="hidden" id="photoData" name="photoData">
-                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 25 MB cada una. Se optimizarán y subirán individualmente.</p>
+                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 25 MB cada una. Se optimizan a alta calidad (hasta 2880 px) antes de subirlas.</p>
             </div>
 
             <div style="margin-top: 3rem; display: flex; gap: 15px;">
@@ -526,7 +526,76 @@ function renderReport(container, editData = null) {
         return Math.floor((base64.length * 3) / 4) - padding;
     }
 
-    async function compressImage(file, maxWidth = 2560, quality = 0.86) {
+    function inferImageMime(file) {
+        const declared = String(file?.type || '').toLowerCase();
+        if (/^image\/(jpeg|jpg|png|webp)$/.test(declared)) {
+            return declared === 'image/jpg' ? 'image/jpeg' : declared;
+        }
+        const extension = String(file?.name || '').split('.').pop().toLowerCase();
+        return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' })[extension] || '';
+    }
+
+    function extensionForMime(mimeType) {
+        return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' })[mimeType] || 'jpg';
+    }
+
+    function readImageDirectly(file, mimeType) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const raw = String(reader.result || '');
+                const commaIndex = raw.indexOf(',');
+                if (commaIndex === -1) {
+                    reject(new Error('No se ha podido leer el archivo seleccionado.'));
+                    return;
+                }
+                resolve(`data:${mimeType};base64,${raw.slice(commaIndex + 1)}`);
+            };
+            reader.onerror = () => reject(new Error('El navegador no ha podido leer la fotografía.'));
+            reader.onabort = () => reject(new Error('La lectura de la fotografía se ha cancelado.'));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function canvasToBlob(canvas, mimeType, quality) {
+        return new Promise((resolve, reject) => {
+            canvas.toBlob(blob => {
+                if (blob) resolve(blob);
+                else reject(new Error('El navegador no ha podido generar la imagen optimizada.'));
+            }, mimeType, quality);
+        });
+    }
+
+    async function decodeImage(file) {
+        if (typeof createImageBitmap === 'function') {
+            try {
+                return await createImageBitmap(file, { imageOrientation: 'from-image' });
+            } catch (firstError) {
+                try {
+                    return await createImageBitmap(file);
+                } catch (secondError) {
+                    console.warn('createImageBitmap no pudo decodificar la foto; se probará el método compatible.', secondError);
+                }
+            }
+        }
+
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            const cleanup = () => URL.revokeObjectURL(url);
+            img.onload = () => {
+                cleanup();
+                resolve(img);
+            };
+            img.onerror = () => {
+                cleanup();
+                reject(new Error('El navegador no ha podido decodificar la imagen.'));
+            };
+            img.src = url;
+        });
+    }
+
+    async function compressImage(file, maxDimension = 2880, quality = 0.9) {
         let fileToProcess = file;
         
         // Soporte para HEIC/HEIF (Apple)
@@ -539,7 +608,7 @@ function renderReport(container, editData = null) {
                     const blob = await heic2any({
                         blob: file,
                         toType: "image/jpeg",
-                        quality: 0.8
+                        quality: 0.92
                     });
                     fileToProcess = Array.isArray(blob) ? blob[0] : blob;
                 }
@@ -549,39 +618,36 @@ function renderReport(container, editData = null) {
             }
         }
 
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            const url = URL.createObjectURL(fileToProcess);
-            img.onload = () => {
-                URL.revokeObjectURL(url);
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
+        const sourceMime = inferImageMime(file) || String(fileToProcess.type || '').toLowerCase();
+        let image;
+        try {
+            image = await decodeImage(fileToProcess);
+            const sourceWidth = Number(image.width || image.naturalWidth || 0);
+            const sourceHeight = Number(image.height || image.naturalHeight || 0);
+            if (!sourceWidth || !sourceHeight) throw new Error('La fotografía no contiene dimensiones válidas.');
 
-                if (width > height) {
-                    if (width > maxWidth) {
-                        height = Math.round(height * (maxWidth / width));
-                        width = maxWidth;
-                    }
-                } else {
-                    if (height > maxWidth) {
-                        width = Math.round(width * (maxWidth / height));
-                        height = maxWidth;
-                    }
-                }
+            const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+            const width = Math.max(1, Math.round(sourceWidth * scale));
+            const height = Math.max(1, Math.round(sourceHeight * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d', { alpha: sourceMime === 'image/png' });
+            if (!ctx) throw new Error('El navegador no permite optimizar esta imagen.');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(image, 0, 0, width, height);
 
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', quality));
-            };
-            img.onerror = (err) => {
-                URL.revokeObjectURL(url);
-                reject(new Error("Error al cargar la imagen para compresión"));
-            };
-            img.src = url;
-        });
+            // WebP reduce mucho el peso manteniendo detalle suficiente para una pantalla QHD de 24".
+            const blob = await canvasToBlob(canvas, 'image/webp', quality);
+            const outputMime = ['image/webp', 'image/jpeg', 'image/png'].includes(blob.type)
+                ? blob.type
+                : 'image/jpeg';
+            const dataUrl = await readImageDirectly(blob, outputMime);
+            return { dataUrl, mimeType: outputMime, compressed: true };
+        } finally {
+            if (image && typeof image.close === 'function') image.close();
+        }
     }
 
     const photoInput = document.getElementById('photoInput');
@@ -614,15 +680,35 @@ function renderReport(container, editData = null) {
         
         for (let i = 0; i < files.length; i++) {
             try {
-                const compressedBase64 = await compressImage(files[i]);
-                const processedBytes = getDataUrlByteLength(compressedBase64);
+                const sourceMime = inferImageMime(files[i]);
+                let prepared;
+                try {
+                    prepared = await compressImage(files[i]);
+                } catch (compressionError) {
+                    // Algunos Android entregan JPEG válidos que su decodificador de canvas rechaza.
+                    // En ese caso la foto sigue siendo utilizable y se sube sin transformar.
+                    if (!sourceMime) throw compressionError;
+                    console.warn(`No se pudo comprimir ${files[i].name}; se conserva el original.`, compressionError);
+                    prepared = {
+                        dataUrl: await readImageDirectly(files[i], sourceMime),
+                        mimeType: sourceMime,
+                        compressed: false
+                    };
+                }
+                const preparedBase64 = prepared.dataUrl;
+                const processedBytes = getDataUrlByteLength(preparedBase64);
                 if (processedBytes > MAX_PHOTO_BYTES) {
                     throw new Error("La imagen procesada supera 25 MB.");
                 }
+                const finalMime = prepared.mimeType || sourceMime || 'image/jpeg';
+                const baseName = files[i].name.replace(/\.[^.]+$/, '') || `foto_${i + 1}`;
                 photosArray.push({
-                    name: files[i].name.replace(/\.[^.]+$/, '') + '.jpg',
-                    mimeType: 'image/jpeg',
-                    base64Data: compressedBase64
+                    name: `${baseName}.${extensionForMime(finalMime)}`,
+                    mimeType: finalMime,
+                    base64Data: preparedBase64,
+                    compressed: prepared.compressed,
+                    originalBytes: files[i].size,
+                    processedBytes
                 });
                 renderPhotos(); 
             } catch (err) {
@@ -806,7 +892,8 @@ function renderReport(container, editData = null) {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
         } catch(err) {
-            showToast("Error de conexión", "No se pudo enviar el reporte. Comprueba la conexión e inténtalo de nuevo.");
+            console.error('Error al guardar el reporte con fotos:', err);
+            showToast("No se pudo enviar", err.message || "Comprueba la conexión e inténtalo de nuevo.");
             btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte');
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }

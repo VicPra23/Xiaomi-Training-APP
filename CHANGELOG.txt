@@ -1,5 +1,24 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 47.8
+Versión revisada: 47.10
+
+CONEXIÓN 47.10
+==============
+
+- Frontend conectado al nuevo despliegue de Google Apps Script facilitado por el usuario.
+- Caché PWA y recursos versionados actualizados para impedir que los dispositivos sigan usando
+  el endpoint anterior.
+
+PERSISTENCIA Y COMPRESIÓN DE FOTOS 47.9
+========================================
+
+- Corregido el guardado del reporte: las URLs obtenidas en la subida individual se escriben ahora
+  en la columna FOTOS y vuelven a mostrarse en el historial de la aplicación.
+- Las URLs se validan, se eliminan duplicados y se limita el resultado a 20 fotografías.
+- Las imágenes se reducen hasta 2880 px por su lado mayor y se codifican como WebP con calidad 90%,
+  conservando detalle suficiente para visualización QHD en una pantalla de 24 pulgadas.
+- Se prioriza createImageBitmap para decodificar con menos bloqueo en móviles. Si el navegador no
+  puede comprimir un JPEG, PNG o WebP válido, se conserva el original para no impedir el reporte.
+- Caché y recursos propios actualizados a 47.9 para desplegar la corrección sin reutilizar JS antiguo.
 
 FOTOS MÓVILES Y RENDIMIENTO 47.8
 ================================
