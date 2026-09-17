@@ -368,7 +368,7 @@ function renderReport(container, editData = null) {
                 </div>
                 <input type="file" id="photoInput" style="display: none;" accept="image/*,.heic,.heif" multiple>
                 <input type="hidden" id="photoData" name="photoData">
-                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 25 MB cada una. Se optimizarán y subirán individualmente.</p>
+                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 25 MB cada una. Se subirán individualmente sin recomprimir JPEG, PNG o WebP.</p>
             </div>
 
             <div style="margin-top: 3rem; display: flex; gap: 15px;">
@@ -526,6 +526,37 @@ function renderReport(container, editData = null) {
         return Math.floor((base64.length * 3) / 4) - padding;
     }
 
+    function inferImageMime(file) {
+        const declared = String(file?.type || '').toLowerCase();
+        if (/^image\/(jpeg|jpg|png|webp)$/.test(declared)) {
+            return declared === 'image/jpg' ? 'image/jpeg' : declared;
+        }
+        const extension = String(file?.name || '').split('.').pop().toLowerCase();
+        return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' })[extension] || '';
+    }
+
+    function extensionForMime(mimeType) {
+        return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' })[mimeType] || 'jpg';
+    }
+
+    function readImageDirectly(file, mimeType) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const raw = String(reader.result || '');
+                const commaIndex = raw.indexOf(',');
+                if (commaIndex === -1) {
+                    reject(new Error('No se ha podido leer el archivo seleccionado.'));
+                    return;
+                }
+                resolve(`data:${mimeType};base64,${raw.slice(commaIndex + 1)}`);
+            };
+            reader.onerror = () => reject(new Error('El navegador no ha podido leer la fotografía.'));
+            reader.onabort = () => reject(new Error('La lectura de la fotografía se ha cancelado.'));
+            reader.readAsDataURL(file);
+        });
+    }
+
     async function compressImage(file, maxWidth = 2560, quality = 0.86) {
         let fileToProcess = file;
         
@@ -614,15 +645,20 @@ function renderReport(container, editData = null) {
         
         for (let i = 0; i < files.length; i++) {
             try {
-                const compressedBase64 = await compressImage(files[i]);
-                const processedBytes = getDataUrlByteLength(compressedBase64);
+                const directMime = inferImageMime(files[i]);
+                const preparedBase64 = directMime
+                    ? await readImageDirectly(files[i], directMime)
+                    : await compressImage(files[i]);
+                const processedBytes = getDataUrlByteLength(preparedBase64);
                 if (processedBytes > MAX_PHOTO_BYTES) {
                     throw new Error("La imagen procesada supera 25 MB.");
                 }
+                const finalMime = directMime || 'image/jpeg';
+                const baseName = files[i].name.replace(/\.[^.]+$/, '') || `foto_${i + 1}`;
                 photosArray.push({
-                    name: files[i].name.replace(/\.[^.]+$/, '') + '.jpg',
-                    mimeType: 'image/jpeg',
-                    base64Data: compressedBase64
+                    name: `${baseName}.${extensionForMime(finalMime)}`,
+                    mimeType: finalMime,
+                    base64Data: preparedBase64
                 });
                 renderPhotos(); 
             } catch (err) {

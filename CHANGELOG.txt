@@ -1,5 +1,15 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 47.7
+Versión revisada: 47.8
+
+FOTOS MÓVILES Y RENDIMIENTO 47.8
+================================
+
+- JPEG, PNG y WebP de hasta 25 MB se leen directamente, sin canvas ni recompresión.
+- Se evita el error de Chrome móvil "Error al cargar la imagen para compresión".
+- HEIC y formatos no compatibles conservan la conversión a JPEG como alternativa.
+- Los recursos propios se precargan con URLs versionadas y se reutilizan desde caché exacta,
+  evitando tanto las descargas repetidas como la reutilización de versiones antiguas.
+- Lucide deja de bloquear el análisis inicial del documento.
 
 RECUPERACIÓN DE REPORTES 47.7
 =============================

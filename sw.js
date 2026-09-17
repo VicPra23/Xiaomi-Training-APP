@@ -1,18 +1,18 @@
-const CACHE_NAME = 'xiaomi-trainer-v47.7';
+const CACHE_NAME = 'xiaomi-trainer-v47.8';
 const APP_SHELL = [
   './',
   './index.html',
-  './style.css',
+  './style.css?v=47.8',
   './manifest.json',
-  './src/main.js',
-  './src/services/api.js',
-  './src/views/Login.js',
-  './src/views/Dashboard.js',
-  './src/views/ReportForm.js',
-  './src/views/Calendar.js',
-  './src/views/Vacations.js',
-  './src/views/Materials.js',
-  './src/views/Messages.js',
+  './src/main.js?v=47.8',
+  './src/services/api.js?v=47.8',
+  './src/views/Login.js?v=47.8',
+  './src/views/Dashboard.js?v=47.8',
+  './src/views/ReportForm.js?v=47.8',
+  './src/views/Calendar.js?v=47.8',
+  './src/views/Vacations.js?v=47.8',
+  './src/views/Materials.js?v=47.8',
+  './src/views/Messages.js?v=47.8',
   './Xiaomi_logo_(2021-).svg.png'
 ];
 
@@ -65,12 +65,10 @@ self.addEventListener('fetch', event => {
     ['script', 'style'].includes(request.destination);
   if (isCoreApplicationAsset) {
     event.respondWith(
-      fetch(request, { cache: 'no-store' })
-        .then(response => {
-          if (response.ok) event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone())));
-          return response;
-        })
-        .catch(() => caches.match(request, { ignoreSearch: true }))
+      caches.match(request).then(cached => cached || fetch(request).then(response => {
+        if (response.ok) event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone())));
+        return response;
+      }))
     );
     return;
   }
