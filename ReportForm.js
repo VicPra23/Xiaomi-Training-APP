@@ -584,43 +584,6 @@ function renderReport(container, editData = null) {
         });
     }
 
-    async function fitLegacyPhoto(dataUrl, maxBytes = 1.7 * 1024 * 1024) {
-        if (getDataUrlByteLength(dataUrl) <= maxBytes) return dataUrl;
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                let width = img.width;
-                let height = img.height;
-                let quality = 0.78;
-                let result = dataUrl;
-                const canvas = document.createElement('canvas');
-                const render = () => {
-                    canvas.width = Math.max(1, Math.round(width));
-                    canvas.height = Math.max(1, Math.round(height));
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    result = canvas.toDataURL('image/jpeg', quality);
-                };
-                for (let attempt = 0; attempt < 8; attempt++) {
-                    render();
-                    if (getDataUrlByteLength(result) <= maxBytes) break;
-                    if (quality > 0.5) quality -= 0.12;
-                    else {
-                        width *= 0.82;
-                        height *= 0.82;
-                    }
-                }
-                if (getDataUrlByteLength(result) > maxBytes) {
-                    reject(new Error('No se ha podido adaptar la foto para el servidor publicado.'));
-                    return;
-                }
-                resolve(result);
-            };
-            img.onerror = () => reject(new Error('No se ha podido preparar la foto para el servidor.'));
-            img.src = dataUrl;
-        });
-    }
-
     const photoInput = document.getElementById('photoInput');
     const photoTrigger = document.getElementById('photoTrigger');
     const photoContainer = document.getElementById('photoContainer');
@@ -814,20 +777,10 @@ function renderReport(container, editData = null) {
         }));
 
         try {
-            let legacyPhotos = [];
             for (let index = 0; index < formattedPhotos.length; index++) {
                 btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Subiendo foto ${index + 1} de ${formattedPhotos.length}...`;
                 const uploadResult = await api.uploadPhoto(formattedPhotos[index], data);
                 if (uploadResult.status !== 'success' || !uploadResult.url) {
-                    const unavailableAction = /acci[oó]n.*no encontrada|action.*not found/i.test(uploadResult.message || '');
-                    if (unavailableAction && index === 0) {
-                        btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Adaptando fotos...';
-                        legacyPhotos = await Promise.all(formattedPhotos.map(async photo => ({
-                            ...photo,
-                            base64Data: await fitLegacyPhoto(photo.base64Data)
-                        })));
-                        break;
-                    }
                     throw new Error(uploadResult.message || `No se pudo subir la foto ${index + 1}.`);
                 }
                 existingPhotos.push(uploadResult.url);
@@ -838,8 +791,8 @@ function renderReport(container, editData = null) {
 
             btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Guardando reporte...';
             const res = editData && editData.mode === 'edit'
-                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: legacyPhotos })
-                : await api.saveReport(data, legacyPhotos);
+                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: [] })
+                : await api.saveReport(data, []);
 
             if(res.status === 'success') {
                 reportDirty = false;
@@ -853,8 +806,7 @@ function renderReport(container, editData = null) {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
         } catch(err) {
-            console.error('Error al guardar el reporte con fotos:', err);
-            showToast("No se pudo enviar", err.message || "Comprueba la conexión e inténtalo de nuevo.");
+            showToast("Error de conexión", "No se pudo enviar el reporte. Comprueba la conexión e inténtalo de nuevo.");
             btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte');
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
