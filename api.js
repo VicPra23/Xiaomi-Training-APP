@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxTLQXEfEleG1C0ynB6NlUmUzd1-OitpjynYWEhiti2JdWPkLpNxNk2NulxS2Xqpc94dA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxGxy72LdOGY28hBVaXksoIBs3uIM6yOfboH6bDpCVndts00PebZtNdB3KzxUQUg3f0SA/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -93,7 +93,7 @@ async function sendPost(action, data = {}) {
     const payload = JSON.stringify({ action, ...data, ...(session?.token && action !== "login" ? { token: session.token } : {}) });
     
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), action === "uploadPhoto" ? 180000 : 30000);
+    const timeout = setTimeout(() => controller.abort(), 30000);
     try {
         const res = await fetch(API_URL, { 
             method: 'POST', 
@@ -154,7 +154,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "47.4"
+    VERSION: "47.2"
 };
 
 const api = {
@@ -174,7 +174,6 @@ const api = {
     getWeekly: (params) => sendGet("getWeekly", params),
     
     saveReport: (data, photos) => sendPost("saveReport", { data, photos }),
-    uploadPhoto: (photo, data) => sendPost("uploadPhoto", { photo, data }),
     updateReport: (req) => sendPost("updateReport", req),
     requestVacation: (req) => sendPost("requestVacation", req),
     updateRequest: (id, status) => sendPost("updateRequest", { id, status }),

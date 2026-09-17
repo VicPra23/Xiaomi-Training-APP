@@ -291,10 +291,6 @@ function doPost(e) {
     const adminActions = ["updateRequest", "modifyExtra", "modifyBase", "adminProcessSelection"];
     const session = _requireSession(req, adminActions.indexOf(req.action) !== -1);
     let res = { status: "error", message: "Accion no encontrada" };
-    if (req.action === "uploadPhoto") {
-      if (session.role !== "Admin") req.data.trainer = session.user;
-      res = handleUploadPhoto(req.photo, req.data);
-    }
     if (req.action === "saveReport") {
       if (session.role !== "Admin") req.data.trainer = session.user;
       res = handleSaveReport(req.data, req.photos);
@@ -1191,7 +1187,6 @@ function getFilterMetadata() {
 }
 
 function _uploadPhotos(photos, data) {
-  const maxPhotoBytes = 25 * 1024 * 1024;
   var photoUrls = [];
   if (photos && photos.length > 0) {
     try {
@@ -1210,17 +1205,11 @@ function _uploadPhotos(photos, data) {
       
       for (var i=0; i<Math.min(photos.length, 20); i++) {
           var p = photos[i];
-          if (p && p.base64Data && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(p.base64Data)) {
+          if (p && p.base64Data && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(p.base64Data) && p.base64Data.length < 2600000) {
               try {
                 var splitted = p.base64Data.split(',');
                 // El replace(/\s/g, '') arregla los saltos de línea de iOS/Android que rompen el decodificador
                 var base64 = (splitted.length > 1 ? splitted[1] : splitted[0]).replace(/\s/g, ''); 
-                var padding = /==$/.test(base64) ? 2 : (/=$/.test(base64) ? 1 : 0);
-                var decodedBytes = Math.floor((base64.length * 3) / 4) - padding;
-                if (decodedBytes <= 0 || decodedBytes > maxPhotoBytes) {
-                  console.error("Foto omitida: supera el límite de 25 MB.");
-                  continue;
-                }
                 
                 var ext = "jpg";
                 if (p.mimeType && p.mimeType.indexOf("/") !== -1) {
@@ -1237,19 +1226,6 @@ function _uploadPhotos(photos, data) {
     } catch(e) { console.error("Error uploading photos:", e); }
   }
   return photoUrls;
-}
-
-function handleUploadPhoto(photo, data) {
-  try {
-    const safeData = _validateReportData(data);
-    const urls = _uploadPhotos([photo], safeData);
-    if (!urls.length) {
-      return { status: "error", message: "La foto no es válida o supera el límite de 25 MB." };
-    }
-    return { status: "success", url: urls[0] };
-  } catch (error) {
-    return _errorResponse(error);
-  }
 }
 
 function _validateReportData(input) {
