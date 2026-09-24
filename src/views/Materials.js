@@ -189,14 +189,24 @@ function renderMaterials(container) {
     }
 
     updateView();
+    updateView();
     api.getMaterials().then(res => {
         if (!container.isConnected || window.location.hash !== '#materials') return;
+        isLoading = false;
         if (res.status === 'success' && Array.isArray(res.data) && res.data.length) {
             categories = res.data;
             activeCatId = categories[0].id;
-            container.innerHTML = '';
-            updateView();
+        } else {
+            apiError = true;
         }
-    }).catch(() => {});
+        container.innerHTML = '';
+        updateView();
+    }).catch((e) => {
+        if (!container.isConnected || window.location.hash !== '#materials') return;
+        isLoading = false;
+        apiError = true;
+        container.innerHTML = '';
+        updateView();
+    });
 }
 window.renderMaterials = renderMaterials;
