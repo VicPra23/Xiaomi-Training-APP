@@ -67,7 +67,7 @@ function renderMaterials(container) {
                 {
                     name: 'Redmi Watch',
                     items: [
-                        { name: 'Redmi Watch 6', link: 'https://drive.google.com/drive/folders/1gTDcL0BbV8MMrsu_JQfKOOpnEpOw_mM6?usp=drive_link' },
+                        { name: 'Redmi Watch 6 Series', link: 'https://drive.google.com/drive/folders/1gTDcL0BbV8MMrsu_JQfKOOpnEpOw_mM6?usp=drive_link', isNew: true },
                         { name: 'Redmi Watch 5 Series', link: 'https://drive.google.com/drive/folders/1ROS4qUYwz3oxTK-66zfNlbFPo7o57bLi?usp=drive_link' }
                     ]
                 }
