@@ -49,7 +49,18 @@ function renderMaterials(container) {
     }
 
     function updateView() {
-        const cat = categories.find(c => c.id === activeCatId);
+        if (isLoading) {
+            container.innerHTML = '<div class="glass-card" style="text-align: center; padding: 5rem 2rem;"><div class="loader" style="margin: 0 auto 1rem auto; width: 40px; height: 40px;"></div><p style="color: var(--text-medium); font-size: 1.1rem;">Cargando materiales desde la base de datos...</p></div>';
+            return;
+        }
+
+        if (apiError || !categories || categories.length === 0) {
+            container.innerHTML = '<div class="glass-card" style="text-align: center; padding: 5rem 2rem;"><span class="workspace-empty-icon"><i data-lucide="alert-circle"></i></span><h3>Sin materiales</h3><p>La pestaña MATERIALES en Google Sheets está vacía o hay un error en las columnas.</p></div>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            return;
+        }
+
+        const cat = categories.find(c => c.id === activeCatId) || categories[0];
         
         const existingModule = container.querySelector('.materials-module');
         if (existingModule) {
