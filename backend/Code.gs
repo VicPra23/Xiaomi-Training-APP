@@ -2562,20 +2562,25 @@ function _matrixGetWeekly(p, session) {
   const index = _matrixRead(p.start,p.end);
   const schedule = {}, versions = {}, capacities = {};
   Object.values(index.days).forEach(day => {
-    (schedule[day.date] ||= {})[day.user] = day.items.map(item=>({text:item.text,category:item.category}));
-    (versions[day.date] ||= {})[day.user] = _matrixVersion(day);
-    (capacities[day.date] ||= {})[day.user] = day.slots.length;
+    if (!schedule[day.date]) schedule[day.date] = {};
+    if (!versions[day.date]) versions[day.date] = {};
+    if (!capacities[day.date]) capacities[day.date] = {};
+    schedule[day.date][day.user] = day.items.map(item=>({text:item.text,category:item.category}));
+    versions[day.date][day.user] = _matrixVersion(day);
+    capacities[day.date][day.user] = day.slots.length;
   });
   // Preserve existing absence data without treating the old flat schedule as master.
   const legacy = getWeeklySchedule(p);
   if (legacy.status !== 'success') _matrixError('ABSENCE_DATA', 'No se pudieron comprobar vacaciones y festivos.');
   const blocks = legacy.blocks || {};
   Object.values(index.days).forEach(day => {
-    const block = blocks[day.user] ||= {};
+    if (!blocks[day.user]) blocks[day.user] = {};
+    const block = blocks[day.user];
     if (day.items.some(item=>/^FESTIVO\b/i.test(item.text))) block[day.date] = 'FESTIVO';
     if (day.items.some(item=>/^VACACIONES\b/i.test(item.text))) {
       const parts=day.date.split('-');
-      (block.vacationInfo ||= []).push({fechas:parts[2]+'/'+parts[1]+'/'+parts[0],status:'Aprobado'});
+      if (!block.vacationInfo) block.vacationInfo = [];
+      block.vacationInfo.push({fechas:parts[2]+'/'+parts[1]+'/'+parts[0],status:'Aprobado'});
     }
   });
   return {status:'success',source:'matrix-v1',schedule:schedule,versions:versions,capacities:capacities,users:index.users,blocks:blocks,syncedAt:new Date().toISOString()};
