@@ -366,8 +366,8 @@ function renderCalendar(container) {
             content = `<div class="assignment-tag calendar-absence">${vacation.status === "Pendiente" ? "Solicitud" : "Vacaciones"}</div>`;
         } else {
             if (isHoliday) content += `<div class="assignment-tag cat-fest">Festivo</div>`;
-            content += items.map(item => `
-                <div class="assignment-tag cat-${escapeHTML(item.category || "otros")}">${linkify(item.text)}</div>
+            content += items.map((item, idx) => `
+                <div class="assignment-tag cat-${escapeHTML(item.category || "otros")}" ${canEdit ? `draggable="true" data-index="${idx}"` : ""}>${linkify(item.text)}</div>
             `).join("");
             if (!content && canEdit) content = `<span class="calendar-cell-empty">Añadir actividad</span>`;
         }
@@ -423,6 +423,87 @@ function renderCalendar(container) {
                 pickClipboard().then(clipboard => {
                     if (clipboard?.items?.length) openEditPanel(cell.dataset.user, cell.dataset.date, clipboard.items, true);
                 });
+            }
+        });
+
+        monthsContainer.addEventListener("dragstart", event => {
+            const pill = event.target.closest(".assignment-tag");
+            if (!pill || !pill.draggable) return;
+            const cell = pill.closest(".day-cell[data-date]");
+            if (!cell) return;
+            
+            event.dataTransfer.setData("application/json", JSON.stringify({
+                sourceUser: cell.dataset.user,
+                sourceDate: cell.dataset.date,
+                itemIndex: pill.dataset.index
+            }));
+            event.dataTransfer.effectAllowed = "move";
+            setTimeout(() => pill.style.opacity = "0.5", 0);
+        });
+
+        monthsContainer.addEventListener("dragend", event => {
+            const pill = event.target.closest(".assignment-tag");
+            if (pill) pill.style.opacity = "";
+            monthsContainer.querySelectorAll('.day-cell').forEach(el => el.style.boxShadow = "");
+        });
+
+        monthsContainer.addEventListener("dragover", event => {
+            const cell = event.target.closest(".day-cell[data-date]:not(.day-blocked)");
+            if (!cell || cell.tabIndex !== 0) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            cell.style.boxShadow = "inset 0 0 0 2px var(--xiaomi-orange)";
+        });
+
+        monthsContainer.addEventListener("dragleave", event => {
+            const cell = event.target.closest(".day-cell");
+            if (cell) cell.style.boxShadow = "";
+        });
+
+        monthsContainer.addEventListener("drop", async event => {
+            event.preventDefault();
+            const cell = event.target.closest(".day-cell[data-date]:not(.day-blocked)");
+            if (!cell || cell.tabIndex !== 0) return;
+            cell.style.boxShadow = "";
+            
+            const dataStr = event.dataTransfer.getData("application/json");
+            if (!dataStr) return;
+            
+            try {
+                const data = JSON.parse(dataStr);
+                const sourceDate = data.sourceDate;
+                const sourceUser = data.sourceUser;
+                const itemIndex = parseInt(data.itemIndex, 10);
+                
+                const targetDate = cell.dataset.date;
+                const targetUser = cell.dataset.user;
+                
+                if (sourceDate === targetDate && sourceUser === targetUser) return;
+                
+                const sourceItems = getItems(sourceDate, sourceUser);
+                const itemToMove = sourceItems[itemIndex];
+                if (!itemToMove) return;
+                
+                sourceItems.splice(itemIndex, 1);
+                const targetItems = getItems(targetDate, targetUser);
+                targetItems.push(itemToMove);
+                
+                if (!calendarData.schedule[sourceDate]) calendarData.schedule[sourceDate] = {};
+                calendarData.schedule[sourceDate][sourceUser] = sourceItems;
+                
+                if (!calendarData.schedule[targetDate]) calendarData.schedule[targetDate] = {};
+                calendarData.schedule[targetDate][targetUser] = targetItems;
+                
+                renderYear({ preserveScroll: true });
+                announce('Actividad movida correctamente.');
+                
+                await Promise.all([
+                    api.saveAssignment({ user: sourceUser, date: sourceDate, items: sourceItems, modifiedBy: currentUser }),
+                    api.saveAssignment({ user: targetUser, date: targetDate, items: targetItems, modifiedBy: currentUser })
+                ]);
+            } catch (e) {
+                console.error("Error moviendo el elemento:", e);
+                if (typeof loadYear === 'function') loadYear(selectedYear, focusMonth);
             }
         });
     }
