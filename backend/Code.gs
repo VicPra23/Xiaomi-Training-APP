@@ -268,7 +268,7 @@ function doGet(e) {
       if (action === "getFilterMetadata") res = getFilterMetadata();
       if (action === "getMaterials")      res = getMaterialsCatalog();
       if (action === "getMessages")       res = getMessages({ targetUser: session.user });
-      if (action === "getWeekly")         res = getWeeklySchedule(p);
+      if (action === "getWeekly")         res = _matrixGetWeekly(p, session);
     }
   } catch(err) { res = _errorResponse(err); }
   if (p.callback) {
@@ -309,11 +309,12 @@ function doPost(e) {
       req.user = session.user;
       res = handleMarkAllMessagesRead(req);
     }
-    if (req.action === "saveAssignment") {
+    if (req.action === "saveAssignment" || req.action === "saveMatrixAssignment") {
       if (session.role !== "Admin") req.user = session.user;
       req.modifiedBy = session.user;
-      res = saveWeeklyAssignment(req);
+      res = _matrixSaveAssignment(req, session);
     }
+    if (req.action === "transferAssignment") res = _matrixTransfer(req, session);
     if (req.action === "adminProcessSelection") res = adminProcessSelection(req);
     if (req.action === "exportCustomPDF") res = generateCustomPDF(req);
     return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
@@ -2421,4 +2422,256 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
   `;
 
   return htmlContent;
+}
+
+// Calendario bidireccional integrado: habilitar el servicio avanzado Google Sheets API.
+// Enable the Advanced Google Sheets service before deploying. No triggers required.
+const MATRIX_CALENDAR = {
+  spreadsheetId: '1qNAt27vAvk5FAw4yga1imi1TEjtb11yKFf1tL2oXNhk',
+  baseYear: 2026,
+  accounts: { COORD: 'Victor', DAVID: 'David', TL: 'Javier', TM: 'Tomás', TB: 'Carles', TS: 'Fabio', TN: 'Hamza' },
+  colors: { eci: '#b7b7b7', mm: '#b7b7b7', crf: '#4285f4', mistores: '#ff6d01', osp: '#ff9900', vdf: '#ff0000', mmy: '#ff00ff', tme: '#4a86e8', interno: '#ffff00', materiales: '#34a853', tentativa: '#e2e8f0', otros: '#ab0055' }
+};
+function _matrixError(code, message) { const error = new Error(message); error.code = code; throw error; }
+function _matrixNorm(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase(); }
+function _matrixAlias(value) { return String(value || '').trim().toUpperCase().replace(/^(TL|TM|TB|TS|TN)1$/, '$1'); }
+function _matrixISO(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) _matrixError('INVALID_DATE', 'La fecha no es válida.');
+  const date = new Date(value + 'T12:00:00Z');
+  if (isNaN(date.getTime()) || date.toISOString().slice(0,10) !== value) _matrixError('INVALID_DATE', 'La fecha no existe.');
+  return value;
+}
+function _matrixMonth(title) {
+  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const index = months.indexOf(_matrixNorm(title).split(/\s+/)[0]);
+  if (index < 0) return null;
+  const year = String(title).match(/\b(20\d{2})\b/);
+  return { month: index + 1, year: year ? Number(year[1]) : MATRIX_CALENDAR.baseYear };
+}
+function _matrixAccounts() {
+  const res = getUsersList();
+  if (res.status !== 'success') _matrixError('USER_MAPPING', 'No se pudo comprobar la lista de usuarios.');
+  const map = {};
+  Object.keys(MATRIX_CALENDAR.accounts).forEach(alias => {
+    const name = _matrixNorm(MATRIX_CALENDAR.accounts[alias]);
+    const candidates = (res.data || []).filter(u => _matrixNorm(u.user) === name || _matrixNorm(u.name) === name);
+    if (candidates.length !== 1) _matrixError('USER_MAPPING', 'La equivalencia ' + alias + ' → ' + MATRIX_CALENDAR.accounts[alias] + ' no identifica un usuario único. Ajusta accounts con el usuario exacto de la App.');
+    map[alias] = candidates[0];
+  });
+  return map;
+}
+function _matrixHex(cell) {
+  const format = cell.userEnteredFormat || {};
+  const rgb = format.backgroundColorStyle?.rgbColor || format.backgroundColor || {red:1,green:1,blue:1};
+  return '#' + ['red','green','blue'].map(key => Math.round((rgb[key] || 0) * 255).toString(16).padStart(2, '0')).join('');
+}
+function _matrixCategory(cell, text) {
+  const marker = String(cell.note || '').match(/\[XIAOMI_CATEGORY:([a-z]+):([a-f0-9]+):(#[a-f0-9]{6})\]/);
+  if (marker && MATRIX_CALENDAR.colors[marker[1]] && marker[2] === _matrixTextHash(String(cell.userEnteredValue?.stringValue ?? cell.formattedValue ?? '')) && marker[3] === _matrixHex(cell)) return marker[1];
+  const s = _matrixNorm(text);
+  const patterns = [['eci', /\beci\b/], ['mm', /\bmm\b|media\s?markt/], ['crf', /\bcrf\b|carrefour/], ['mistores', /xiaomi stores?|mi stores?/], ['osp', /\bosp\b|orange/], ['vdf', /\bvdf\b|vodafone/], ['mmy', /yoigo|mas movil/], ['tme', /telefonica|\btme\b/]];
+  const match = patterns.find(pair => pair[1].test(s));
+  if (match) return match[0];
+  const color = _matrixHex(cell);
+  return Object.keys(MATRIX_CALENDAR.colors).find(key => MATRIX_CALENDAR.colors[key] === color) || 'otros';
+}
+function _matrixTextHash(text) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,text,Utilities.Charset.UTF_8).map(b=>(b & 255).toString(16).padStart(2,'0')).join('');
+}
+function _matrixText(cell) {
+  let text = String(cell.userEnteredValue?.stringValue ?? cell.formattedValue ?? '').trim();
+  const links = new Set([cell.hyperlink, ...(cell.textFormatRuns || []).map(run => run.format?.link?.uri)].filter(url => /^https?:\/\//i.test(url || '')));
+  links.forEach(url => { if (text && !text.includes(url)) text += '\n' + url; });
+  return text;
+}
+function _matrixVersion(day) {
+  const source = JSON.stringify(day.slots.map(slot => ({sheet:slot.sheetId,row:slot.row,col:slot.col,value:slot.cell.userEnteredValue || null,display:slot.cell.formattedValue || '',color:_matrixHex(slot.cell),runs:slot.cell.textFormatRuns || [],link:slot.cell.hyperlink || '',note:slot.cell.note || '',validation:slot.cell.dataValidation || null,merges:slot.merged || false})));
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, source, Utilities.Charset.UTF_8).map(b => (b & 255).toString(16).padStart(2,'0')).join('');
+}
+function _matrixRead(start, end) {
+  _matrixISO(start); _matrixISO(end);
+  if (start > end) _matrixError('INVALID_DATE', 'El intervalo no es válido.');
+  if (typeof Sheets === 'undefined') _matrixError('SETUP_REQUIRED', 'Activa el servicio avanzado Google Sheets API en Apps Script.');
+  const accounts = _matrixAccounts();
+  const meta = Sheets.Spreadsheets.get(MATRIX_CALENDAR.spreadsheetId, { fields: 'sheets(properties,merges)' });
+  const selected = (meta.sheets || []).filter(sheet => {
+    const m = _matrixMonth(sheet.properties.title);
+    if (!m) return false;
+    const monthStart = m.year + '-' + String(m.month).padStart(2,'0') + '-01';
+    const monthEnd = m.year + '-' + String(m.month).padStart(2,'0') + '-' + new Date(Date.UTC(m.year,m.month,0)).getUTCDate();
+    return monthStart <= end && monthEnd >= start;
+  });
+  if (!selected.length) _matrixError('CALENDAR_NOT_FOUND', 'No existe una pestaña mensual para estas fechas.');
+  const ranges = selected.map(sheet => "'" + sheet.properties.title.replace(/'/g,"''") + "'!A1:H" + sheet.properties.gridProperties.rowCount);
+  const data = Sheets.Spreadsheets.get(MATRIX_CALENDAR.spreadsheetId, {
+    ranges: ranges,
+    fields: 'sheets(properties,merges,data(startRow,startColumn,rowData(values(userEnteredValue,formattedValue,userEnteredFormat(backgroundColor,backgroundColorStyle),textFormatRuns,hyperlink,note,dataValidation,chipRuns))))'
+  });
+  return _matrixIndex(data.sheets || [], accounts, start, end);
+}
+function _matrixIndex(sheets, accounts, start, end) {
+  const days = {};
+  sheets.forEach(sheet => {
+    const month = _matrixMonth(sheet.properties.title);
+    if (!month) return;
+    const rows = sheet.data?.[0]?.rowData || [];
+    const cell = (r,c) => rows[r]?.values?.[c] || {};
+    const value = (r,c) => String(cell(r,c).formattedValue ?? cell(r,c).userEnteredValue?.stringValue ?? cell(r,c).userEnteredValue?.numberValue ?? '').trim();
+    const headers = rows.map((_,r) => /\bW\s*\d{1,2}\b/i.test(value(r,1)) ? r : -1).filter(r => r >= 0);
+    headers.forEach((header, h) => {
+      const stop = headers[h + 1] ?? rows.length;
+      const labels = [];
+      for (let r = header + 3; r < stop; r++) {
+        const label = value(r,0);
+        if (!label) continue;
+        const alias = _matrixAlias(label);
+        if (!accounts[alias]) _matrixError('UNKNOWN_TRAINER', 'Formador sin equivalencia en ' + sheet.properties.title + ': ' + label);
+        labels.push({row:r, account:accounts[alias]});
+      }
+      labels.forEach((label,i) => {
+        let limit = labels[i+1]?.row ?? stop;
+        const nameMerge = (sheet.merges || []).find(m => m.startRowIndex === label.row && m.startColumnIndex === 0 && m.endColumnIndex === 1);
+        if (nameMerge) limit = Math.min(limit, nameMerge.endRowIndex);
+        else if (i === labels.length - 1) {
+          // Without an explicit merged label, never allocate trailing spacer rows.
+          while (limit > label.row + 1 && !Array.from({length:7},(_,c)=>value(limit-1,c+1)).some(Boolean)) limit--;
+        }
+        for (let col = 1; col <= 7; col++) {
+          const dayNumber = Number(value(header + 2,col));
+          if (!Number.isInteger(dayNumber) || dayNumber < 1 || dayNumber > new Date(Date.UTC(month.year,month.month,0)).getUTCDate()) continue;
+          const iso = month.year + '-' + String(month.month).padStart(2,'0') + '-' + String(dayNumber).padStart(2,'0');
+          if (iso < start || iso > end) continue;
+          const key = iso + ':' + label.account.user;
+          if (days[key]) _matrixError('AMBIGUOUS_CELL', 'Fecha y formador duplicados en la matriz: ' + key);
+          const slots = [];
+          for (let r = label.row; r < limit; r++) {
+            const merge = (sheet.merges || []).find(m => r >= m.startRowIndex && r < m.endRowIndex && col >= m.startColumnIndex && col < m.endColumnIndex);
+            if (merge && (r !== merge.startRowIndex || col !== merge.startColumnIndex)) continue;
+            slots.push({sheetId:sheet.properties.sheetId,row:r,col:col,cell:cell(r,col),merged:Boolean(merge)});
+          }
+          const day = {date:iso,user:label.account.user,slots:slots};
+          day.items = slots.filter(slot=>_matrixText(slot.cell)).map(slot=>({text:_matrixText(slot.cell),category:_matrixCategory(slot.cell,_matrixText(slot.cell)),native:slot.cell}));
+          days[key] = day;
+        }
+      });
+    });
+  });
+  return { days:days, users:Object.values(accounts) };
+}
+function _matrixGetWeekly(p, session) {
+  const index = _matrixRead(p.start,p.end);
+  const schedule = {}, versions = {}, capacities = {};
+  Object.values(index.days).forEach(day => {
+    (schedule[day.date] ||= {})[day.user] = day.items.map(item=>({text:item.text,category:item.category}));
+    (versions[day.date] ||= {})[day.user] = _matrixVersion(day);
+    (capacities[day.date] ||= {})[day.user] = day.slots.length;
+  });
+  // Preserve existing absence data without treating the old flat schedule as master.
+  const legacy = getWeeklySchedule(p);
+  if (legacy.status !== 'success') _matrixError('ABSENCE_DATA', 'No se pudieron comprobar vacaciones y festivos.');
+  const blocks = legacy.blocks || {};
+  Object.values(index.days).forEach(day => {
+    const block = blocks[day.user] ||= {};
+    if (day.items.some(item=>/^FESTIVO\b/i.test(item.text))) block[day.date] = 'FESTIVO';
+    if (day.items.some(item=>/^VACACIONES\b/i.test(item.text))) {
+      const parts=day.date.split('-');
+      (block.vacationInfo ||= []).push({fechas:parts[2]+'/'+parts[1]+'/'+parts[0],status:'Aprobado'});
+    }
+  });
+  return {status:'success',source:'matrix-v1',schedule:schedule,versions:versions,capacities:capacities,users:index.users,blocks:blocks,syncedAt:new Date().toISOString()};
+}
+function _matrixDay(index,date,user,expected,session) {
+  _matrixISO(date);
+  if (session.role !== 'Admin' && user !== session.user) _matrixError('FORBIDDEN','Solo puedes modificar tu propia planificación.');
+  const day = index.days[date + ':' + user];
+  if (!day) _matrixError('CALENDAR_NOT_FOUND','La fecha o el formador no tiene un bloque en la hoja.');
+  if (!expected || expected !== _matrixVersion(day)) _matrixError('CONFLICT','La hoja ha cambiado desde que abriste el día. Actualiza el calendario antes de guardar.');
+  if (session.role !== 'Admin') {
+    const weekday = new Date(date+'T12:00:00Z').getUTCDay();
+    if (weekday === 0 || weekday === 6) _matrixError('FORBIDDEN','No puedes editar fines de semana.');
+  }
+  // Check absence permissions for Admin too: approved/pending leave must not be overwritten.
+  const absence = getWeeklySchedule({start:date,end:date});
+  if (absence.status !== 'success') _matrixError('ABSENCE_DATA','No se pudieron validar vacaciones y festivos.');
+  const b = absence.blocks?.[user] || absence.blocks?.[String(user).toLowerCase()] || {};
+  const dayTime = new Date(date+'T12:00:00Z').getTime();
+  const leave = (b.vacationInfo || []).some(v => {
+    const matches = String(v.fechas || '').match(/\d{1,2}\/\d{1,2}\/\d{2,4}/g) || [];
+    const parse = s => {const p=s.split('/').map(Number);return Date.UTC(p[2]<100?p[2]+2000:p[2],p[1]-1,p[0],12);};
+    return matches.length && dayTime >= parse(matches[0]) && dayTime <= parse(matches[matches.length-1]);
+  });
+  if (leave || day.items.some(i=>/^VACACIONES\b/i.test(i.text.trim())) || (session.role !== 'Admin' && (b[date] === 'FESTIVO' || day.items.some(i=>/^FESTIVO\b/i.test(i.text.trim()))))) _matrixError('FORBIDDEN','El día está bloqueado por ausencia o festivo.');
+  return day;
+}
+function _matrixValidateItems(items,day,trustedNative = false) {
+  if (!Array.isArray(items)) _matrixError('INVALID_ITEMS','Las actividades no son válidas.');
+  if (items.length > day.slots.length) _matrixError('CAPACITY','Este bloque de la hoja admite ' + day.slots.length + ' actividades. No se ha guardado ni eliminado nada.');
+  return items.map(item => {
+    const text = String(item?.text || '').trim();
+    if (!text || text.length > 10000) _matrixError('INVALID_ITEMS','Escribe una actividad válida de hasta 10.000 caracteres.');
+    if (!Object.prototype.hasOwnProperty.call(MATRIX_CALENDAR.colors,item.category)) _matrixError('INVALID_ITEMS','Categoría no válida.');
+    if (trustedNative && (item.native?.userEnteredValue?.formulaValue || item.native?.chipRuns?.length)) _matrixError('PROTECTED_STRUCTURE','No se copiarán fórmulas o chips automáticamente.');
+    return {text:text,category:item.category,native:trustedNative ? item.native : undefined};
+  });
+}
+function _matrixRequests(day,items) {
+  const used = new Set();
+  return day.slots.flatMap((slot,i) => {
+    const item = items[i];
+    const existing = _matrixText(slot.cell);
+    if ((!item && !existing) || (item && item.text === existing && item.category === _matrixCategory(slot.cell,existing))) return [];
+    if (slot.merged || slot.cell.userEnteredValue?.formulaValue || slot.cell.dataValidation || slot.cell.chipRuns?.length) _matrixError('PROTECTED_STRUCTURE','Una celda contiene fórmula, validación, chip o combinación. No se modificará automáticamente.');
+    // Reuse original native rich text when unchanged/reordered, including linked labels.
+    const previous = day.items.find((p,n)=>!used.has(n) && p.text===item?.text && p.category===item?.category && (used.add(n),true));
+    const native = item?.native || previous?.native;
+    const value = item ? {userEnteredValue:native?.userEnteredValue || {stringValue:item.text},textFormatRuns:native?.textFormatRuns || []} : {};
+    let fields = 'userEnteredValue,textFormatRuns,note';
+    const oldNote = String(slot.cell.note || '').replace(/\n?\[XIAOMI_CATEGORY:[^\]]+\]/g,'');
+    const background = item && (!existing || item.category !== _matrixCategory(slot.cell,existing)) ? MATRIX_CALENDAR.colors[item.category] : _matrixHex(slot.cell);
+    const writtenText = value.userEnteredValue?.stringValue || '';
+    value.note = oldNote + (item ? '\n[XIAOMI_CATEGORY:' + item.category + ':' + _matrixTextHash(writtenText) + ':' + background + ']' : '');
+    if (item && (!existing || item.category !== _matrixCategory(slot.cell,existing))) {
+      const hex = MATRIX_CALENDAR.colors[item.category];
+      value.userEnteredFormat = {backgroundColorStyle:{rgbColor:{red:parseInt(hex.slice(1,3),16)/255,green:parseInt(hex.slice(3,5),16)/255,blue:parseInt(hex.slice(5,7),16)/255}}};
+      fields += ',userEnteredFormat.backgroundColorStyle';
+    }
+    return [{updateCells:{range:{sheetId:slot.sheetId,startRowIndex:slot.row,endRowIndex:slot.row+1,startColumnIndex:slot.col,endColumnIndex:slot.col+1},rows:[{values:[value]}],fields:fields}}];
+  });
+}
+function _matrixSaveAssignment(req,session) {
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const index = _matrixRead(req.date,req.date);
+    const day = _matrixDay(index,req.date,req.user,req.expectedVersion,session);
+    const items = _matrixValidateItems(req.items,day);
+    const requests = _matrixRequests(day,items);
+    if (requests.length) Sheets.Spreadsheets.batchUpdate({requests:requests},MATRIX_CALENDAR.spreadsheetId);
+    return {status:'success',source:'matrix-v1'};
+  } finally {lock.releaseLock();}
+}
+function _matrixTransfer(req,session) {
+  if (req.mode !== 'copy' && req.mode !== 'move') _matrixError('INVALID_ITEMS','Acción no válida.');
+  _matrixISO(req.sourceDate); _matrixISO(req.targetDate);
+  if (req.sourceDate === req.targetDate && req.sourceUser === req.targetUser) _matrixError('INVALID_ITEMS','Origen y destino son el mismo día.');
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const index = _matrixRead(req.sourceDate < req.targetDate ? req.sourceDate : req.targetDate, req.sourceDate > req.targetDate ? req.sourceDate : req.targetDate);
+    const source = _matrixDay(index,req.sourceDate,req.sourceUser,req.sourceVersion,session);
+    const target = _matrixDay(index,req.targetDate,req.targetUser,req.targetVersion,session);
+    const selected = req.isFullDay ? source.items : source.items.filter((_,i)=>i===req.itemIndex);
+    if (!selected.length) _matrixError('INVALID_ITEMS','La actividad de origen ya no existe.');
+    const destination = _matrixValidateItems(target.items.concat(selected),target,true);
+    const remainder = req.isFullDay ? [] : source.items.filter((_,i)=>i!==req.itemIndex);
+    const requests = _matrixRequests(target,destination).concat(req.mode === 'move' ? _matrixRequests(source,remainder) : []);
+    // One atomic Sheets batch: no independent deletion of the source.
+    if (requests.length) Sheets.Spreadsheets.batchUpdate({requests:requests},MATRIX_CALENDAR.spreadsheetId);
+    return {status:'success',source:'matrix-v1'};
+  } finally {lock.releaseLock();}
+}
+// Read-only deployment preflight: run manually after enabling the Sheets service.
+function matrixCalendarPreflight() {
+  const index = _matrixRead('2026-10-01','2026-10-31');
+  const result = {users:index.users.map(u=>u.user),days:Object.keys(index.days).length};
+  console.log(JSON.stringify(result));
+  return result;
 }

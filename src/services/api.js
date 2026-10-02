@@ -180,7 +180,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "48.0"
+    VERSION: "49.0"
 };
 
 const api = {
@@ -207,6 +207,8 @@ const api = {
     modifyBase: (user, delta) => sendPost("modifyBase", { user, delta }),
     markMessageRead: (msgId) => sendPost("markMessageRead", { msgId }),
     markAllMessagesRead: (user) => sendPost("markAllMessagesRead", { user }),
+    transferAssignment: (req) => sendPost("transferAssignment",req),
+    saveCalendarAssignment: (req) => sendPost("saveMatrixAssignment",req),
     saveAssignment: (req) => sendPost("saveAssignment", req),
     adminProcessSelection: (req) => sendPost("adminProcessSelection", req),
     deleteReport: (id) => sendPost("deleteReport", { id })
