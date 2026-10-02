@@ -540,6 +540,27 @@ function renderReport(container, editData = null) {
             }
         }
 
+        if (typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined' && typeof createImageBitmap === 'function') {
+            try {
+                return await new Promise((resolve, reject) => {
+                    const worker = new Worker(new URL('src/services/photo-worker.js', document.baseURI));
+                    const timeout = setTimeout(() => {
+                        worker.terminate();
+                        reject(new Error('La compresión ha tardado demasiado.'));
+                    }, 30000);
+                    const finish = () => { clearTimeout(timeout); worker.terminate(); };
+                    worker.onmessage = ({ data }) => {
+                        finish();
+                        if (data.error) reject(new Error(data.error));
+                        else resolve(data.base64);
+                    };
+                    worker.onerror = () => { finish(); reject(new Error('Compresor no disponible.')); };
+                    worker.postMessage({ file: fileToProcess, maxWidth, quality });
+                });
+            } catch (error) {
+                // Fall back for browsers or formats without worker support.
+            }
+        }
         return new Promise((resolve, reject) => {
             const img = new Image();
             const url = URL.createObjectURL(fileToProcess);
@@ -579,6 +600,7 @@ function renderReport(container, editData = null) {
     const photoTrigger = document.getElementById('photoTrigger');
     const photoContainer = document.getElementById('photoContainer');
     let photosArray = [];
+    let processingPhotos = false;
     let existingPhotos = [];
 
     if (editData && editData.photoLinks) {
@@ -589,6 +611,7 @@ function renderReport(container, editData = null) {
     if(photoTrigger) photoTrigger.onclick = () => photoInput.click();
 
     photoInput.onchange = async (e) => {
+        if (processingPhotos) return;
         const files = Array.from(e.target.files || []);
         if(photosArray.length + existingPhotos.length + files.length > 20) { 
             showToast("Límite de fotos", "Puedes adjuntar un máximo de 20 fotos por reporte."); 
@@ -601,11 +624,15 @@ function renderReport(container, editData = null) {
             return;
         }
         
+        processingPhotos = true;
+        photoInput.disabled = true;
+        photoTrigger?.setAttribute('aria-busy', 'true');
         if(photoTrigger) photoTrigger.innerHTML = '<div class="loader" style="width:20px;height:20px;border-width:2px;border-color:var(--xiaomi-orange) transparent transparent;"></div>';
         
         for (let i = 0; i < files.length; i++) {
             try {
                 const compressedBase64 = await compressImage(files[i]);
+                if (!form.isConnected) break;
                 const estimatedBytes = Math.ceil((compressedBase64.length * 3) / 4);
                 const currentBytes = photosArray.reduce((total, photo) => total + Math.ceil((photo.base64Data.length * 3) / 4), 0);
                 if (estimatedBytes > 1.8 * 1024 * 1024 || currentBytes + estimatedBytes > 12 * 1024 * 1024) {
@@ -613,7 +640,7 @@ function renderReport(container, editData = null) {
                 }
                 photosArray.push({
                     name: files[i].name,
-                    mimeType: files[i].type,
+                    mimeType: 'image/jpeg',
                     base64Data: compressedBase64
                 });
                 renderPhotos(); 
@@ -623,6 +650,9 @@ function renderReport(container, editData = null) {
             }
         }
         
+        processingPhotos = false;
+        photoInput.disabled = false;
+        photoTrigger?.removeAttribute('aria-busy');
         if(photoTrigger) photoTrigger.innerHTML = '<i data-lucide="camera" style="width: 32px; height: 32px; color: var(--text-muted);"></i><span style="font-size: 0.65rem; color: var(--text-muted); margin-top: 8px; font-weight: 700;">Añadir</span>';
         if (typeof lucide !== 'undefined') lucide.createIcons();
         
@@ -738,6 +768,10 @@ function renderReport(container, editData = null) {
 
     form.onsubmit = async (e) => {
         e.preventDefault();
+        if (processingPhotos) {
+            showToast('Preparando fotos', 'Espera a que termine la preparación antes de enviar.');
+            return;
+        }
         const btn = document.getElementById('btnSubmit');
         btn.disabled = true; btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Enviando...';
 

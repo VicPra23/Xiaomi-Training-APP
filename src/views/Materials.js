@@ -1,4 +1,6 @@
 function renderMaterials(container) {
+    const generation = (window.materialsGeneration || 0) + 1;
+    window.materialsGeneration = generation;
     const session = getSessionData();
     let categories = [];
     let isLoading = true;
@@ -189,9 +191,8 @@ function renderMaterials(container) {
     }
 
     updateView();
-    updateView();
     api.getMaterials().then(res => {
-        if (!container.isConnected || window.location.hash !== '#materials') return;
+        if (!container.isConnected || window.location.hash !== '#materials' || window.materialsGeneration !== generation) return;
         isLoading = false;
         if (res.status === 'success' && Array.isArray(res.data) && res.data.length) {
             categories = res.data;
@@ -202,7 +203,7 @@ function renderMaterials(container) {
         container.innerHTML = '';
         updateView();
     }).catch((e) => {
-        if (!container.isConnected || window.location.hash !== '#materials') return;
+        if (!container.isConnected || window.location.hash !== '#materials' || window.materialsGeneration !== generation) return;
         isLoading = false;
         apiError = true;
         container.innerHTML = '';

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'xiaomi-trainer-v47.6';
+const CACHE_NAME = 'xiaomi-trainer-v47.7-connected';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   './manifest.json',
   './src/main.js',
   './src/services/api.js',
+  './src/services/photo-worker.js',
   './src/views/Login.js',
   './src/views/Dashboard.js',
   './src/views/ReportForm.js',
@@ -46,34 +47,34 @@ self.addEventListener('fetch', event => {
   if (url.hostname === 'script.google.com' || url.hostname === 'script.googleusercontent.com') return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(
-      caches.match('./index.html').then(cached => {
-        const fresh = fetch(request).then(response => {
-          if (response.ok) {
-            event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put('./index.html', response.clone())));
-          }
-          return response;
-        }).catch(() => cached);
-        return cached || fresh;
-      })
-    );
+    const fresh = fetch(request).then(async response => {
+      if (response.ok) {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put('./index.html', response.clone());
+      }
+      return response;
+    });
+    event.waitUntil(fresh.catch(() => null));
+    event.respondWith(fresh.catch(() => caches.match('./index.html')));
     return;
   }
 
   const isCacheableStatic = url.origin === self.location.origin ||
     ['script', 'style', 'font', 'image'].includes(request.destination);
   if (isCacheableStatic) {
-    event.respondWith(
-      caches.match(request, { ignoreSearch: true }).then(cached => {
+    const result = caches.open(CACHE_NAME).then(cache =>
+      cache.match(request, { ignoreSearch: true }).then(cached => {
         if (cached) return cached;
-        return fetch(request).then(response => {
+        return fetch(request).then(async response => {
           if (response.ok || response.type === 'opaque') {
-            event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone())));
+            await cache.put(request, response.clone());
           }
           return response;
         });
       })
     );
+    event.waitUntil(result.then(() => null, () => null));
+    event.respondWith(result);
   }
 });
 

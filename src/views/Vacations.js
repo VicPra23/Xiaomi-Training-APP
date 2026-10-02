@@ -1,7 +1,7 @@
 window.adminAction = {
-    updateStatus: async (id, status) => {
+    updateStatus: async (id, status, button) => {
         if(!confirm(`¿Deseas ${status.toLowerCase()} esta solicitud?`)) return;
-        const btn = event.target; btn.disabled = true; btn.innerText = '...';
+        const btn = button; if (!btn) return; btn.disabled = true; btn.innerText = '...';
         try {
             const res = await sendPost('updateRequest', { id, status });
             if(res.status === 'success') { if(window.refreshVacationsData) window.refreshVacationsData(); }
@@ -45,6 +45,7 @@ window.adminAction = {
 };
 
 function renderVacations(container) {
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     const sessionData = getSessionData();
     const currentUser = sessionData ? sessionData.user : 'Desconocido';
     const isAdmin = sessionData && sessionData.role && (sessionData.role.toLowerCase() === 'admin');
@@ -202,6 +203,13 @@ function renderVacations(container) {
     `;
 
     container.innerHTML = html;
+    container.onclick = event => {
+        const button = event.target.closest('[data-vac-action]');
+        if (!button || !container.contains(button) || button.disabled) return;
+        const action = button.dataset.vacAction;
+        if (action === 'updateStatus') window.adminAction.updateStatus(button.dataset.requestId, button.dataset.status, button);
+        else if (action === 'modifyBase' || action === 'modifyExtra') window.adminAction[action](button.dataset.user, Number(button.dataset.delta));
+    };
     
     // Listeners para cambio de tipo de día (Vacaciones / Extras)
     document.querySelectorAll('input[name="vSelector"]').forEach(input => {
@@ -334,7 +342,7 @@ function renderVacations(container) {
     function renderUserSelector() {
         const cont = document.getElementById('userSelectorContainer'); if(!cont) return;
         cont.innerHTML = `<select id="userSelect" class="form-control" style="font-weight:bold; color:var(--xiaomi-orange); border-color:var(--xiaomi-orange); padding:2px 10px;">
-            ${allTrainers.map(u => `<option value="${u.user}" ${u.user === targetUser ? 'selected' : ''}>${u.name}</option>`).join('')}
+            ${allTrainers.map(u => `<option value="${esc(u.user)}" ${u.user === targetUser ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}
         </select>`;
         document.getElementById('userSelect').onchange = (e) => {
             targetUser = e.target.value;
@@ -635,10 +643,10 @@ function renderVacations(container) {
         hEl.innerHTML = hist.slice().reverse().map(req => `
             <div class="history-item">
                 <div>
-                    <div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${req.fechas}</div>
-                    <div style="font-size:0.7rem; color:var(--text-muted);">${req.type} (${req.count}d)</div>
+                    <div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${esc(req.fechas)}</div>
+                    <div style="font-size:0.7rem; color:var(--text-muted);">${esc(req.type)} (${esc(req.count)}d)</div>
                 </div>
-                <span class="badge ${req.status==='Aprobado'?'badge-approved':(req.status==='Rechazado'?'badge-rejected':'badge-pending')}">${req.status.slice(0,4)}</span>
+                <span class="badge ${req.status==='Aprobado'?'badge-approved':(req.status==='Rechazado'?'badge-rejected':'badge-pending')}">${esc(req.status.slice(0,4))}</span>
             </div>
         `).join('');
     }
@@ -653,13 +661,13 @@ function renderVacations(container) {
         gTable.innerHTML = pendingCount === 0 ? "<tr><td colspan='4' style='text-align:center; padding:20px; color:var(--text-muted); font-weight:600;'>No hay peticiones pendientes</td></tr>" : 
             adminData.pendingRequests.map(req => `
                 <tr style="border-bottom: 1px solid var(--border-main);">
-                    <td data-label="Usuario"><strong style="color:var(--text-main);">${req.user}</strong></td>
-                    <td data-label="Tipo"><span class="badge ${req.type==='Vacaciones'?'badge-pending':'badge-extra'}">${req.type.slice(0,3)}</span></td>
-                    <td data-label="Días" style="text-align:center;"><b style="color:var(--text-main);">${req.count}</b></td>
+                    <td data-label="Usuario"><strong style="color:var(--text-main);">${esc(req.user)}</strong></td>
+                    <td data-label="Tipo"><span class="badge ${req.type==='Vacaciones'?'badge-pending':'badge-extra'}">${esc(req.type.slice(0,3))}</span></td>
+                    <td data-label="Días" style="text-align:center;"><b style="color:var(--text-main);">${esc(req.count)}</b></td>
                     <td data-label="Acciones" style="text-align:center;">
                         <div style="display:flex; gap:5px; justify-content:center;">
-                            <button class="btn-primary btn-compact" style="background:#10b981;" onclick="window.adminAction.updateStatus('${req.id}', 'Aprobado')">OK</button>
-                            <button class="btn-primary btn-compact" style="background:#f44336;" onclick="window.adminAction.updateStatus('${req.id}', 'Rechazado')">NO</button>
+                            <button class="btn-primary btn-compact" style="background:#10b981;" data-vac-action="updateStatus" data-request-id="${esc(req.id)}" data-status="Aprobado">OK</button>
+                            <button class="btn-primary btn-compact" style="background:#f44336;" data-vac-action="updateStatus" data-request-id="${esc(req.id)}" data-status="Rechazado">NO</button>
                         </div>
                     </td>
                 </tr>`).join('');
@@ -667,23 +675,23 @@ function renderVacations(container) {
         const uContainer = document.getElementById('adminUserTableContainer');
         uContainer.innerHTML = adminData.allUsers.map(u => `
             <div class="glass-card" style="padding: 0.8rem; margin-bottom: 0.6rem; border-radius: 12px; border: 1px solid var(--border-main); display: flex; flex-direction: column; gap: 10px;">
-                <div style="font-weight:700; font-size:0.95rem; color:var(--text-main); border-bottom: 1px solid var(--border-main); padding-bottom: 4px;">${u.name}</div>
+                <div style="font-weight:700; font-size:0.95rem; color:var(--text-main); border-bottom: 1px solid var(--border-main); padding-bottom: 4px;">${esc(u.name)}</div>
                 
                 <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                     <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600; width: 45px;">VAC:</div>
-                    <b id="base-${u.user}" style="color:var(--xiaomi-orange); font-size:1.1rem; width: 25px; text-align: center;">${u.baseAvail}</b>
+                    <b id="base-${esc(u.user)}" style="color:var(--xiaomi-orange); font-size:1.1rem; width: 25px; text-align: center;">${esc(u.baseAvail)}</b>
                     <div style="display:flex; gap:4px;">
-                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyBase('${u.user}', -1)">-</button>
-                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyBase('${u.user}', 1)">+</button>
+                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" data-vac-action="modifyBase" data-user="${esc(u.user)}" data-delta="-1">-</button>
+                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" data-vac-action="modifyBase" data-user="${esc(u.user)}" data-delta="1">+</button>
                     </div>
                 </div>
 
                 <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                     <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600; width: 45px;">EXT:</div>
-                    <b id="extra-${u.user}" style="color:#2196f3; font-size:1.1rem; width: 25px; text-align: center;">${u.extraAvail}</b>
+                    <b id="extra-${esc(u.user)}" style="color:#2196f3; font-size:1.1rem; width: 25px; text-align: center;">${esc(u.extraAvail)}</b>
                     <div style="display:flex; gap:4px;">
-                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyExtra('${u.user}', -1)">-</button>
-                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" onclick="window.adminAction.modifyExtra('${u.user}', 1)">+</button>
+                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" data-vac-action="modifyExtra" data-user="${esc(u.user)}" data-delta="-1">-</button>
+                        <button class="btn-secondary btn-compact" style="width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center; padding:0; border-radius:6px;" data-vac-action="modifyExtra" data-user="${esc(u.user)}" data-delta="1">+</button>
                     </div>
                 </div>
             </div>

@@ -29,8 +29,16 @@ window.loadScriptOnce = (src, globalName) => {
         script.src = src;
         script.async = true;
         script.crossOrigin = 'anonymous';
-        script.onload = () => resolve(globalName ? window[globalName] : true);
-        script.onerror = () => reject(new Error(`No se pudo cargar el recurso ${src}`));
+        const timeout = setTimeout(() => {
+            script.remove();
+            reject(new Error(`El recurso ${src} no responde. Reintenta la vista.`));
+        }, 15000);
+        script.onload = () => {
+            clearTimeout(timeout);
+            if (globalName && !window[globalName]) reject(new Error(`El recurso ${src} no está disponible.`));
+            else resolve(globalName ? window[globalName] : true);
+        };
+        script.onerror = () => { clearTimeout(timeout); script.remove(); reject(new Error(`No se pudo cargar el recurso ${src}`)); };
         document.head.appendChild(script);
     }).catch(error => {
         externalAssetPromises.delete(src);
@@ -47,8 +55,9 @@ window.loadStyleOnce = href => {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.href = href;
-        link.onload = () => resolve(true);
-        link.onerror = () => reject(new Error(`No se pudo cargar el recurso ${href}`));
+        const timeout = setTimeout(() => { link.remove(); reject(new Error(`El recurso ${href} no responde.`)); }, 15000);
+        link.onload = () => { clearTimeout(timeout); resolve(true); };
+        link.onerror = () => { clearTimeout(timeout); link.remove(); reject(new Error(`No se pudo cargar el recurso ${href}`)); };
         document.head.appendChild(link);
     }).catch(error => {
         externalAssetPromises.delete(href);
@@ -59,12 +68,12 @@ window.loadStyleOnce = href => {
 };
 
 const routeViews = {
-    '#dashboard': { src: 'src/views/Dashboard.js?v=47.2', global: 'renderDashboard', needsTomSelect: true },
-    '#report': { src: 'src/views/ReportForm.js?v=47.2', global: 'renderReport', needsTomSelect: true },
-    '#calendar': { src: 'src/views/Calendar.js?v=47.2', global: 'renderCalendar', needsTomSelect: true },
-    '#vacations': { src: 'src/views/Vacations.js?v=47.2', global: 'renderVacations' },
-    '#materials': { src: 'src/views/Materials.js?v=47.2', global: 'renderMaterials' },
-    '#mensajes': { src: 'src/views/Messages.js?v=47.2', global: 'renderMessages' }
+    '#dashboard': { src: 'src/views/Dashboard.js?v=47.7', global: 'renderDashboard', needsTomSelect: true },
+    '#report': { src: 'src/views/ReportForm.js?v=47.7', global: 'renderReport', needsTomSelect: true },
+    '#calendar': { src: 'src/views/Calendar.js?v=47.7', global: 'renderCalendar', needsTomSelect: true },
+    '#vacations': { src: 'src/views/Vacations.js?v=47.7', global: 'renderVacations' },
+    '#materials': { src: 'src/views/Materials.js?v=47.7', global: 'renderMaterials' },
+    '#mensajes': { src: 'src/views/Messages.js?v=47.7', global: 'renderMessages' }
 };
 
 async function ensureRouteView(hash) {
@@ -211,6 +220,7 @@ let hasShownNews = false;
 let navigationSequence = 0;
 async function navigateRouter() {
     const sequence = ++navigationSequence;
+    window.disposeDashboard?.();
     let hash = window.location.hash || '#';
     document.getElementById('appStatusRegion')?.replaceChildren();
     const routeTitles = {
@@ -289,6 +299,7 @@ async function navigateRouter() {
             default: renderLogin(app);
         }
     } catch (e) {
+        if (sequence !== navigationSequence || window.location.hash !== hash) return;
         console.error("Router Error:", e);
         app.innerHTML = `
             <section class="route-error" role="alert">
@@ -300,7 +311,7 @@ async function navigateRouter() {
             </section>`;
         document.getElementById('routeRecovery')?.addEventListener('click', () => navigate('#dashboard'));
     }
-    document.title = `${routeTitles[hash] || 'Xiaomi Trainer'} · Xiaomi Trainer`;
+    document.title = 'Xiaomi Trainer';
     app.classList.remove('route-entering');
     window.requestAnimationFrame(() => app.classList.add('route-entering'));
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
