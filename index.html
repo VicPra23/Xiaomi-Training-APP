@@ -15,7 +15,7 @@
     <script defer src="https://unpkg.com/lucide@1.34.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
     
     <!-- Custom Style -->
-    <link rel="stylesheet" href="style.css?v=47.7">
+    <link rel="stylesheet" href="style.css?v=48.0">
     
     <!-- PWA & Mobile Meta -->
     <link rel="manifest" href="manifest.json">
@@ -23,6 +23,20 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Polyfill para Drag and Drop en Mviles -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@3.0.0-beta.0/default.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@3.0.0-beta.0/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@3.0.0-beta.0/scroll-behaviour.min.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            MobileDragDrop.polyfill({
+                dragImageTranslateOverride: mobileDragDrop.scrollBehaviourDragImageTranslateOverride,
+                holdToDrag: 300 // Requiere mantener pulsado 300ms para arrastrar
+            });
+            window.addEventListener('touchmove', function() {}, {passive: false});
+        });
+    </script>
 </head>
 <body>
     <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -77,9 +91,9 @@
     
     <!-- Scripts -->
     <!-- Vistas y Lógica -->
-    <script defer src="src/services/api.js?v=47.7-connected"></script>
-    <script defer src="src/views/Login.js?v=47.7"></script>
-    <script defer src="src/main.js?v=47.7"></script>
+    <script defer src="src/services/api.js?v=48.0-connected"></script>
+    <script defer src="src/views/Login.js?v=48.0"></script>
+    <script defer src="src/main.js?v=48.0"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

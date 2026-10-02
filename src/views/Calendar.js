@@ -374,7 +374,7 @@ function renderCalendar(container) {
 
         return `
             <td class="day-cell ${isWeekend ? "day-wknd" : ""} ${blocked ? "day-blocked" : ""} ${iso === todayISO ? "is-today" : ""}"
-                data-date="${iso}" data-user="${escapeHTML(userId)}" tabindex="${canEdit ? "0" : "-1"}"
+                data-date="${iso}" data-user="${escapeHTML(userId)}" tabindex="${canEdit ? "0" : "-1"}" ${canEdit && items.length ? 'draggable="true"' : ""}
                 aria-label="${escapeHTML(displayDate(date))}, ${escapeHTML(userId)}${items.length ? `, ${items.length} actividades` : ""}">
                 <div class="calendar-cell-actions">
                     ${items.length ? `<button type="button" data-copy-day title="Copiar día" aria-label="Copiar actividades de este día"><i data-lucide="copy"></i></button>` : ""}
@@ -427,23 +427,38 @@ function renderCalendar(container) {
         });
 
         monthsContainer.addEventListener("dragstart", event => {
-            const pill = event.target.closest(".assignment-tag");
-            if (!pill || !pill.draggable) return;
-            const cell = pill.closest(".day-cell[data-date]");
-            if (!cell) return;
+            const pill = event.target.closest(".assignment-tag[draggable]");
+            const cellDrag = event.target.closest(".day-cell[draggable]");
             
-            event.dataTransfer.setData("application/json", JSON.stringify({
-                sourceUser: cell.dataset.user,
-                sourceDate: cell.dataset.date,
-                itemIndex: pill.dataset.index
-            }));
-            event.dataTransfer.effectAllowed = "move";
-            setTimeout(() => pill.style.opacity = "0.5", 0);
+            if (pill) {
+                const cell = pill.closest(".day-cell[data-date]");
+                event.dataTransfer.setData("application/json", JSON.stringify({
+                    sourceUser: cell.dataset.user,
+                    sourceDate: cell.dataset.date,
+                    itemIndex: pill.dataset.index,
+                    isFullDay: false
+                }));
+                event.dataTransfer.effectAllowed = "move";
+                event.stopPropagation();
+                setTimeout(() => pill.style.opacity = "0.5", 0);
+            } else if (cellDrag) {
+                event.dataTransfer.setData("application/json", JSON.stringify({
+                    sourceUser: cellDrag.dataset.user,
+                    sourceDate: cellDrag.dataset.date,
+                    isFullDay: true
+                }));
+                event.dataTransfer.effectAllowed = "move";
+                setTimeout(() => cellDrag.style.opacity = "0.5", 0);
+            } else {
+                event.preventDefault();
+            }
         });
 
         monthsContainer.addEventListener("dragend", event => {
             const pill = event.target.closest(".assignment-tag");
+            const cellDrag = event.target.closest(".day-cell");
             if (pill) pill.style.opacity = "";
+            if (cellDrag) cellDrag.style.opacity = "";
             monthsContainer.querySelectorAll('.day-cell').forEach(el => el.style.boxShadow = "");
         });
 
@@ -473,34 +488,55 @@ function renderCalendar(container) {
                 const data = JSON.parse(dataStr);
                 const sourceDate = data.sourceDate;
                 const sourceUser = data.sourceUser;
-                const itemIndex = parseInt(data.itemIndex, 10);
+                const isFullDay = data.isFullDay;
                 
                 const targetDate = cell.dataset.date;
                 const targetUser = cell.dataset.user;
                 
                 if (sourceDate === targetDate && sourceUser === targetUser) return;
                 
+                const action = await requestMoveOrCopy();
+                if (!action) return;
+                
                 const sourceItems = getItems(sourceDate, sourceUser);
-                const itemToMove = sourceItems[itemIndex];
-                if (!itemToMove) return;
-                
-                sourceItems.splice(itemIndex, 1);
                 const targetItems = getItems(targetDate, targetUser);
-                targetItems.push(itemToMove);
                 
-                if (!calendarData.schedule[sourceDate]) calendarData.schedule[sourceDate] = {};
-                calendarData.schedule[sourceDate][sourceUser] = sourceItems;
+                if (isFullDay) {
+                    // Mover o copiar TODO el día
+                    targetItems.push(...deepCopyItems(sourceItems));
+                    if (action === "move") {
+                        sourceItems.length = 0; // Vaciar array origen
+                    }
+                } else {
+                    // Mover o copiar UNA pastilla
+                    const itemIndex = parseInt(data.itemIndex, 10);
+                    const itemToMove = deepCopyItems([sourceItems[itemIndex]])[0];
+                    if (!itemToMove || !itemToMove.text) return;
+                    
+                    targetItems.push(itemToMove);
+                    if (action === "move") {
+                        sourceItems.splice(itemIndex, 1);
+                    }
+                }
                 
+                // Actualizar UI localmente
                 if (!calendarData.schedule[targetDate]) calendarData.schedule[targetDate] = {};
                 calendarData.schedule[targetDate][targetUser] = targetItems;
                 
-                renderYear({ preserveScroll: true });
-                announce('Actividad movida correctamente.');
+                const promises = [];
+                promises.push(api.saveAssignment({ user: targetUser, date: targetDate, items: targetItems, modifiedBy: currentUser }));
                 
-                await Promise.all([
-                    api.saveAssignment({ user: sourceUser, date: sourceDate, items: sourceItems, modifiedBy: currentUser }),
-                    api.saveAssignment({ user: targetUser, date: targetDate, items: targetItems, modifiedBy: currentUser })
-                ]);
+                if (action === "move") {
+                    if (!calendarData.schedule[sourceDate]) calendarData.schedule[sourceDate] = {};
+                    calendarData.schedule[sourceDate][sourceUser] = sourceItems;
+                    promises.push(api.saveAssignment({ user: sourceUser, date: sourceDate, items: sourceItems, modifiedBy: currentUser }));
+                    announce('Actividades movidas correctamente.');
+                } else {
+                    announce('Actividades copiadas correctamente.');
+                }
+                
+                renderYear({ preserveScroll: true });
+                await Promise.all(promises);
             } catch (e) {
                 console.error("Error moviendo el elemento:", e);
                 if (typeof loadYear === 'function') loadYear(selectedYear, focusMonth);
@@ -573,6 +609,44 @@ function renderCalendar(container) {
             announce(`Error: ${error.message}`, true);
             return false;
         }
+    }
+
+    function requestMoveOrCopy() {
+        return new Promise(resolve => {
+            const dialog = document.createElement("dialog");
+            dialog.className = "calendar-delete-dialog";
+            dialog.innerHTML = `
+                <form method="dialog" class="calendar-delete-dialog-card" aria-labelledby="calendar-dnd-title">
+                    <div class="calendar-delete-dialog-icon" aria-hidden="true" style="background:var(--bg-tertiary);color:var(--xiaomi-orange)"><i data-lucide="copy"></i></div>
+                    <div class="calendar-delete-dialog-copy">
+                        <span>Acción de calendario</span>
+                        <h3 id="calendar-dnd-title">Mover o Copiar</h3>
+                        <p>Has arrastrado una actividad a otro día. ¿Qué deseas hacer con ella?</p>
+                    </div>
+                    <div class="calendar-delete-dialog-actions" style="margin-top:20px; display:flex; gap:10px;">
+                        <button type="button" class="btn-secondary" value="cancel" autofocus>Cancelar</button>
+                        <button type="button" class="btn-primary" value="copy" style="flex:1">Copiar</button>
+                        <button type="button" class="btn-primary" value="move" style="flex:1; background:#000;">Mover</button>
+                    </div>
+                </form>
+            `;
+            document.body.appendChild(dialog);
+            if (typeof lucide !== 'undefined') lucide.createIcons({ root: dialog });
+            
+            const cleanup = (val) => {
+                dialog.remove();
+                resolve(val);
+            };
+            
+            dialog.addEventListener("cancel", () => cleanup(null));
+            dialog.addEventListener("close", () => cleanup(dialog.returnValue === "cancel" ? null : dialog.returnValue));
+            
+            dialog.querySelectorAll("button").forEach(btn => {
+                btn.addEventListener("click", () => cleanup(btn.value === "cancel" ? null : btn.value));
+            });
+            
+            dialog.showModal();
+        });
     }
 
     function requestDeleteConfirmation(userId, dateLabel) {
