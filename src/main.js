@@ -70,7 +70,7 @@ window.loadStyleOnce = href => {
 const routeViews = {
     '#dashboard': { src: 'src/views/Dashboard.js?v=47.7', global: 'renderDashboard', needsTomSelect: true },
     '#report': { src: 'src/views/ReportForm.js?v=47.7', global: 'renderReport', needsTomSelect: true },
-    '#calendar': { src: 'src/views/Calendar.js?v=49.1', global: 'renderCalendar', needsTomSelect: true },
+    '#calendar': { src: 'src/views/Calendar.js?v=49.0', global: 'renderCalendar', needsTomSelect: true },
     '#vacations': { src: 'src/views/Vacations.js?v=47.7', global: 'renderVacations' },
     '#materials': { src: 'src/views/Materials.js?v=47.7', global: 'renderMaterials' },
     '#mensajes': { src: 'src/views/Messages.js?v=47.7', global: 'renderMessages' }

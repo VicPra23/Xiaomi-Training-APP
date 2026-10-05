@@ -2429,7 +2429,7 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
 const MATRIX_CALENDAR = {
   spreadsheetId: '1qNAt27vAvk5FAw4yga1imi1TEjtb11yKFf1tL2oXNhk',
   baseYear: 2026,
-  accounts: { COORD: 'Victor', DAVID: 'David', TL: 'Francisco Javier', TM: 'Tomás', TB: 'Carles', TS: 'Fabio', TN: 'Hamza' },
+  accounts: { COORD: 'Victor', DAVID: 'David', TL: 'Javier', TM: 'Tomás', TB: 'Carles', TS: 'Fabio', TN: 'Hamza' },
   colors: { eci: '#b7b7b7', mm: '#b7b7b7', crf: '#4285f4', mistores: '#ff6d01', osp: '#ff9900', vdf: '#ff0000', mmy: '#ff00ff', tme: '#4a86e8', interno: '#ffff00', materiales: '#34a853', tentativa: '#e2e8f0', otros: '#ab0055' }
 };
 function _matrixError(code, message) { const error = new Error(message); error.code = code; throw error; }
