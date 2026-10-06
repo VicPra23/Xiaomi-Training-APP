@@ -1,4 +1,13 @@
 function renderDashboard(container) {
+    window.disposeDashboard?.();
+    let disposed = false, statsRequest = 0, historyRequest = 0;
+    let statsTimer, historyTimer;
+    const active = () => !disposed && container.isConnected && window.location.hash === '#dashboard';
+    window.disposeDashboard = () => {
+        disposed = true;
+        clearTimeout(statsTimer); clearTimeout(historyTimer);
+        window.destroyDashboardCharts?.();
+    };
     try {
         const esc = value => window.escapeHTML ? window.escapeHTML(value) : String(value ?? '');
         let session = getSessionData();
@@ -8,8 +17,8 @@ function renderDashboard(container) {
         const realName = nickname || currentUser;
         const isAdmin = (role === 'Admin');
 
-        const masterMobiles = ["Redmi 15 Series", "Redmi 15C Series", "Redmi A5", "Redmi A7 Pro", "Redmi Note 15 Series", "Xiaomi 17 series", "Xiaomi 17T Series"];
-        const masterEcosystem = ["Air Fryer Series", "Aire Acondicionado", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 9,7\"", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Redmi Watch 5 Series", "Redmi Watch 6 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Band 10 Series", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series", "Xiaomi Watch 5 Series", "Xiaomi Watch S4 Series", "Xiaomi Watch S5 Series"];
+        const masterMobiles = ["Redmi 15 Series", "Redmi 15C Series", "Redmi 17 Series", "Redmi A5", "Redmi A7 Pro", "Redmi Note 15 Series", "Redmi Note 17 Series", "Xiaomi 17 series", "Xiaomi 17T Series", "Xiaomi 18 Pro Series"];
+        const masterEcosystem = ["Air Fryer Series", "Aire Acondicionado", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 9.7\"", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Redmi Watch 5 Series", "Redmi Watch 6 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV F 2026 Series", "TV FX 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Band 10 Series", "Xiaomi Band 11 Series", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Clip", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series", "Xiaomi Watch 5 Series", "Xiaomi Watch S4 Series", "Xiaomi Watch S5 41 mm", "Xiaomi Watch S5 Series"];
         const masterDevices = [...masterMobiles, ...masterEcosystem].sort();
 
         const parseISO = (s) => {
@@ -55,7 +64,7 @@ function renderDashboard(container) {
                     <label class="form-label" style="display: block; width: 100%;">Trainer</label>
                     <select id="dashboardTarget" class="form-control">
                         <option value="Total">Dato Global</option>
-                        <option value="${currentUser}">Solo Mío</option>
+                        <option value="${esc(currentUser)}">Solo Mío</option>
                     </select>
                 </div>
                 
@@ -762,6 +771,7 @@ function renderDashboard(container) {
         if (!isAdmin) return;
         
         api.getFilterMetadata({}, true).then(res => {
+            if (!active()) return;
             if (res.status === 'success') {
                 const yS = document.getElementById('dashboardYear');
                 const mS = document.getElementById('dashboardMonth');
@@ -771,14 +781,14 @@ function renderDashboard(container) {
                 if (res.data.years) {
                     if (yS) yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}">${y}</option>`).join('');
                 }
-                if (mS && mS.tagName === "SELECT") mS.innerHTML = '<option value="Todos">Todos</option>' + res.data.months.map(m => `<option value="${m}">${m}</option>`).join('');
+                if (mS && mS.tagName === "SELECT") mS.innerHTML = '<option value="Todos">Todos</option>' + res.data.months.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
                 
                 if (dS && res.data.devices) {
-                    dS.innerHTML = '<option value="Todos" selected>Todos</option>' + res.data.devices.map(d => `<option value="${d}">${d}</option>`).join('');
+                    dS.innerHTML = '<option value="Todos" selected>Todos</option>' + res.data.devices.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
                     initTomSelect('dashboardDevice', 'Busca dispositivo...');
                 }
                 if (dM && res.data.methodologies) {
-                    dM.innerHTML = '<option value="Todos" selected>Todas</option>' + res.data.methodologies.map(m => `<option value="${m}">${m}</option>`).join('');
+                    dM.innerHTML = '<option value="Todos" selected>Todas</option>' + res.data.methodologies.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
                     initTomSelect('dashboardMethodology', 'Busca metodología...');
                     if (window.tsInstances['dashboardMethodology']) {
                         window.tsInstances['dashboardMethodology'].addItem('Todos', true);
@@ -787,7 +797,7 @@ function renderDashboard(container) {
                 const dC = document.getElementById('dashboardContent');
                 const hC = document.getElementById('histFilterContent');
                 if (res.data.contents) {
-                    const opts = '<option value="Todos" selected>Todos</option>' + res.data.contents.map(c => `<option value="${c}">${c}</option>`).join('');
+                    const opts = '<option value="Todos" selected>Todos</option>' + res.data.contents.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
                     if (dC) {
                         dC.innerHTML = opts;
                         initTomSelect('dashboardContent', 'Busca contenido...');
@@ -803,14 +813,15 @@ function renderDashboard(container) {
         });
 
         api.getUsersList({}, true).then(res => {
+            if (!active()) return;
             if (res.status === 'success') {
                 const s = document.getElementById('dashboardTarget');
                 const ht = document.getElementById('histFilterTrainer');
                 const optionsHtml = `
                     <option value="Total">Dato Global</option>
-                    <option value="${currentUser}">Solo Mío</option>
+                    <option value="${esc(currentUser)}">Solo Mío</option>
                     <hr>
-                    ${res.data.map(u => `<option value="${u.user || u}">${u.name || u}</option>`).join('')}
+                    ${res.data.map(u => `<option value="${esc(u.user || u)}">${esc(u.name || u)}</option>`).join('')}
                 `;
                 if (s) s.innerHTML = optionsHtml;
                 if (ht) ht.innerHTML = optionsHtml;
@@ -819,12 +830,13 @@ function renderDashboard(container) {
         
         // Historial (No requiere caché estricto pero se mantiene la lógica)
         api.getFilterMetadata().then(res => {
+            if (!active()) return;
             if(res.status === 'success') {
                 const hM = document.getElementById('histFilterMonth');
                 const hA = document.getElementById('histFilterAccount');
                 const hD = document.getElementById('histFilterDevice');
                 const hMet = document.getElementById('histFilterMethod');
-                if(hM) res.data.months.forEach(m => hM.innerHTML += `<option value="${m}">${m}</option>`);
+                if(hM) res.data.months.forEach(m => hM.innerHTML += `<option value="${esc(m)}">${esc(m)}</option>`);
                 if(hA) res.data.accounts.forEach(a => hA.innerHTML += `<option value="${a}">${a}</option>`);
                 if(hD) {
                     const reported = new Set(res.data.devices);
@@ -832,11 +844,11 @@ function renderDashboard(container) {
                     if (isAdmin) {
                         masterDevices.forEach(d => {
                             const hasData = reported.has(d);
-                            opts += `<option value="${d}" ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
+                            opts += `<option value="${esc(d)}" ${!hasData ? 'disabled style="color:#aaa"' : ''}>${esc(d)}${!hasData ? ' (Sin datos)' : ''}</option>`;
                         });
                     } else {
                         res.data.devices.sort().forEach(d => {
-                            opts += `<option value="${d}">${d}</option>`;
+                            opts += `<option value="${esc(d)}">${esc(d)}</option>`;
                         });
                     }
                     hD.innerHTML = opts;
@@ -865,6 +877,11 @@ function renderDashboard(container) {
     };
 
     const loadStats = (force = false) => {
+        ++statsRequest;
+        clearTimeout(statsTimer);
+        statsTimer = setTimeout(() => { if (active()) fetchStats(force, statsRequest); }, force ? 0 : 400);
+    };
+    const fetchStats = (force, request) => {
         const dTarget = document.getElementById('dashboardTarget');
         const dWeek = document.getElementById('dashboardWeek');
         const dMonth = document.getElementById('dashboardMonth');
@@ -908,6 +925,7 @@ function renderDashboard(container) {
         }
         
         return api.getDashboardStats(params).then(res => {
+            if (!active() || request !== statsRequest) return;
             if (res.status === 'success') {
                 try {
                     const sCount = document.getElementById('stat_count'); if(sCount) sCount.innerText = (res.currentWeekData && res.currentWeekData.count !== undefined) ? res.currentWeekData.count : (res.count || 0);
@@ -926,8 +944,9 @@ function renderDashboard(container) {
                     
                     // Delay render to let mobile layout and fonts stabilize
                     setTimeout(() => {
+                        if (!active() || request !== statsRequest) return;
                         window._lastDashData = res;
-                        renderCharts(res);
+                        renderCharts(res, () => active() && request === statsRequest);
                         if (isAdmin && res.adminStats) renderAdminStats(res.adminStats);
                     }, 250);
                 } catch(e) { console.error("Shielding error in stats rendering:", e); }
@@ -935,6 +954,7 @@ function renderDashboard(container) {
                 throw new Error(res.message || 'No se pudo cargar el resumen.');
             }
         }).catch(error => {
+            if (!active() || request !== statsRequest) return;
             console.error('Error loading dashboard stats:', error);
             const ids = ['stat_count', 'stat_sesiones', 'stat_alumnos', 'stat_horas'];
             ids.forEach(id => {
@@ -1065,12 +1085,12 @@ function renderDashboard(container) {
                             masterDevices.forEach(d => {
                                 const hasData = reported.has(d);
                                 const isSel = Array.isArray(currentVal) ? currentVal.includes(d.toString()) : d.toString() === currentVal;
-                                opts += `<option value="${d}" ${isSel ? 'selected' : ''} ${!hasData ? 'disabled style="color:#aaa"' : ''}>${d}${!hasData ? ' (Sin datos)' : ''}</option>`;
+                                opts += `<option value="${esc(d)}" ${isSel ? 'selected' : ''} ${!hasData ? 'disabled style="color:#aaa"' : ''}>${esc(d)}${!hasData ? ' (Sin datos)' : ''}</option>`;
                             });
                         } else {
                             s.data.sort().forEach(d => {
                                 const isSel = Array.isArray(currentVal) ? currentVal.includes(d.toString()) : d.toString() === currentVal;
-                                opts += `<option value="${d}" ${isSel ? 'selected' : ''}>${d}</option>`;
+                                opts += `<option value="${esc(d)}" ${isSel ? 'selected' : ''}>${esc(d)}</option>`;
                             });
                         }
                         el.innerHTML = opts;
@@ -1100,6 +1120,11 @@ function renderDashboard(container) {
     };
 
     const loadHistory = (force = false) => {
+        ++historyRequest;
+        clearTimeout(historyTimer);
+        historyTimer = setTimeout(() => { if (active()) fetchHistory(force, historyRequest); }, force ? 0 : 400);
+    };
+    const fetchHistory = (force, request) => {
         // Al cargar historial, respetamos si el admin seleccionó un trainer específico ABRAZO
         const target = isAdmin ? (document.getElementById('histFilterTrainer')?.value || 'Total') : currentUser;
         let week = document.getElementById('histFilterWeek')?.value || "";
@@ -1180,6 +1205,7 @@ function renderDashboard(container) {
         };
 
         api.getReportsHistory(historyParams).then(res => {
+            if (!active() || request !== historyRequest) return;
             if(res.status === 'success' && res.availableFilters) {
                 updateHistoryFilters(res.availableFilters);
             }
@@ -1238,10 +1264,12 @@ function renderDashboard(container) {
                 body.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">${q ? 'No hay resultados para esa búsqueda.' : 'No se encontraron reportes.'}</td></tr>`;
             }
         }).catch(error => {
+            if (!active() || request !== historyRequest) return;
             console.error('Error loading report history:', error);
             const body = document.getElementById('historyBody');
             if (body) body.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">No se pudo cargar el historial.</td></tr>`;
         }).finally(() => { 
+            if (!active() || request !== historyRequest) return;
             const loader = document.getElementById('historyLoading');
             if(loader) loader.style.visibility = 'hidden'; 
         });
@@ -1585,7 +1613,8 @@ function renderDashboard(container) {
     if(historySearch) historySearch.onkeyup = (e) => { if(e.key === 'Enter') loadHistory(); };
     
         // CARGA INICIAL DIFERIDA (Performance V1.1)
-        loadStats().finally(() => loadHistory());
+        loadStats();
+        loadHistory();
     } catch(e) {
         console.error("Dashboard Render Error:", e);
         container.innerHTML = `<div class="glass-card" style="padding:40px; text-align:center;"><h3>Error al cargar el Dashboard</h3><p>${e.message}</p></div>`;
@@ -1636,8 +1665,9 @@ function registerInlineDataLabels() {
     inlineDataLabelsRegistered = true;
 }
 
-async function renderCharts(data) {
-    if (!data) return;
+async function renderCharts(data, isCurrent = () => window.location.hash === '#dashboard') {
+    const originalCanvas = document.getElementById('chartWeekly');
+    if (!data || !isCurrent() || !originalCanvas) return;
     if (typeof Chart === 'undefined') {
         try {
             await window.loadScriptOnce('https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js', 'Chart');
@@ -1646,7 +1676,7 @@ async function renderCharts(data) {
             return;
         }
     }
-    if (window.location.hash !== '#dashboard') return;
+    if (!isCurrent() || originalCanvas !== document.getElementById('chartWeekly')) return;
     registerInlineDataLabels();
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const isMobile = window.innerWidth < 768;
@@ -1682,7 +1712,7 @@ async function renderCharts(data) {
         const canvasW = document.getElementById('chartWeekly');
         if (!canvasW) return;
         const ctxW = canvasW.getContext('2d');
-        if(weeklyChart) weeklyChart.destroy();
+        (Chart.getChart?.(canvasW) || weeklyChart)?.destroy();
         
         const gradOrange = createGrad(ctxW, primaryColor, primaryGradientEnd);
         const gradGray = createGrad(ctxW, secondaryColor, secondaryGradientEnd);
@@ -1753,7 +1783,7 @@ async function renderCharts(data) {
         const canvasM = document.getElementById('chartMethods');
         if (!canvasM) return;
         const ctxM = canvasM.getContext('2d');
-        if(methodsChart) methodsChart.destroy();
+        (Chart.getChart?.(canvasM) || methodsChart)?.destroy();
         const methodValues = data.pieData || data.methodData || [];
         methodsChart = new Chart(ctxM, {
             type: 'bar',
@@ -1807,7 +1837,7 @@ async function renderCharts(data) {
         // --- Trainers Chart (Admin) ---
         if(data.adminStats && document.getElementById('chartTrainers')) {
             const ctxT = document.getElementById('chartTrainers').getContext('2d');
-            if(trainersChart) trainersChart.destroy();
+            (Chart.getChart?.(document.getElementById('chartTrainers')) || trainersChart)?.destroy();
             const trainerStats = data.adminStats.byTrainer || {};
             const names = Object.keys(trainerStats);
             
@@ -1849,7 +1879,14 @@ async function renderCharts(data) {
     } catch(e) { console.error("Error renderCharts:", e); }
 }
 window.destroyDashboardCharts = () => {
-    [weeklyChart, methodsChart, trainersChart].forEach(chart => chart?.destroy?.());
+    const charts = new Set([weeklyChart, methodsChart, trainersChart]);
+    if (typeof Chart !== 'undefined') {
+        ['chartWeekly', 'chartMethods', 'chartTrainers'].forEach(id => {
+            const canvas = document.getElementById(id);
+            if (canvas) charts.add(Chart.getChart?.(canvas));
+        });
+    }
+    charts.forEach(chart => chart?.destroy?.());
     weeklyChart = null;
     methodsChart = null;
     trainersChart = null;

@@ -1,6 +1,20 @@
-const calendarCache = {};
-
 function renderCalendar(container) {
+    window.disposeCalendar?.();
+    let disposed = false, loadSequence = 0, transferBusy = false, isDragging = false;
+    const active = () => !disposed && container.isConnected && location.hash === '#calendar';
+    let refreshTimer;
+    window.disposeCalendar = () => { disposed = true; clearInterval(refreshTimer); monthObserver?.disconnect(); document.querySelectorAll('.calendar-editor-overlay,.calendar-clipboard-overlay,dialog.calendar-delete-dialog').forEach(el=>el.remove()); document.body.classList.remove('calendar-editor-open'); };
+    const revision = (date,user) => calendarData?.versions?.[date]?.[user];
+    const ensureConnected = () => {
+        if (calendarData?.offline) throw new Error('No se guardarán cambios sin conexión. Vuelve a sincronizar.');
+        if (calendarData?.source !== 'matrix-v1') throw new Error('Primero debes desplegar el backend de sincronización v49. No se modificará la planificación antigua.');
+    };
+    const saveDay = async (request) => {
+        ensureConnected();
+        const response = await api.saveCalendarAssignment({...request,expectedVersion:request.expectedVersion || revision(request.date,request.user)});
+        if (response.status === 'success' && response.source !== 'matrix-v1') throw new Error('El servidor no ha confirmado el guardado en la matriz. Actualiza antes de reintentar.');
+        return response;
+    };
     const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
     const categories = [
@@ -46,6 +60,9 @@ function renderCalendar(container) {
                     <p>Desplázate para recorrer el año. Pulsa un día para planificarlo.</p>
                 </div>
                 <div class="calendar-primary-actions">
+                    <button id="calendarSyncBtn" class="btn-secondary calendar-sync-btn" type="button" aria-label="Sincronizar ahora con Google Sheets" title="Sincronizar ahora con Google Sheets">
+                        <i data-lucide="refresh-cw"></i><span>Sincronizar</span>
+                    </button>
                     <button id="calendarToday" class="btn-primary calendar-today-btn" type="button" aria-label="Ir al día de hoy">
                         <i data-lucide="locate-fixed"></i><span>Hoy</span>
                     </button>
@@ -110,10 +127,32 @@ function renderCalendar(container) {
     if (typeof lucide !== "undefined") lucide.createIcons();
     updateClipboardStatus();
     loadYear(selectedYear, now.getMonth());
+    refreshTimer = setInterval(() => {
+        if (active() && !document.hidden && !document.querySelector('.calendar-editor-overlay,.calendar-clipboard-overlay,dialog[open]') && !transferBusy && !isDragging) {
+            loadYear(selectedYear, now.getMonth(), true, true);
+        }
+    }, 60000);
 
     container.querySelector("#calendarYear").addEventListener("change", event => {
         selectedYear = Number(event.target.value);
         loadYear(selectedYear, selectedYear === now.getFullYear() ? now.getMonth() : 0);
+    });
+
+    container.querySelector("#calendarSyncBtn")?.addEventListener("click", async () => {
+        const syncBtn = container.querySelector("#calendarSyncBtn");
+        const icon = syncBtn?.querySelector("i");
+        if (syncBtn) syncBtn.disabled = true;
+        if (icon) icon.classList.add("spin-anim");
+        try {
+            await loadYear(selectedYear, now.getMonth(), true, false);
+            announce("Calendario sincronizado con Google Sheets con éxito.");
+        } catch(err) {
+            announce(err.message || "Error al sincronizar con Google Sheets.", true);
+        } finally {
+            if (syncBtn) syncBtn.disabled = false;
+            if (icon) icon.classList.remove("spin-anim");
+            if (typeof lucide !== "undefined") lucide.createIcons();
+        }
     });
 
     container.querySelector("#calendarToday").addEventListener("click", async () => {
@@ -140,71 +179,53 @@ function renderCalendar(container) {
         if (entries.length) await chooseClipboard(entries, "Portapapeles", "Selecciona una copia para ver su contenido");
     });
 
-    async function loadYear(year, focusMonth = 0) {
-        loading.hidden = false;
-        yearScroll.classList.add("is-loading");
-        const start = `${year}-01-01`;
-        const end = `${year}-12-31`;
-        const cacheKey = `${start}_${end}`;
-
+    async function loadYear(year, focusMonth = 0, preserveScroll = false, silent = false) {
+        const sequence = ++loadSequence;
+        const current = () => active() && sequence === loadSequence && year === selectedYear;
+        const isBackground = silent || Boolean(calendarData);
+        if (!isBackground) {
+            loading.hidden = false;
+            yearScroll.classList.add('is-loading');
+        }
         try {
-            if (!calendarCache[cacheKey]) {
-                const [usersRes, scheduleRes] = await Promise.all([
-                    api.getUsersList(),
-                    api.getWeekly({ start, end })
-                ]);
-                if (!container.isConnected || window.location.hash !== "#calendar") return;
-                if (usersRes.status !== "success" || scheduleRes.status !== "success") {
-                    throw new Error(usersRes.message || scheduleRes.message || "No se pudo cargar el calendario.");
+            const [usersRes,scheduleRes] = await Promise.all([api.getUsersList(),api.getWeekly({start:year+'-01-01',end:year+'-12-31',refresh:preserveScroll})]);
+            if (!current()) return;
+            if (usersRes.status !== 'success' || scheduleRes.status !== 'success') throw new Error(usersRes.message || scheduleRes.message || 'No se pudo cargar el calendario.');
+            const wasConnected = Boolean(calendarData && !calendarData.offline);
+            calendarData = {users:scheduleRes.users || usersRes.data || [],schedule:scheduleRes.schedule || {},blocks:scheduleRes.blocks || {},source:scheduleRes.source,versions:scheduleRes.versions || {},capacities:scheduleRes.capacities || {},offline:Boolean(scheduleRes.offline && !wasConnected)};
+            if (isAdmin) {
+                const wrapper=container.querySelector('#calendarTrainerWrapper'),select=container.querySelector('#calendarTrainerFilter');
+                if (select && !select.tomselect) {
+                    wrapper.style.display='flex';
+                    select.innerHTML=calendarData.users.filter(u=>(u.user || u)!=='Training Manager').map(u=>`<option value="${escapeHTML(u.user || u)}">${escapeHTML(u.name || u)}</option>`).join('');
+                    new TomSelect(select,{plugins:['remove_button'],placeholder:'Todos los formadores...',onChange:()=>renderYear({preserveScroll:true})});
                 }
-                calendarCache[cacheKey] = {
-                    users: usersRes.data || [],
-                    schedule: scheduleRes.schedule || {},
-                    blocks: scheduleRes.blocks || {}
+            }
+            buildSuggestionCatalog();
+            const isUserInteracting = isDragging || transferBusy || document.querySelector('.calendar-editor-overlay,.calendar-clipboard-overlay,dialog[open]');
+            if (!isUserInteracting) {
+                renderYear({preserveScroll});
+            } else {
+                window._pendingCalendarRender = () => {
+                    if (current() && !isDragging && !transferBusy && !document.querySelector('.calendar-editor-overlay,.calendar-clipboard-overlay,dialog[open]')) {
+                        renderYear({preserveScroll: true});
+                        window._pendingCalendarRender = null;
+                    }
                 };
             }
-            calendarData = calendarCache[cacheKey];
-            
-            // Initialize Multi-select Trainer Filter for Admin
-            if (isAdmin) {
-                const filterWrapper = container.querySelector("#calendarTrainerWrapper");
-                const filterSelect = container.querySelector("#calendarTrainerFilter");
-                if (filterWrapper && filterSelect && !filterSelect.tomselect) {
-                    filterWrapper.style.display = "flex";
-                    // Only populate trainers that are not "Training Manager"
-                    const validUsers = calendarData.users.filter(u => u !== "Training Manager" && u?.user !== "Training Manager");
-                    filterSelect.innerHTML = validUsers.map(u => `<option value="${u?.user || u}">${u?.name || u}</option>`).join("");
-                    new TomSelect(filterSelect, {
-                        plugins: ['remove_button'],
-                        placeholder: "Todos los formadores...",
-                        onChange: () => renderYear({ preserveScroll: true })
-                    });
-                }
-            }
-
-            buildSuggestionCatalog();
-            renderYear();
-            window.requestAnimationFrame(() => {
-                if (year === now.getFullYear() && focusMonth === now.getMonth()) scrollToToday(false);
-                else scrollToMonth(focusMonth, false);
-            });
-        } catch (error) {
-            const monthsContainer = container.querySelector("#calendarMonths");
-            if (!container.isConnected || window.location.hash !== "#calendar" || !monthsContainer) return;
-            console.error(error);
-            monthsContainer.innerHTML = `
-                <div class="calendar-error">
-                    <i data-lucide="cloud-off"></i>
-                    <strong>No hemos podido sincronizar el calendario</strong>
-                    <span>${escapeHTML(error.message)}</span>
-                    <button type="button" class="btn-secondary" id="calendarRetry">Reintentar</button>
-                </div>
-            `;
-            container.querySelector("#calendarRetry")?.addEventListener("click", () => loadYear(selectedYear, focusMonth));
+            if (scheduleRes.offline && !isBackground && !wasConnected) announce('Mostrando una copia sin conexión. No guardes cambios hasta volver a sincronizar.',true);
+            if (!preserveScroll && !isBackground) requestAnimationFrame(()=>{if(current()) year===now.getFullYear() && focusMonth===now.getMonth()?scrollToToday(false):scrollToMonth(focusMonth,false);});
+        } catch(error) {
+            if (!current()) return;
+            const months=container.querySelector('#calendarMonths');
+            if (!preserveScroll || !calendarData) {
+                const isAuth = /sesión|auth/i.test(error.message || '');
+                months.innerHTML=`<div class="calendar-error"><strong>No hemos podido sincronizar el calendario</strong><span>${escapeHTML(error.message)}</span>${isAuth ? '<button type="button" class="btn-primary" id="calendarLoginBtn">Iniciar sesión</button>' : '<button type="button" class="btn-secondary" id="calendarRetry">Reintentar</button>'}</div>`;
+                container.querySelector('#calendarRetry')?.addEventListener('click',()=>loadYear(selectedYear,focusMonth,true));
+                container.querySelector('#calendarLoginBtn')?.addEventListener('click',()=>{ if (typeof clearSessionData==='function') clearSessionData(); window.location.hash='#'; });
+            } else announce(error.message,true);
         } finally {
-            if (loading.isConnected) loading.hidden = true;
-            if (yearScroll.isConnected) yearScroll.classList.remove("is-loading");
-            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (current()) {loading.hidden=true;yearScroll.classList.remove('is-loading');}
         }
     }
 
@@ -358,7 +379,7 @@ function renderCalendar(container) {
         const isHoliday = userBlocks[iso] === "FESTIVO";
         const byDate = calendarData.schedule[iso] || {};
         const items = byDate[userId] || byDate[String(userId).toLowerCase()] || [];
-        const canEdit = !vacation && (isAdmin || (userId === currentUser && !isWeekend));
+        const canEdit = !vacation && (isAdmin || (userId === currentUser && !isWeekend && !isHoliday));
         const blocked = vacation || (!isAdmin && isHoliday) || !canEdit;
         let content = "";
 
@@ -366,15 +387,15 @@ function renderCalendar(container) {
             content = `<div class="assignment-tag calendar-absence">${vacation.status === "Pendiente" ? "Solicitud" : "Vacaciones"}</div>`;
         } else {
             if (isHoliday) content += `<div class="assignment-tag cat-fest">Festivo</div>`;
-            content += items.map(item => `
-                <div class="assignment-tag cat-${escapeHTML(item.category || "otros")}">${linkify(item.text)}</div>
+            content += items.map((item, idx) => `
+                <div class="assignment-tag cat-${escapeHTML(item.category || "otros")}" ${canEdit ? `draggable="true" data-index="${idx}"` : ""}>${linkify(item.text)}</div>
             `).join("");
             if (!content && canEdit) content = `<span class="calendar-cell-empty">Añadir actividad</span>`;
         }
 
         return `
             <td class="day-cell ${isWeekend ? "day-wknd" : ""} ${blocked ? "day-blocked" : ""} ${iso === todayISO ? "is-today" : ""}"
-                data-date="${iso}" data-user="${escapeHTML(userId)}" tabindex="${canEdit ? "0" : "-1"}"
+                data-date="${iso}" data-user="${escapeHTML(userId)}" tabindex="${canEdit ? "0" : "-1"}" ${canEdit && items.length ? 'draggable="true"' : ""}
                 aria-label="${escapeHTML(displayDate(date))}, ${escapeHTML(userId)}${items.length ? `, ${items.length} actividades` : ""}">
                 <div class="calendar-cell-actions">
                     ${items.length ? `<button type="button" data-copy-day title="Copiar día" aria-label="Copiar actividades de este día"><i data-lucide="copy"></i></button>` : ""}
@@ -425,6 +446,89 @@ function renderCalendar(container) {
                 });
             }
         });
+
+        monthsContainer.addEventListener("dragstart", event => {
+            const pill = event.target.closest(".assignment-tag[draggable]");
+            const cellDrag = event.target.closest(".day-cell[draggable]");
+            
+            if (pill) {
+                isDragging = true;
+                const cell = pill.closest(".day-cell[data-date]");
+                event.dataTransfer.setData("application/json", JSON.stringify({
+                    sourceUser: cell.dataset.user,
+                    sourceDate: cell.dataset.date,
+                    itemIndex: pill.dataset.index,
+                    isFullDay: false
+                }));
+                event.dataTransfer.effectAllowed = "move";
+                event.stopPropagation();
+                setTimeout(() => pill.style.opacity = "0.5", 0);
+            } else if (cellDrag) {
+                isDragging = true;
+                event.dataTransfer.setData("application/json", JSON.stringify({
+                    sourceUser: cellDrag.dataset.user,
+                    sourceDate: cellDrag.dataset.date,
+                    isFullDay: true
+                }));
+                event.dataTransfer.effectAllowed = "move";
+                setTimeout(() => cellDrag.style.opacity = "0.5", 0);
+            } else {
+                event.preventDefault();
+            }
+        });
+
+        monthsContainer.addEventListener("dragend", event => {
+            isDragging = false;
+            const pill = event.target.closest(".assignment-tag");
+            const cellDrag = event.target.closest(".day-cell");
+            if (pill) pill.style.opacity = "";
+            if (cellDrag) cellDrag.style.opacity = "";
+            monthsContainer.querySelectorAll('.day-cell').forEach(el => el.style.boxShadow = "");
+            window._pendingCalendarRender?.();
+        });
+
+        monthsContainer.addEventListener("dragover", event => {
+            const cell = event.target.closest(".day-cell[data-date]:not(.day-blocked)");
+            if (!cell || cell.tabIndex !== 0) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            cell.style.boxShadow = "inset 0 0 0 2px var(--xiaomi-orange)";
+        });
+
+        monthsContainer.addEventListener("dragleave", event => {
+            const cell = event.target.closest(".day-cell");
+            if (cell) cell.style.boxShadow = "";
+        });
+
+        monthsContainer.addEventListener('drop', async event => {
+            event.preventDefault();
+            const cell=event.target.closest('.day-cell[data-date]:not(.day-blocked)');
+            if (!cell || cell.tabIndex!==0 || transferBusy) return;
+            cell.style.boxShadow='';
+            const raw=event.dataTransfer.getData('application/json');
+            if (!raw) return;
+            transferBusy=true;
+            try {
+                ensureConnected();
+                if (calendarData.offline) throw new Error('Vuelve a sincronizar antes de mover actividades.');
+                const data=JSON.parse(raw);
+                if (data.sourceDate===cell.dataset.date && data.sourceUser===cell.dataset.user) return;
+                const sourceVersion=revision(data.sourceDate,data.sourceUser),targetVersion=revision(cell.dataset.date,cell.dataset.user);
+                const mode=await requestMoveOrCopy();
+                if (!mode || !active()) return;
+                const response=await api.transferAssignment({sourceDate:data.sourceDate,sourceUser:data.sourceUser,targetDate:cell.dataset.date,targetUser:cell.dataset.user,isFullDay:Boolean(data.isFullDay),itemIndex:Number(data.itemIndex),mode,sourceVersion,targetVersion});
+                if (response.status!=='success' || response.source!=='matrix-v1') throw new Error(response.message || 'El movimiento no se ha confirmado.');
+                if (!active()) return;
+                await loadYear(selectedYear,now.getMonth(),true,true);
+                announce(mode==='move'?'Actividades movidas y guardadas en la hoja.':'Actividades copiadas y guardadas en la hoja.');
+            } catch(error) {
+                if (active()) {announce(error.message,true);await loadYear(selectedYear,now.getMonth(),true,true);}
+            } finally {
+                transferBusy = false;
+                isDragging = false;
+                window._pendingCalendarRender?.();
+            }
+        });
     }
 
     function getItems(date, userId) {
@@ -449,6 +553,7 @@ function renderCalendar(container) {
         const deletionComment = await requestDeleteConfirmation(userId, dateLabel);
         if (deletionComment === null) return false;
 
+        const deleteVersion = revision(date,userId);
         const backupStored = await storeClipboardEntry(savedItems, userId, date);
         if (!backupStored) {
             announce("Borrado cancelado: no se eligió una ranura para la copia de seguridad.");
@@ -463,23 +568,18 @@ function renderCalendar(container) {
         }
 
         try {
-            const response = await api.saveAssignment({
+            const response = await saveDay({
                 user: userId,
                 date,
                 items: [],
                 modifiedBy: currentUser,
+                expectedVersion:deleteVersion,
                 deletionComment
             });
             if (response.status !== "success") throw new Error(response.message || "No se pudo borrar el día.");
 
-            const daySchedule = calendarData.schedule[date];
-            if (daySchedule) {
-                delete daySchedule[userId];
-                delete daySchedule[String(userId).toLowerCase()];
-                if (!Object.keys(daySchedule).length) delete calendarData.schedule[date];
-            }
-
-            renderYear({ preserveScroll: true });
+            if (!active()) return false;
+            await loadYear(selectedYear,now.getMonth(),true,true);
             announce("Día borrado. Sus actividades están disponibles en el portapapeles.");
             return true;
         } catch (error) {
@@ -492,6 +592,44 @@ function renderCalendar(container) {
             announce(`Error: ${error.message}`, true);
             return false;
         }
+    }
+
+    function requestMoveOrCopy() {
+        return new Promise(resolve => {
+            const dialog = document.createElement("dialog");
+            dialog.className = "calendar-delete-dialog";
+            dialog.innerHTML = `
+                <form method="dialog" class="calendar-delete-dialog-card" aria-labelledby="calendar-dnd-title">
+                    <div class="calendar-delete-dialog-icon" aria-hidden="true" style="background:var(--bg-tertiary);color:var(--xiaomi-orange)"><i data-lucide="copy"></i></div>
+                    <div class="calendar-delete-dialog-copy">
+                        <span>Acción de calendario</span>
+                        <h3 id="calendar-dnd-title">Mover o Copiar</h3>
+                        <p>Has arrastrado una actividad a otro día. ¿Qué deseas hacer con ella?</p>
+                    </div>
+                    <div class="calendar-delete-dialog-actions" style="margin-top:20px; display:flex; gap:10px;">
+                        <button type="button" class="btn-secondary" value="cancel" autofocus>Cancelar</button>
+                        <button type="button" class="btn-primary" value="copy" style="flex:1">Copiar</button>
+                        <button type="button" class="btn-primary" value="move" style="flex:1; background:#000;">Mover</button>
+                    </div>
+                </form>
+            `;
+            document.body.appendChild(dialog);
+            if (typeof lucide !== 'undefined') lucide.createIcons({ root: dialog });
+            
+            const cleanup = (val) => {
+                dialog.remove();
+                resolve(val);
+            };
+            
+            dialog.addEventListener("cancel", () => cleanup(null));
+            dialog.addEventListener("close", () => cleanup(dialog.returnValue === "cancel" ? null : dialog.returnValue));
+            
+            dialog.querySelectorAll("button").forEach(btn => {
+                btn.addEventListener("click", () => cleanup(btn.value === "cancel" ? null : btn.value));
+            });
+            
+            dialog.showModal();
+        });
     }
 
     function requestDeleteConfirmation(userId, dateLabel) {
@@ -509,7 +647,7 @@ function renderCalendar(container) {
                     <label class="calendar-delete-comment">
                         <span>Comentario opcional</span>
                         <textarea rows="3" maxlength="500" placeholder="Motivo o contexto del borrado"></textarea>
-                        <small>Si escribes un comentario, se enviará a administración y al usuario afectado.</small>
+                        <small>El comentario acompaña la solicitud. Esta versión no envía notificaciones automáticas.</small>
                     </label>
                     <div class="calendar-delete-dialog-actions">
                         <button type="button" class="btn-outline" data-keep>Conservar actividades</button>
@@ -648,6 +786,8 @@ function renderCalendar(container) {
     }
 
     function openEditPanel(userId, date, currentItems, pasted = false) {
+        const editVersion = revision(date,userId);
+        const returnFocus = document.activeElement;
         let workingItems = deepCopyItems(currentItems);
         const overlay = document.createElement("div");
         overlay.className = "calendar-editor-overlay";
@@ -694,9 +834,18 @@ function renderCalendar(container) {
             document.removeEventListener("keydown", onEscape);
             document.body.classList.remove("calendar-editor-open");
             overlay.classList.add("is-closing");
+            returnFocus?.focus({preventScroll:true});
             window.setTimeout(() => overlay.remove(), 180);
         };
-        const onEscape = event => { if (event.key === "Escape") close(); };
+        const onEscape = event => {
+            if (event.key==='Escape') close();
+            if (event.key==='Tab') {
+                const nodes=Array.from(overlay.querySelectorAll('button:not([disabled]),input,select,textarea,a[href]')).filter(el=>el.getClientRects().length);
+                const first=nodes[0],last=nodes[nodes.length-1];
+                if (event.shiftKey && document.activeElement===first) {event.preventDefault();last?.focus();}
+                else if (!event.shiftKey && document.activeElement===last) {event.preventDefault();first?.focus();}
+            }
+        };
         document.addEventListener("keydown", onEscape);
         overlay.addEventListener("mousedown", event => { if (event.target === overlay) close(); });
         overlay.querySelector(".calendar-editor-close").addEventListener("click", close);
@@ -739,14 +888,12 @@ function renderCalendar(container) {
             saveButton.disabled = true;
             saveButton.innerHTML = `<span class="calendar-button-spinner"></span>Guardando…`;
             try {
-                const response = await api.saveAssignment({ user: userId, date, items: newItems, modifiedBy: currentUser });
+                const response = await saveDay({ user: userId, date, items: newItems, modifiedBy: currentUser, expectedVersion:editVersion });
                 if (response.status !== "success") throw new Error(response.message || "No se pudo guardar.");
-                if (!calendarData.schedule[date]) calendarData.schedule[date] = {};
-                calendarData.schedule[date][userId] = deepCopyItems(newItems);
+                if (!active()) return;
                 rememberSuggestions(newItems);
-                buildSuggestionCatalog();
                 close();
-                renderYear({ preserveScroll: true });
+                await loadYear(selectedYear,now.getMonth(),true,true);
                 announce("Planificación guardada.");
             } catch (error) {
                 saveButton.disabled = false;

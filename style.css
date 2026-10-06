@@ -3772,6 +3772,7 @@ p { text-wrap: pretty; }
     animation: buttonSpin 700ms linear infinite;
 }
 @keyframes buttonSpin { to { transform: rotate(360deg); } }
+.spin-anim { animation: buttonSpin 700ms linear infinite; display: inline-block; }
 
 /* Dashboard */
 .dash-module .dash-header {

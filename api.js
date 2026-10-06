@@ -1,7 +1,16 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxGxy72LdOGY28hBVaXksoIBs3uIM6yOfboH6bDpCVndts00PebZtNdB3KzxUQUg3f0SA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxt5JR6kGZKtI_1OMiLu_-8ns_cYPiD5ROrWp47vMjabfAoh6Cp-1-O7xVbMTsPzOd3IA/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
+const _inflight = new Map();
+let _cacheEpoch = 0;
+const CACHE_TTL = 5 * 60 * 1000;
+const CACHEABLE_ACTIONS = new Set(['getUsersList', 'getCitiesList', 'getFilterMetadata', 'getMaterials', 'getDashboardStats', 'getReportsHistory', 'getWeekly']);
+function invalidateReadCache() {
+    ++_cacheEpoch;
+    _metadataCache.clear();
+    _inflight.clear();
+}
 const OFFLINE_CACHE_KEY = "xiaomiOfflineReadCacheV1";
 
 function getOfflineCacheEntry(action, params) {
@@ -34,23 +43,28 @@ function setOfflineCacheEntry(action, params, data) {
  * Esto evita que el móvil bloquee las redirecciones de Google Apps Script.
  */
 function sendGet(action, params = {}, useCache = false) {
+    useCache = CACHEABLE_ACTIONS.has(action) && !params.refresh;
     const session = getSessionData();
+    const epoch = _cacheEpoch;
+    const current = () => epoch === _cacheEpoch && session?.token === getSessionData()?.token;
     const authParams = session?.token ? { ...params, token: session.token } : params;
     const cacheKey = action + JSON.stringify(authParams);
-    if (useCache && _metadataCache.has(cacheKey)) {
-        return Promise.resolve(_metadataCache.get(cacheKey));
-    }
+    const cachedEntry = _metadataCache.get(cacheKey);
+    if (useCache && cachedEntry && Date.now() - cachedEntry.savedAt < CACHE_TTL) return Promise.resolve(cachedEntry.data);
+    if (_inflight.has(cacheKey)) return _inflight.get(cacheKey);
 
-    return new Promise((resolve, reject) => {
+    const promise = new Promise((resolve, reject) => {
         const callbackName = 'jsonp_' + (window.crypto?.randomUUID?.().replace(/-/g, '') || `${Date.now()}_${Math.round(1000000 * Math.random())}`);
         const script = document.createElement('script');
         
+        const timeoutMs = (action === 'getWeekly' || action === 'getDashboardStats') ? 60000 : 30000;
         const timeout = setTimeout(() => {
             cleanup();
+            if (!current()) { resolve({status: 'stale'}); return; }
             const cached = getOfflineCacheEntry(action, params);
             if (cached) resolve({ ...cached, offline: true });
             else reject(new Error("Timeout: El servidor de Google no responde o hay mala cobertura."));
-        }, 15000); 
+        }, timeoutMs); 
 
         function cleanup() {
             clearTimeout(timeout);
@@ -60,12 +74,13 @@ function sendGet(action, params = {}, useCache = false) {
 
         window[callbackName] = function(data) {
             cleanup();
+            if (!current()) { resolve({status: 'stale'}); return; }
             if (handleAuthFailure(data)) {
                 reject(new Error(data.message || "Tu sesión ha caducado."));
                 return;
             }
             setOfflineCacheEntry(action, params, data);
-            if (useCache) _metadataCache.set(cacheKey, data);
+            if (useCache && data.status === 'success') _metadataCache.set(cacheKey, {data, savedAt: Date.now()});
             resolve(data);
         };
 
@@ -76,13 +91,18 @@ function sendGet(action, params = {}, useCache = false) {
         script.src = `${API_URL}?${query}`;
         script.onerror = () => { 
             cleanup(); 
+            if (!current()) { resolve({status: 'stale'}); return; }
             const cached = getOfflineCacheEntry(action, params);
             if (cached) resolve({ ...cached, offline: true });
             else reject(new Error("Error de red o bloqueo de seguridad (CORS/VPN)."));
         };
         
         document.body.appendChild(script);
+    }).finally(() => {
+        if (_inflight.get(cacheKey) === promise) _inflight.delete(cacheKey);
     });
+    _inflight.set(cacheKey, promise);
+    return promise;
 }
 
 /**
@@ -106,20 +126,26 @@ async function sendPost(action, data = {}) {
         
         if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         const result = await res.json();
+        if (action !== 'login' && session?.token !== getSessionData()?.token) return {status: 'stale'};
         if (handleAuthFailure(result)) throw new Error(result.message || "Tu sesión ha caducado.");
         
-        _metadataCache.clear(); // Limpiamos caché porque hubo cambios
+        if (result.status === 'success' && action !== 'exportCustomPDF') {
+            invalidateReadCache();
+            try { localStorage.removeItem(OFFLINE_CACHE_KEY); } catch (error) { /* Storage can be blocked. */ }
+        }
         return result;
     } catch (e) {
         console.error(`[API] fetch error:`, e);
         if (e.name === 'AbortError') throw new Error("La operación ha tardado demasiado. Revisa la conexión y vuelve a intentarlo.");
-        throw new Error("Error de red o conexión bloqueada al enviar datos.");
+        if (e instanceof TypeError) throw new Error("Error de red o conexión bloqueada al enviar datos.");
+        throw e;
     } finally {
         clearTimeout(timeout);
     }
 }
 
 function setSessionData(data) { 
+    invalidateReadCache();
     try { localStorage.setItem('userSession', JSON.stringify({ ...data, expiresAt: data.expiresAt || Date.now() + (30 * 24 * 60 * 60 * 1000) })); }
     catch(e) { console.warn("LocalStorage bloqueado:", e); }
 }
@@ -137,6 +163,7 @@ function getSessionData() {
 }
 
 function clearSessionData() { 
+    invalidateReadCache();
     try {
         localStorage.removeItem('userSession'); 
         localStorage.removeItem(OFFLINE_CACHE_KEY);
@@ -154,7 +181,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "47.2"
+    VERSION: "49.7"
 };
 
 const api = {
@@ -181,6 +208,8 @@ const api = {
     modifyBase: (user, delta) => sendPost("modifyBase", { user, delta }),
     markMessageRead: (msgId) => sendPost("markMessageRead", { msgId }),
     markAllMessagesRead: (user) => sendPost("markAllMessagesRead", { user }),
+    transferAssignment: (req) => sendPost("transferAssignment",req),
+    saveCalendarAssignment: (req) => sendPost("saveMatrixAssignment",req),
     saveAssignment: (req) => sendPost("saveAssignment", req),
     adminProcessSelection: (req) => sendPost("adminProcessSelection", req),
     deleteReport: (id) => sendPost("deleteReport", { id })
