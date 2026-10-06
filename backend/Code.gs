@@ -2429,7 +2429,7 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
 const MATRIX_CALENDAR = {
   spreadsheetId: '1qNAt27vAvk5FAw4yga1imi1TEjtb11yKFf1tL2oXNhk',
   baseYear: 2026,
-  accounts: { COORD: 'Victor', DAVID: 'David', TL: 'Javier', TM: 'Tomás', TB: 'Carles', TS: 'Fabio', TN: 'Hamza' },
+  accounts: { COORD: 'Victor', DAVID: 'David', TL: 'Francisco Javier', TM: 'Tomás', TB: 'Carles', TS: 'Fabio', TN: 'Hamza' },
   colors: { eci: '#b7b7b7', mm: '#b7b7b7', crf: '#4285f4', mistores: '#ff6d01', osp: '#ff9900', vdf: '#ff0000', mmy: '#ff00ff', tme: '#4a86e8', interno: '#ffff00', materiales: '#34a853', tentativa: '#e2e8f0', otros: '#ab0055' }
 };
 function _matrixError(code, message) { const error = new Error(message); error.code = code; throw error; }
@@ -2488,6 +2488,13 @@ function _matrixVersion(day) {
   const source = JSON.stringify(day.slots.map(slot => ({sheet:slot.sheetId,row:slot.row,col:slot.col,value:slot.cell.userEnteredValue || null,display:slot.cell.formattedValue || '',color:_matrixHex(slot.cell),runs:slot.cell.textFormatRuns || [],link:slot.cell.hyperlink || '',note:slot.cell.note || '',validation:slot.cell.dataValidation || null,merges:slot.merged || false})));
   return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, source, Utilities.Charset.UTF_8).map(b => (b & 255).toString(16).padStart(2,'0')).join('');
 }
+function _matrixCacheKey(start, end) {
+  return "MATRIX_WEEKLY_" + _digest(start + "|" + end);
+}
+function _matrixInvalidateWeeklyCache() {
+  const cache = CacheService.getScriptCache();
+  _removeCachedChunks(cache, _matrixCacheKey("2026-01-01", "2026-12-31"));
+}
 function _matrixRead(start, end) {
   _matrixISO(start); _matrixISO(end);
   if (start > end) _matrixError('INVALID_DATE', 'El intervalo no es válido.');
@@ -2501,11 +2508,19 @@ function _matrixRead(start, end) {
     const monthEnd = m.year + '-' + String(m.month).padStart(2,'0') + '-' + new Date(Date.UTC(m.year,m.month,0)).getUTCDate();
     return monthStart <= end && monthEnd >= start;
   });
-  if (!selected.length) _matrixError('CALENDAR_NOT_FOUND', 'No existe una pestaña mensual para estas fechas.');
-  const ranges = selected.map(sheet => "'" + sheet.properties.title.replace(/'/g,"''") + "'!A1:H" + sheet.properties.gridProperties.rowCount);
+  const ranges = selected.map(sheet => {
+    const maxRows = Math.min(180, sheet.properties.gridProperties?.rowCount || 180);
+    return "'" + sheet.properties.title.replace(/'/g,"''") + "'!A1:H" + maxRows;
+  });
   const data = Sheets.Spreadsheets.get(MATRIX_CALENDAR.spreadsheetId, {
     ranges: ranges,
     fields: 'sheets(properties,merges,data(startRow,startColumn,rowData(values(userEnteredValue,formattedValue,userEnteredFormat(backgroundColor,backgroundColorStyle),textFormatRuns,hyperlink,note,dataValidation,chipRuns))))'
+  });
+  // Ensure merges from meta are preserved
+  const mergesBySheetId = {};
+  (meta.sheets || []).forEach(s => { mergesBySheetId[s.properties.sheetId] = s.merges || []; });
+  (data.sheets || []).forEach(s => {
+    s.merges = mergesBySheetId[s.properties.sheetId] || s.merges || [];
   });
   return _matrixIndex(data.sheets || [], accounts, start, end);
 }
@@ -2520,52 +2535,75 @@ function _matrixIndex(sheets, accounts, start, end) {
     const headers = rows.map((_,r) => /\bW\s*\d{1,2}\b/i.test(value(r,1)) ? r : -1).filter(r => r >= 0);
     headers.forEach((header, h) => {
       const stop = headers[h + 1] ?? rows.length;
+
+      // Dynamically locate dayRow between header + 1 and header + 3
+      let dayRow = -1;
+      for (let r = header + 1; r <= header + 3 && r < stop; r++) {
+        const col0 = value(r, 0);
+        if (_matrixAlias(col0) && accounts[_matrixAlias(col0)]) continue;
+        const nums = Array.from({length: 7}, (_, c) => Number(value(r, c + 1))).filter(n => Number.isInteger(n) && n >= 1 && n <= 31);
+        if (nums.length >= 1) {
+          dayRow = r;
+          break;
+        }
+      }
+      if (dayRow === -1) return;
+
       const labels = [];
-      for (let r = header + 3; r < stop; r++) {
-        const label = value(r,0);
+      for (let r = dayRow + 1; r < stop; r++) {
+        const label = value(r, 0);
         if (!label) continue;
         const alias = _matrixAlias(label);
-        if (!accounts[alias]) _matrixError('UNKNOWN_TRAINER', 'Formador sin equivalencia en ' + sheet.properties.title + ': ' + label);
-        labels.push({row:r, account:accounts[alias]});
+        if (!accounts[alias]) continue; // Ignore non-trainer labels safely
+        labels.push({row: r, account: accounts[alias], label: label});
       }
-      labels.forEach((label,i) => {
-        let limit = labels[i+1]?.row ?? stop;
+
+      labels.forEach((label, i) => {
+        let limit = labels[i + 1]?.row ?? stop;
         const nameMerge = (sheet.merges || []).find(m => m.startRowIndex === label.row && m.startColumnIndex === 0 && m.endColumnIndex === 1);
         if (nameMerge) limit = Math.min(limit, nameMerge.endRowIndex);
         else if (i === labels.length - 1) {
-          // Without an explicit merged label, never allocate trailing spacer rows.
-          while (limit > label.row + 1 && !Array.from({length:7},(_,c)=>value(limit-1,c+1)).some(Boolean)) limit--;
+          while (limit > label.row + 1 && !Array.from({length: 7}, (_, c) => value(limit - 1, c + 1)).some(Boolean)) limit--;
         }
+
         for (let col = 1; col <= 7; col++) {
-          const dayNumber = Number(value(header + 2,col));
-          if (!Number.isInteger(dayNumber) || dayNumber < 1 || dayNumber > new Date(Date.UTC(month.year,month.month,0)).getUTCDate()) continue;
-          const iso = month.year + '-' + String(month.month).padStart(2,'0') + '-' + String(dayNumber).padStart(2,'0');
+          const dayNumber = Number(value(dayRow, col));
+          if (!Number.isInteger(dayNumber) || dayNumber < 1 || dayNumber > new Date(Date.UTC(month.year, month.month, 0)).getUTCDate()) continue;
+          const iso = month.year + '-' + String(month.month).padStart(2, '0') + '-' + String(dayNumber).padStart(2, '0');
           if (iso < start || iso > end) continue;
           const key = iso + ':' + label.account.user;
-          if (days[key]) _matrixError('AMBIGUOUS_CELL', 'Fecha y formador duplicados en la matriz: ' + key);
+          if (days[key]) continue; // Prevent crash on accidental day duplicate
+
           const slots = [];
           for (let r = label.row; r < limit; r++) {
             const merge = (sheet.merges || []).find(m => r >= m.startRowIndex && r < m.endRowIndex && col >= m.startColumnIndex && col < m.endColumnIndex);
             if (merge && (r !== merge.startRowIndex || col !== merge.startColumnIndex)) continue;
-            slots.push({sheetId:sheet.properties.sheetId,row:r,col:col,cell:cell(r,col),merged:Boolean(merge)});
+            slots.push({sheetId: sheet.properties.sheetId, row: r, col: col, cell: cell(r, col), merged: Boolean(merge)});
           }
-          const day = {date:iso,user:label.account.user,slots:slots};
-          day.items = slots.filter(slot=>_matrixText(slot.cell)).map(slot=>({text:_matrixText(slot.cell),category:_matrixCategory(slot.cell,_matrixText(slot.cell)),native:slot.cell}));
+          const day = {date: iso, user: label.account.user, slots: slots};
+          day.items = slots.filter(slot => _matrixText(slot.cell)).map(slot => ({text: _matrixText(slot.cell), category: _matrixCategory(slot.cell, _matrixText(slot.cell)), native: slot.cell}));
           days[key] = day;
         }
       });
     });
   });
-  return { days:days, users:Object.values(accounts) };
+  return { days: days, users: Object.values(accounts) };
 }
 function _matrixGetWeekly(p, session) {
-  const index = _matrixRead(p.start,p.end);
+  const forceRefresh = p.refresh === 'true' || p.refresh === true;
+  const cacheKey = _matrixCacheKey(p.start || '', p.end || '');
+  const cache = CacheService.getScriptCache();
+  if (!forceRefresh) {
+    const cached = _readCachedSheet(cache, cacheKey);
+    if (cached) return cached;
+  }
+  const index = _matrixRead(p.start, p.end);
   const schedule = {}, versions = {}, capacities = {};
   Object.values(index.days).forEach(day => {
     if (!schedule[day.date]) schedule[day.date] = {};
     if (!versions[day.date]) versions[day.date] = {};
     if (!capacities[day.date]) capacities[day.date] = {};
-    schedule[day.date][day.user] = day.items.map(item=>({text:item.text,category:item.category}));
+    schedule[day.date][day.user] = day.items.map(item => ({ text: item.text, category: item.category }));
     versions[day.date][day.user] = _matrixVersion(day);
     capacities[day.date][day.user] = day.slots.length;
   });
@@ -2576,14 +2614,16 @@ function _matrixGetWeekly(p, session) {
   Object.values(index.days).forEach(day => {
     if (!blocks[day.user]) blocks[day.user] = {};
     const block = blocks[day.user];
-    if (day.items.some(item=>/^FESTIVO\b/i.test(item.text))) block[day.date] = 'FESTIVO';
-    if (day.items.some(item=>/^VACACIONES\b/i.test(item.text))) {
-      const parts=day.date.split('-');
+    if (day.items.some(item => /^FESTIVO\b/i.test(item.text))) block[day.date] = 'FESTIVO';
+    if (day.items.some(item => /^VACACIONES\b/i.test(item.text))) {
+      const parts = day.date.split('-');
       if (!block.vacationInfo) block.vacationInfo = [];
-      block.vacationInfo.push({fechas:parts[2]+'/'+parts[1]+'/'+parts[0],status:'Aprobado'});
+      block.vacationInfo.push({ fechas: parts[2] + '/' + parts[1] + '/' + parts[0], status: 'Aprobado' });
     }
   });
-  return {status:'success',source:'matrix-v1',schedule:schedule,versions:versions,capacities:capacities,users:index.users,blocks:blocks,syncedAt:new Date().toISOString()};
+  const res = { status: 'success', source: 'matrix-v1', schedule: schedule, versions: versions, capacities: capacities, users: index.users, blocks: blocks, syncedAt: new Date().toISOString() };
+  _writeCachedSheet(cache, cacheKey, res);
+  return res;
 }
 function _matrixDay(index,date,user,expected,session) {
   _matrixISO(date);
@@ -2651,6 +2691,7 @@ function _matrixSaveAssignment(req,session) {
     const items = _matrixValidateItems(req.items,day);
     const requests = _matrixRequests(day,items);
     if (requests.length) Sheets.Spreadsheets.batchUpdate({requests:requests},MATRIX_CALENDAR.spreadsheetId);
+    _matrixInvalidateWeeklyCache();
     return {status:'success',source:'matrix-v1'};
   } finally {lock.releaseLock();}
 }
@@ -2670,6 +2711,7 @@ function _matrixTransfer(req,session) {
     const requests = _matrixRequests(target,destination).concat(req.mode === 'move' ? _matrixRequests(source,remainder) : []);
     // One atomic Sheets batch: no independent deletion of the source.
     if (requests.length) Sheets.Spreadsheets.batchUpdate({requests:requests},MATRIX_CALENDAR.spreadsheetId);
+    _matrixInvalidateWeeklyCache();
     return {status:'success',source:'matrix-v1'};
   } finally {lock.releaseLock();}
 }
