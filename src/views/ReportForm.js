@@ -157,7 +157,7 @@ function renderReport(container, editData = null) {
     };
 
     const dispositivosMobiles = ["Redmi 15 Series", "Redmi 15C Series", "Redmi 17 Series", "Redmi A5", "Redmi A7 Pro", "Redmi Note 15 Series", "Redmi Note 17 Series", "Xiaomi 17 series", "Xiaomi 17T Series", "Xiaomi 18 Pro Series"];
-    const dispositivosNoMobiles = ["Air Fryer Series", "Aire Acondicionado", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 9.7\"", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Redmi Watch 5 Series", "Redmi Watch 6 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV F 2026 Series", "TV FX 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Band 10 Series", "Xiaomi Band 11 Series", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Clip", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series", "Xiaomi Watch 5 Series", "Xiaomi Watch S4 Series", "Xiaomi Watch S5 41 mm", "Xiaomi Watch S5 Series"];
+    const dispositivosNoMobiles = ["Air Fryer Series", "Aire Acondicionado", "Cámaras de Vigilancia", "Frigorífico", "Lavadora", "Redmi Buds 8 Series", "Redmi Pad 2 9.7\"", "Redmi Pad 2 Pro Series", "Redmi Pad 2 Series", "Redmi Watch 5 Series", "Redmi Watch 6 Series", "Robot Vacuum", "Scooters", "TV A 2026 Series", "TV F 2026 Series", "TV FX 2026 Series", "TV S 2026 Series", "Vacuum", "Xiaomi Band 11 Series", "Xiaomi Buds 5 Series", "Xiaomi Buds 6 Series", "Xiaomi Clip", "Xiaomi Openwear Stereo Series", "Xiaomi Pad 8 Series", "Xiaomi Watch 5 Series", "Xiaomi Watch S4 Series", "Xiaomi Watch S5 41 mm", "Xiaomi Watch S5 Series"];
 
     const html = `
     <div class="report-module fade-in">
@@ -360,6 +360,7 @@ function renderReport(container, editData = null) {
 
             <div class="form-group" style="margin-top: 1.5rem;">
                 <label class="form-label" id="photoLabel">Fotos (0/20)</label>
+                <div id="photoStatusAlert" style="display: none; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--border-radius-md); font-size: 0.85rem; transition: all 0.2s ease;"></div>
                 <div id="photoContainer" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px;">
                     <button type="button" class="photo-upload-box" id="photoTrigger" aria-describedby="photoHelp" style="width: 100px; height: 100px; border: 2px dashed var(--border-main); border-radius: var(--border-radius-md); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; background:var(--bg-main);">
                         <i data-lucide="camera" style="width: 32px; height: 32px; color: var(--text-muted);"></i>
@@ -368,7 +369,7 @@ function renderReport(container, editData = null) {
                 </div>
                 <input type="file" id="photoInput" style="display: none;" accept="image/*,.heic,.heif" multiple>
                 <input type="hidden" id="photoData" name="photoData">
-                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos, máximo 10 MB cada una. Se comprimirán antes de enviarse.</p>
+                <p id="photoHelp" style="font-size:0.7rem; color:var(--text-muted); margin-top:10px;">Hasta 20 fotos (máx. 30 MB por foto). Se optimizan automáticamente y se verifica su preparación antes del envío.</p>
             </div>
 
             <div style="margin-top: 3rem; display: flex; gap: 15px;">
@@ -517,7 +518,7 @@ function renderReport(container, editData = null) {
     }
 
     // --- NUEVO COMPRESOR DE IMÁGENES PARA MÓVIL ---
-    async function compressImage(file, maxWidth = 1200, quality = 0.7) {
+    async function compressImage(file, maxWidth = 1000, quality = 0.65) {
         let fileToProcess = file;
         
         // Soporte para HEIC/HEIF (Apple)
@@ -530,13 +531,13 @@ function renderReport(container, editData = null) {
                     const blob = await heic2any({
                         blob: file,
                         toType: "image/jpeg",
-                        quality: 0.8
+                        quality: 0.7
                     });
                     fileToProcess = Array.isArray(blob) ? blob[0] : blob;
                 }
             } catch (e) {
                 console.error("Error al convertir HEIC:", e);
-                throw new Error("No se ha podido convertir la foto HEIC. Revisa la conexión o selecciona una imagen JPEG/PNG.");
+                // Si falla heic2any, se intentará cargar directamente como imagen en canvas
             }
         }
 
@@ -603,6 +604,78 @@ function renderReport(container, editData = null) {
     let processingPhotos = false;
     let existingPhotos = [];
 
+    function formatBytes(bytes) {
+        if (!bytes || bytes <= 0) return '0 KB';
+        if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function updatePhotoStatusAlert(processingMsg = null) {
+        const alertBox = document.getElementById('photoStatusAlert');
+        const submitBtn = document.getElementById('btnSubmit');
+        if (!alertBox) return;
+
+        if (processingMsg) {
+            alertBox.style.display = 'flex';
+            alertBox.style.alignItems = 'center';
+            alertBox.style.gap = '10px';
+            alertBox.style.background = 'rgba(255, 103, 0, 0.08)';
+            alertBox.style.border = '1px solid var(--xiaomi-orange)';
+            alertBox.style.color = 'var(--text-main)';
+            alertBox.innerHTML = `
+                <div class="loader" style="width: 18px; height: 18px; border-width: 2px; border-color: var(--xiaomi-orange) transparent transparent; flex-shrink: 0;"></div>
+                <span style="font-size: 0.82rem;"><strong>Procesando imágenes:</strong> ${escapeHTML(processingMsg)}</span>
+            `;
+            return;
+        }
+
+        const totalBytes = photosArray.reduce((acc, p) => acc + (p.byteSize || Math.ceil((p.base64Data.length * 3) / 4)), 0);
+        const countNew = photosArray.length;
+        const countOld = existingPhotos.length;
+
+        if (countNew > 0) {
+            alertBox.style.display = 'flex';
+            alertBox.style.alignItems = 'center';
+            alertBox.style.gap = '10px';
+            alertBox.style.background = 'rgba(16, 185, 129, 0.08)';
+            alertBox.style.border = '1px solid #10b981';
+            alertBox.style.color = 'var(--text-main)';
+            alertBox.innerHTML = `
+                <i data-lucide="check-circle-2" style="width: 20px; height: 20px; color: #10b981; flex-shrink: 0;"></i>
+                <div style="flex: 1; font-size: 0.8rem; line-height: 1.35;">
+                    <div style="font-weight: 700; color: #059669; font-size: 0.85rem;">
+                        ✓ ${countNew} foto${countNew > 1 ? 's' : ''} cargada${countNew > 1 ? 's' : ''} y lista${countNew > 1 ? 's' : ''} para subir (${formatBytes(totalBytes)})
+                    </div>
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-top: 2px;">
+                        Las imágenes han sido optimizadas en memoria. Se adjuntarán y subirán a Drive al pulsar el botón de abajo.
+                        ${countOld > 0 ? ` · <span style="color:#2563eb; font-weight:600;">+ ${countOld} foto${countOld > 1 ? 's' : ''} ya guardada${countOld > 1 ? 's' : ''} en Drive</span>` : ''}
+                    </div>
+                </div>
+            `;
+        } else if (countOld > 0) {
+            alertBox.style.display = 'flex';
+            alertBox.style.alignItems = 'center';
+            alertBox.style.gap = '10px';
+            alertBox.style.background = 'rgba(59, 130, 246, 0.08)';
+            alertBox.style.border = '1px solid #3b82f6';
+            alertBox.style.color = 'var(--text-main)';
+            alertBox.innerHTML = `
+                <i data-lucide="cloud" style="width: 20px; height: 20px; color: #3b82f6; flex-shrink: 0;"></i>
+                <span style="font-size: 0.8rem; color: #2563eb;"><strong>${countOld} foto${countOld > 1 ? 's' : ''}</strong> guardada${countOld > 1 ? 's' : ''} previamente en Google Drive para este reporte.</span>
+            `;
+        } else {
+            alertBox.style.display = 'none';
+            alertBox.innerHTML = '';
+        }
+
+        if (submitBtn && !submitBtn.disabled) {
+            const btnBaseText = editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte';
+            const photosBadge = countNew > 0 ? ` (${countNew} foto${countNew > 1 ? 's' : ''} lista${countNew > 1 ? 's' : ''})` : '';
+            submitBtn.innerHTML = `<i data-lucide="send" style="width: 20px;"></i> ${btnBaseText}${photosBadge}`;
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
     if (editData && editData.photoLinks) {
         existingPhotos = editData.photoLinks.split(/[\n,]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
         setTimeout(renderPhotos, 100);
@@ -613,13 +686,15 @@ function renderReport(container, editData = null) {
     photoInput.onchange = async (e) => {
         if (processingPhotos) return;
         const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+
         if(photosArray.length + existingPhotos.length + files.length > 20) { 
             showToast("Límite de fotos", "Puedes adjuntar un máximo de 20 fotos por reporte."); 
             return; 
         }
-        const oversized = files.find(file => file.size > 10 * 1024 * 1024);
+        const oversized = files.find(file => file.size > 30 * 1024 * 1024);
         if (oversized) {
-            showToast("Foto demasiado grande", `“${oversized.name}” supera 10 MB. Redúcela antes de subirla.`);
+            showToast("Foto demasiado grande", `“${oversized.name}” supera 30 MB. Reduce el tamaño antes de subirla.`);
             photoInput.value = "";
             return;
         }
@@ -628,21 +703,27 @@ function renderReport(container, editData = null) {
         photoInput.disabled = true;
         photoTrigger?.setAttribute('aria-busy', 'true');
         if(photoTrigger) photoTrigger.innerHTML = '<div class="loader" style="width:20px;height:20px;border-width:2px;border-color:var(--xiaomi-orange) transparent transparent;"></div>';
+        updatePhotoStatusAlert(`Preparando ${files.length} foto(s)…`);
         
+        let addedCount = 0;
         for (let i = 0; i < files.length; i++) {
             try {
+                updatePhotoStatusAlert(`Optimizando foto ${i + 1} de ${files.length} (“${files[i].name}”)…`);
                 const compressedBase64 = await compressImage(files[i]);
                 if (!form.isConnected) break;
                 const estimatedBytes = Math.ceil((compressedBase64.length * 3) / 4);
-                const currentBytes = photosArray.reduce((total, photo) => total + Math.ceil((photo.base64Data.length * 3) / 4), 0);
+                const currentBytes = photosArray.reduce((total, photo) => total + (photo.byteSize || Math.ceil((photo.base64Data.length * 3) / 4)), 0);
                 if (estimatedBytes > 1.8 * 1024 * 1024 || currentBytes + estimatedBytes > 12 * 1024 * 1024) {
                     throw new Error("La imagen comprimida supera el límite seguro de envío.");
                 }
                 photosArray.push({
                     name: files[i].name,
                     mimeType: 'image/jpeg',
-                    base64Data: compressedBase64
+                    base64Data: compressedBase64,
+                    byteSize: estimatedBytes,
+                    formattedSize: formatBytes(estimatedBytes)
                 });
+                addedCount++;
                 renderPhotos(); 
             } catch (err) {
                 console.error("Error comprimiendo foto:", err);
@@ -657,6 +738,10 @@ function renderReport(container, editData = null) {
         if (typeof lucide !== 'undefined') lucide.createIcons();
         
         photoInput.value = "";
+        updatePhotoStatusAlert();
+        if (addedCount > 0 && typeof showToast === 'function') {
+            showToast("Fotos preparadas", `${addedCount} foto(s) procesada(s) con éxito y lista(s) para enviar.`);
+        }
     };
 
     function renderPhotos() {
@@ -673,8 +758,8 @@ function renderReport(container, editData = null) {
             div.className = 'photo-thumb-v9 fade-in';
             const idMatch = p.match(/id=([^&]+)/) || p.match(/\/d\/([^/]+)/);
             const thumb = idMatch ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w200` : p;
-            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${thumb}) center/cover; position: relative; border: 2px solid #3b82f6; cursor:pointer;`;
-            div.title = "Haz clic para ver en Drive";
+            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${thumb}) center/cover; position: relative; border: 2px solid #3b82f6; cursor:pointer; overflow: hidden;`;
+            div.title = "Foto guardada en Drive · Clic para abrir";
             div.onclick = () => {
                 const safeUrl = window.safeExternalUrl ? window.safeExternalUrl(p) : '';
                 if (safeUrl) {
@@ -682,7 +767,10 @@ function renderReport(container, editData = null) {
                     if (opened) opened.opener = null;
                 }
             };
-            div.innerHTML = `<button type="button" style="position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; z-index:10;">×</button>`;
+            div.innerHTML = `
+                <button type="button" aria-label="Eliminar foto" style="position: absolute; top: 4px; right: 4px; background: rgba(239, 68, 68, 0.9); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; z-index:10; box-shadow: 0 1px 3px rgba(0,0,0,0.4);">×</button>
+                <div style="position: absolute; bottom: 3px; left: 3px; right: 3px; background: rgba(59, 130, 246, 0.92); color: white; font-size: 0.6rem; font-weight: 700; border-radius: 4px; padding: 2px 4px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 3px; pointer-events: none; box-shadow: 0 1px 2px rgba(0,0,0,0.3);"><i data-lucide="cloud" style="width: 10px; height: 10px;"></i> Guardada</div>
+            `;
             div.querySelector('button').onclick = (e) => { e.stopPropagation(); existingPhotos.splice(idx, 1); renderPhotos(); };
             photoContainer.insertBefore(div, photoTrigger);
         });
@@ -691,13 +779,18 @@ function renderReport(container, editData = null) {
         photosArray.forEach((p, idx) => {
             const div = document.createElement('div');
             div.className = 'photo-thumb-v9 fade-in';
-            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${p.base64Data}) center/cover; position: relative; border: 2px solid var(--xiaomi-orange);`;
-            div.innerHTML = `<button type="button" style="position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; z-index:10;">×</button>`;
+            div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${p.base64Data}) center/cover; position: relative; border: 2px solid var(--xiaomi-orange); overflow: hidden;`;
+            div.title = `${p.name} · ${p.formattedSize || ''} · Lista para subir`;
+            div.innerHTML = `
+                <button type="button" aria-label="Eliminar foto" style="position: absolute; top: 4px; right: 4px; background: rgba(239, 68, 68, 0.9); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; z-index:10; box-shadow: 0 1px 3px rgba(0,0,0,0.4);">×</button>
+                <div style="position: absolute; bottom: 3px; left: 3px; right: 3px; background: rgba(16, 185, 129, 0.95); color: white; font-size: 0.6rem; font-weight: 700; border-radius: 4px; padding: 2px 4px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 3px; pointer-events: none; box-shadow: 0 1px 2px rgba(0,0,0,0.3);"><i data-lucide="check" style="width: 10px; height: 10px;"></i> Lista</div>
+            `;
             div.querySelector('button').onclick = (e) => { e.stopPropagation(); photosArray.splice(idx, 1); renderPhotos(); };
             photoContainer.insertBefore(div, photoTrigger);
         });
         
         if(photoTrigger) photoTrigger.style.display = total >= 20 ? 'none' : 'flex';
+        updatePhotoStatusAlert();
     }
 
     const form = document.getElementById('trainingForm');
@@ -790,7 +883,7 @@ function renderReport(container, editData = null) {
 
         // Feedback de progreso
         if (photosArray.length > 0) {
-            btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Preparando ${photosArray.length} fotos...`;
+            btn.innerHTML = `<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Enviando reporte y subiendo ${photosArray.length} fotos...`;
         } else {
             btn.innerHTML = '<div class="loader" style="width:20px; height:20px; border-width:2px;"></div> Enviando reporte...';
         }
@@ -815,13 +908,13 @@ function renderReport(container, editData = null) {
                 navigate('#dashboard');
             } else {
                 showToast("No se pudo guardar", res.message || "Revisa los datos e inténtalo de nuevo.");
-                btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte');
-                if (typeof lucide !== 'undefined') lucide.createIcons();
+                btn.disabled = false;
+                updatePhotoStatusAlert();
             }
         } catch(err) {
             showToast("Error de conexión", "No se pudo enviar el reporte. Comprueba la conexión e inténtalo de nuevo.");
-            btn.disabled = false; btn.innerHTML = '<i data-lucide="send" style="width: 20px;"></i> ' + (editData && editData.mode === 'edit' ? 'Guardar Cambios' : 'Enviar Reporte');
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            btn.disabled = false;
+            updatePhotoStatusAlert();
         }
     };
 

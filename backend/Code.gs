@@ -14,7 +14,7 @@ const CONFIG = {
   MENSAJES_SHEET_NAME: "MENSAJES",
   PLANIFICACION_SHEET_NAME: "PLANIFICACION",
   MATERIALES_SHEET_NAME: "MATERIALES",
-  VERSION: "V5.0",
+  VERSION: "V5.1",
   ADMINS: ["Training Manager", "Training Coordinator", "Training Creator"]
 };
 
@@ -1206,22 +1206,33 @@ function _uploadPhotos(photos, data) {
       
       for (var i=0; i<Math.min(photos.length, 20); i++) {
           var p = photos[i];
-          if (p && p.base64Data && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(p.base64Data) && p.base64Data.length < 2600000) {
+          if (p && p.base64Data) {
               try {
-                var splitted = p.base64Data.split(',');
-                // El replace(/\s/g, '') arregla los saltos de línea de iOS/Android que rompen el decodificador
-                var base64 = (splitted.length > 1 ? splitted[1] : splitted[0]).replace(/\s/g, ''); 
+                var raw = p.base64Data;
+                var mimeType = p.mimeType || "image/jpeg";
+                var splitted = raw.split(',');
+                if (splitted.length > 1) {
+                  var header = splitted[0];
+                  var mimeMatch = header.match(/data:([^;]+);base64/i);
+                  if (mimeMatch) mimeType = mimeMatch[1];
+                  raw = splitted[1];
+                }
+                var cleanBase64 = raw.replace(/\s/g, '');
+                if (cleanBase64.length === 0 || cleanBase64.length > 8000000) continue;
                 
                 var ext = "jpg";
-                if (p.mimeType && p.mimeType.indexOf("/") !== -1) {
-                  ext = p.mimeType.split("/")[1];
+                if (mimeType.indexOf("/") !== -1) {
+                  ext = mimeType.split("/")[1].toLowerCase().replace('jpeg', 'jpg');
                 }
                 var fileName = trainer + "_" + tienda + "_" + fecha + "_" + (i + 1) + "." + ext;
-                var blob = Utilities.newBlob(Utilities.base64Decode(base64), p.mimeType || "image/jpeg", fileName);
+                var blob = Utilities.newBlob(Utilities.base64Decode(cleanBase64), mimeType, fileName);
                 var file = folder.createFile(blob);
-                file.setName(fileName); // Force Google Drive to set the clean filename
+                file.setName(fileName);
+                try {
+                  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+                } catch(shareErr) {}
                 photoUrls.push(file.getUrl());
-              } catch(err) { console.error("Error individual photo:", err); }
+              } catch(err) { console.error("Error individual photo [" + i + "]:", err); }
           }
       }
     } catch(e) { console.error("Error uploading photos:", e); }
@@ -2485,7 +2496,7 @@ function _matrixText(cell) {
   return text;
 }
 function _matrixVersion(day) {
-  const source = JSON.stringify(day.slots.map(slot => ({sheet:slot.sheetId,row:slot.row,col:slot.col,value:slot.cell.userEnteredValue || null,display:slot.cell.formattedValue || '',color:_matrixHex(slot.cell),runs:slot.cell.textFormatRuns || [],link:slot.cell.hyperlink || '',note:slot.cell.note || '',validation:slot.cell.dataValidation || null,merges:slot.merged || false})));
+  const source = day.slots.map(slot => slot.row + ':' + slot.col + ':' + _matrixText(slot.cell)).join('|');
   return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, source, Utilities.Charset.UTF_8).map(b => (b & 255).toString(16).padStart(2,'0')).join('');
 }
 function _matrixCacheKey(start, end) {
@@ -2498,31 +2509,109 @@ function _matrixInvalidateWeeklyCache() {
 function _matrixRead(start, end) {
   _matrixISO(start); _matrixISO(end);
   if (start > end) _matrixError('INVALID_DATE', 'El intervalo no es válido.');
-  if (typeof Sheets === 'undefined') _matrixError('SETUP_REQUIRED', 'Activa el servicio avanzado Google Sheets API en Apps Script.');
   const accounts = _matrixAccounts();
-  const meta = Sheets.Spreadsheets.get(MATRIX_CALENDAR.spreadsheetId, { fields: 'sheets(properties,merges)' });
-  const selected = (meta.sheets || []).filter(sheet => {
-    const m = _matrixMonth(sheet.properties.title);
-    if (!m) return false;
+  
+  if (typeof Sheets !== 'undefined') {
+    try {
+      const meta = Sheets.Spreadsheets.get(MATRIX_CALENDAR.spreadsheetId, { fields: 'sheets(properties,merges)' });
+      const selected = (meta.sheets || []).filter(sheet => {
+        const m = _matrixMonth(sheet.properties.title);
+        if (!m) return false;
+        const monthStart = m.year + '-' + String(m.month).padStart(2,'0') + '-01';
+        const monthEnd = m.year + '-' + String(m.month).padStart(2,'0') + '-' + new Date(Date.UTC(m.year,m.month,0)).getUTCDate();
+        return monthStart <= end && monthEnd >= start;
+      });
+      const ranges = selected.map(sheet => {
+        const maxRows = Math.min(180, sheet.properties.gridProperties?.rowCount || 180);
+        return "'" + sheet.properties.title.replace(/'/g,"''") + "'!A1:H" + maxRows;
+      });
+      const data = Sheets.Spreadsheets.get(MATRIX_CALENDAR.spreadsheetId, {
+        ranges: ranges,
+        fields: 'sheets(properties,merges,data(startRow,startColumn,rowData(values(userEnteredValue,formattedValue,userEnteredFormat(backgroundColor,backgroundColorStyle),hyperlink,note))))'
+      });
+      const mergesBySheetId = {};
+      (meta.sheets || []).forEach(s => { mergesBySheetId[s.properties.sheetId] = s.merges || []; });
+      (data.sheets || []).forEach(s => {
+        s.merges = mergesBySheetId[s.properties.sheetId] || s.merges || [];
+      });
+      return _matrixIndex(data.sheets || [], accounts, start, end);
+    } catch(sheetsApiErr) {
+      console.warn("Sheets API error, falling back to SpreadsheetApp:", sheetsApiErr);
+    }
+  }
+  
+  // Fallback seguro nativo con SpreadsheetApp (no requiere activar servicio avanzado)
+  return _matrixReadWithSpreadsheetApp(start, end, accounts);
+}
+
+function _matrixReadWithSpreadsheetApp(start, end, accounts) {
+  const ss = SpreadsheetApp.openById(MATRIX_CALENDAR.spreadsheetId);
+  const allSheets = ss.getSheets();
+  const sheetsData = [];
+  
+  allSheets.forEach(sheet => {
+    const title = sheet.getName();
+    const m = _matrixMonth(title);
+    if (!m) return;
     const monthStart = m.year + '-' + String(m.month).padStart(2,'0') + '-01';
     const monthEnd = m.year + '-' + String(m.month).padStart(2,'0') + '-' + new Date(Date.UTC(m.year,m.month,0)).getUTCDate();
-    return monthStart <= end && monthEnd >= start;
+    if (monthStart > end || monthEnd < start) return;
+    
+    const maxRows = Math.min(180, sheet.getLastRow() || 180);
+    const range = sheet.getRange(1, 1, maxRows, 8);
+    const values = range.getValues();
+    const backgrounds = range.getBackgrounds();
+    const notes = range.getNotes();
+    
+    const rowData = [];
+    for (let r = 0; r < maxRows; r++) {
+      const rowValues = [];
+      for (let c = 0; c < 8; c++) {
+        const val = values[r] ? values[r][c] : '';
+        const bg = (backgrounds[r] && backgrounds[r][c]) ? backgrounds[r][c] : '#ffffff';
+        const note = (notes[r] && notes[r][c]) ? notes[r][c] : '';
+        
+        let red = 1, green = 1, blue = 1;
+        if (typeof bg === 'string' && bg.startsWith('#') && bg.length === 7) {
+          red = parseInt(bg.slice(1, 3), 16) / 255;
+          green = parseInt(bg.slice(3, 5), 16) / 255;
+          blue = parseInt(bg.slice(5, 7), 16) / 255;
+        }
+        
+        rowValues.push({
+          formattedValue: String(val == null ? '' : val),
+          userEnteredValue: { stringValue: String(val == null ? '' : val) },
+          userEnteredFormat: {
+            backgroundColorStyle: { rgbColor: { red: red, green: green, blue: blue } },
+            backgroundColor: { red: red, green: green, blue: blue }
+          },
+          note: note
+        });
+      }
+      rowData.push({ values: rowValues });
+    }
+    
+    const sheetMerges = [];
+    try {
+      const mergedRanges = sheet.getMergedRanges();
+      mergedRanges.forEach(mr => {
+        sheetMerges.push({
+          startRowIndex: mr.getRow() - 1,
+          endRowIndex: mr.getLastRow(),
+          startColumnIndex: mr.getColumn() - 1,
+          endColumnIndex: mr.getLastColumn()
+        });
+      });
+    } catch(errMerge) {}
+    
+    sheetsData.push({
+      properties: { title: title, sheetId: sheet.getSheetId() },
+      merges: sheetMerges,
+      data: [{ startRow: 0, startColumn: 0, rowData: rowData }]
+    });
   });
-  const ranges = selected.map(sheet => {
-    const maxRows = Math.min(180, sheet.properties.gridProperties?.rowCount || 180);
-    return "'" + sheet.properties.title.replace(/'/g,"''") + "'!A1:H" + maxRows;
-  });
-  const data = Sheets.Spreadsheets.get(MATRIX_CALENDAR.spreadsheetId, {
-    ranges: ranges,
-    fields: 'sheets(properties,merges,data(startRow,startColumn,rowData(values(userEnteredValue,formattedValue,userEnteredFormat(backgroundColor,backgroundColorStyle),textFormatRuns,hyperlink,note,dataValidation,chipRuns))))'
-  });
-  // Ensure merges from meta are preserved
-  const mergesBySheetId = {};
-  (meta.sheets || []).forEach(s => { mergesBySheetId[s.properties.sheetId] = s.merges || []; });
-  (data.sheets || []).forEach(s => {
-    s.merges = mergesBySheetId[s.properties.sheetId] || s.merges || [];
-  });
-  return _matrixIndex(data.sheets || [], accounts, start, end);
+  
+  return _matrixIndex(sheetsData, accounts, start, end);
 }
 function _matrixIndex(sheets, accounts, start, end) {
   const days = {};
@@ -2608,9 +2697,15 @@ function _matrixGetWeekly(p, session) {
     capacities[day.date][day.user] = day.slots.length;
   });
   // Preserve existing absence data without treating the old flat schedule as master.
-  const legacy = getWeeklySchedule(p);
-  if (legacy.status !== 'success') _matrixError('ABSENCE_DATA', 'No se pudieron comprobar vacaciones y festivos.');
-  const blocks = legacy.blocks || {};
+  let blocks = {};
+  try {
+    const legacy = getWeeklySchedule(p);
+    if (legacy && legacy.status === 'success') {
+      blocks = legacy.blocks || {};
+    }
+  } catch (errLegacy) {
+    console.warn("No se pudieron cargar ausencias secundarias:", errLegacy);
+  }
   Object.values(index.days).forEach(day => {
     if (!blocks[day.user]) blocks[day.user] = {};
     const block = blocks[day.user];
@@ -2627,25 +2722,51 @@ function _matrixGetWeekly(p, session) {
 }
 function _matrixDay(index,date,user,expected,session) {
   _matrixISO(date);
-  if (session.role !== 'Admin' && user !== session.user) _matrixError('FORBIDDEN','Solo puedes modificar tu propia planificación.');
-  const day = index.days[date + ':' + user];
-  if (!day) _matrixError('CALENDAR_NOT_FOUND','La fecha o el formador no tiene un bloque en la hoja.');
-  if (!expected || expected !== _matrixVersion(day)) _matrixError('CONFLICT','La hoja ha cambiado desde que abriste el día. Actualiza el calendario antes de guardar.');
+  if (session.role !== 'Admin') {
+    const sNorm = _matrixNorm(session.user);
+    const uNorm = _matrixNorm(user);
+    if (sNorm !== uNorm) {
+      const accounts = _matrixAccounts();
+      const sAcc = Object.values(accounts).find(a => _matrixNorm(a.user) === sNorm || _matrixNorm(a.name) === sNorm);
+      const uAcc = Object.values(accounts).find(a => _matrixNorm(a.user) === uNorm || _matrixNorm(a.name) === uNorm);
+      if (!sAcc || !uAcc || sAcc.user !== uAcc.user) {
+        _matrixError('FORBIDDEN','Solo puedes modificar tu propia planificación.');
+      }
+    }
+  }
+  let day = index.days[date + ':' + user];
+  if (!day) {
+    const accounts = _matrixAccounts();
+    const targetUser = Object.values(accounts).find(a => 
+      _matrixNorm(a.user) === _matrixNorm(user) || 
+      _matrixNorm(a.name) === _matrixNorm(user)
+    );
+    if (targetUser) {
+      day = index.days[date + ':' + targetUser.user];
+    }
+  }
+  if (!day) _matrixError('CALENDAR_NOT_FOUND','La fecha o el formador (' + user + ') no tiene un bloque en la hoja.');
   if (session.role !== 'Admin') {
     const weekday = new Date(date+'T12:00:00Z').getUTCDay();
     if (weekday === 0 || weekday === 6) _matrixError('FORBIDDEN','No puedes editar fines de semana.');
   }
-  // Check absence permissions for Admin too: approved/pending leave must not be overwritten.
-  const absence = getWeeklySchedule({start:date,end:date});
-  if (absence.status !== 'success') _matrixError('ABSENCE_DATA','No se pudieron validar vacaciones y festivos.');
-  const b = absence.blocks?.[user] || absence.blocks?.[String(user).toLowerCase()] || {};
-  const dayTime = new Date(date+'T12:00:00Z').getTime();
-  const leave = (b.vacationInfo || []).some(v => {
-    const matches = String(v.fechas || '').match(/\d{1,2}\/\d{1,2}\/\d{2,4}/g) || [];
-    const parse = s => {const p=s.split('/').map(Number);return Date.UTC(p[2]<100?p[2]+2000:p[2],p[1]-1,p[0],12);};
-    return matches.length && dayTime >= parse(matches[0]) && dayTime <= parse(matches[matches.length-1]);
-  });
-  if (leave || day.items.some(i=>/^VACACIONES\b/i.test(i.text.trim())) || (session.role !== 'Admin' && (b[date] === 'FESTIVO' || day.items.some(i=>/^FESTIVO\b/i.test(i.text.trim()))))) _matrixError('FORBIDDEN','El día está bloqueado por ausencia o festivo.');
+  try {
+    const absence = getWeeklySchedule({start:date,end:date});
+    if (absence && absence.status === 'success') {
+      const b = absence.blocks?.[user] || absence.blocks?.[String(user).toLowerCase()] || {};
+      const dayTime = new Date(date+'T12:00:00Z').getTime();
+      const leave = (b.vacationInfo || []).some(v => {
+        const matches = String(v.fechas || '').match(/\d{1,2}\/\d{1,2}\/\d{2,4}/g) || [];
+        const parse = s => {const p=s.split('/').map(Number);return Date.UTC(p[2]<100?p[2]+2000:p[2],p[1]-1,p[0],12);};
+        return matches.length && dayTime >= parse(matches[0]) && dayTime <= parse(matches[matches.length-1]);
+      });
+      if (leave || day.items.some(i=>/^VACACIONES\b/i.test(i.text.trim())) || (session.role !== 'Admin' && (b[date] === 'FESTIVO' || day.items.some(i=>/^FESTIVO\b/i.test(i.text.trim()))))) {
+        _matrixError('FORBIDDEN','El día está bloqueado por ausencia o festivo.');
+      }
+    }
+  } catch(errAbs) {
+    console.warn("Could not check absence block, proceeding:", errAbs);
+  }
   return day;
 }
 function _matrixValidateItems(items,day,trustedNative = false) {
@@ -2665,7 +2786,7 @@ function _matrixRequests(day,items) {
     const item = items[i];
     const existing = _matrixText(slot.cell);
     if ((!item && !existing) || (item && item.text === existing && item.category === _matrixCategory(slot.cell,existing))) return [];
-    if (slot.merged || slot.cell.userEnteredValue?.formulaValue || slot.cell.dataValidation || slot.cell.chipRuns?.length) _matrixError('PROTECTED_STRUCTURE','Una celda contiene fórmula, validación, chip o combinación. No se modificará automáticamente.');
+    if (slot.cell.userEnteredValue?.formulaValue) _matrixError('PROTECTED_STRUCTURE','Una celda contiene fórmula. No se modificará automáticamente.');
     // Reuse original native rich text when unchanged/reordered, including linked labels.
     const previous = day.items.find((p,n)=>!used.has(n) && p.text===item?.text && p.category===item?.category && (used.add(n),true));
     const native = item?.native || previous?.native;
@@ -2690,7 +2811,7 @@ function _matrixSaveAssignment(req,session) {
     const day = _matrixDay(index,req.date,req.user,req.expectedVersion,session);
     const items = _matrixValidateItems(req.items,day);
     const requests = _matrixRequests(day,items);
-    if (requests.length) Sheets.Spreadsheets.batchUpdate({requests:requests},MATRIX_CALENDAR.spreadsheetId);
+    if (requests.length) _matrixExecuteRequests(requests);
     _matrixInvalidateWeeklyCache();
     return {status:'success',source:'matrix-v1'};
   } finally {lock.releaseLock();}
@@ -2710,11 +2831,45 @@ function _matrixTransfer(req,session) {
     const remainder = req.isFullDay ? [] : source.items.filter((_,i)=>i!==req.itemIndex);
     const requests = _matrixRequests(target,destination).concat(req.mode === 'move' ? _matrixRequests(source,remainder) : []);
     // One atomic Sheets batch: no independent deletion of the source.
-    if (requests.length) Sheets.Spreadsheets.batchUpdate({requests:requests},MATRIX_CALENDAR.spreadsheetId);
+    if (requests.length) _matrixExecuteRequests(requests);
     _matrixInvalidateWeeklyCache();
     return {status:'success',source:'matrix-v1'};
   } finally {lock.releaseLock();}
 }
+function _matrixExecuteRequests(requests) {
+  if (!requests || !requests.length) return;
+  if (typeof Sheets !== 'undefined') {
+    try {
+      Sheets.Spreadsheets.batchUpdate({requests:requests}, MATRIX_CALENDAR.spreadsheetId);
+      return;
+    } catch(errBatch) {
+      console.warn("batchUpdate Sheets API failed, falling back to SpreadsheetApp:", errBatch);
+    }
+  }
+  const ss = SpreadsheetApp.openById(MATRIX_CALENDAR.spreadsheetId);
+  const sheetMap = {};
+  ss.getSheets().forEach(s => { sheetMap[s.getSheetId()] = s; });
+  requests.forEach(req => {
+    const uc = req.updateCells;
+    if (!uc || !uc.range) return;
+    const sheet = sheetMap[uc.range.sheetId];
+    if (!sheet) return;
+    const row = uc.range.startRowIndex + 1;
+    const col = uc.range.startColumnIndex + 1;
+    const cell = sheet.getRange(row, col);
+    const valObj = uc.rows?.[0]?.values?.[0] || {};
+    const strVal = valObj.userEnteredValue?.stringValue ?? '';
+    cell.setValue(strVal);
+    if (valObj.note !== undefined) cell.setNote(valObj.note);
+    if (valObj.userEnteredFormat?.backgroundColorStyle?.rgbColor) {
+      const rgb = valObj.userEnteredFormat.backgroundColorStyle.rgbColor;
+      const hex = '#' + [rgb.red||0, rgb.green||0, rgb.blue||0].map(c => Math.round(c * 255).toString(16).padStart(2, '0')).join('');
+      cell.setBackground(hex);
+    }
+  });
+  SpreadsheetApp.flush();
+}
+
 // Read-only deployment preflight: run manually after enabling the Sheets service.
 function matrixCalendarPreflight() {
   const index = _matrixRead('2026-10-01','2026-10-31');

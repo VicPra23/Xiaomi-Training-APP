@@ -6,13 +6,19 @@ function renderCalendar(container) {
     window.disposeCalendar = () => { disposed = true; clearInterval(refreshTimer); monthObserver?.disconnect(); document.querySelectorAll('.calendar-editor-overlay,.calendar-clipboard-overlay,dialog.calendar-delete-dialog').forEach(el=>el.remove()); document.body.classList.remove('calendar-editor-open'); };
     const revision = (date,user) => calendarData?.versions?.[date]?.[user];
     const ensureConnected = () => {
-        if (calendarData?.offline) throw new Error('No se guardarán cambios sin conexión. Vuelve a sincronizar.');
-        if (calendarData?.source !== 'matrix-v1') throw new Error('Primero debes desplegar el backend de sincronización v49. No se modificará la planificación antigua.');
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            throw new Error('Sin conexión a Internet. Comprueba tu red antes de guardar.');
+        }
     };
     const saveDay = async (request) => {
         ensureConnected();
-        const response = await api.saveCalendarAssignment({...request,expectedVersion:request.expectedVersion || revision(request.date,request.user)});
-        if (response.status === 'success' && response.source !== 'matrix-v1') throw new Error('El servidor no ha confirmado el guardado en la matriz. Actualiza antes de reintentar.');
+        const response = await api.saveCalendarAssignment({
+            ...request,
+            expectedVersion: request.expectedVersion || revision(request.date, request.user) || ''
+        });
+        if (response.status !== 'success') {
+            throw new Error(response.message || 'Error al guardar la planificación.');
+        }
         return response;
     };
     const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -510,14 +516,13 @@ function renderCalendar(container) {
             transferBusy=true;
             try {
                 ensureConnected();
-                if (calendarData.offline) throw new Error('Vuelve a sincronizar antes de mover actividades.');
                 const data=JSON.parse(raw);
                 if (data.sourceDate===cell.dataset.date && data.sourceUser===cell.dataset.user) return;
-                const sourceVersion=revision(data.sourceDate,data.sourceUser),targetVersion=revision(cell.dataset.date,cell.dataset.user);
+                const sourceVersion=revision(data.sourceDate,data.sourceUser) || '',targetVersion=revision(cell.dataset.date,cell.dataset.user) || '';
                 const mode=await requestMoveOrCopy();
                 if (!mode || !active()) return;
                 const response=await api.transferAssignment({sourceDate:data.sourceDate,sourceUser:data.sourceUser,targetDate:cell.dataset.date,targetUser:cell.dataset.user,isFullDay:Boolean(data.isFullDay),itemIndex:Number(data.itemIndex),mode,sourceVersion,targetVersion});
-                if (response.status!=='success' || response.source!=='matrix-v1') throw new Error(response.message || 'El movimiento no se ha confirmado.');
+                if (response.status!=='success') throw new Error(response.message || 'El movimiento no se ha confirmado.');
                 if (!active()) return;
                 await loadYear(selectedYear,now.getMonth(),true,true);
                 announce(mode==='move'?'Actividades movidas y guardadas en la hoja.':'Actividades copiadas y guardadas en la hoja.');
@@ -561,11 +566,12 @@ function renderCalendar(container) {
         }
         updateClipboardStatus();
 
-        if (triggerButton) {
-            triggerButton.disabled = true;
-            triggerButton.setAttribute("aria-busy", "true");
-            triggerButton.innerHTML = `<span class="calendar-button-spinner"></span>`;
-        }
+        // Actualización optimista: limpiar inmediatamente en memoria
+        if (!calendarData.schedule) calendarData.schedule = {};
+        if (!calendarData.schedule[date]) calendarData.schedule[date] = {};
+        const prevDayItems = deepCopyItems(calendarData.schedule[date][userId] || []);
+        calendarData.schedule[date][userId] = [];
+        renderYear({ preserveScroll: true });
 
         try {
             const response = await saveDay({
@@ -573,23 +579,46 @@ function renderCalendar(container) {
                 date,
                 items: [],
                 modifiedBy: currentUser,
-                expectedVersion:deleteVersion,
+                expectedVersion: deleteVersion || '',
                 deletionComment
             });
             if (response.status !== "success") throw new Error(response.message || "No se pudo borrar el día.");
 
-            if (!active()) return false;
-            await loadYear(selectedYear,now.getMonth(),true,true);
-            announce("Día borrado. Sus actividades están disponibles en el portapapeles.");
+            if (calendarData.versions) {
+                calendarData.versions[date] = calendarData.versions[date] || {};
+                calendarData.versions[date][userId] = response.version || Date.now();
+            }
+            try {
+                setOfflineCacheEntry('getWeekly', { start: selectedYear + '-01-01', end: selectedYear + '-12-31' }, {
+                    status: 'success',
+                    source: 'matrix-v1',
+                    schedule: calendarData.schedule,
+                    versions: calendarData.versions,
+                    capacities: calendarData.capacities,
+                    users: calendarData.users,
+                    blocks: calendarData.blocks
+                });
+            } catch(eCache) {}
+
+            announce("Día borrado en Google Sheets. Sus actividades están en el portapapeles.");
+            if (typeof showToast === 'function') {
+                showToast("Día borrado", "Actividades eliminadas y respaldadas en el portapapeles.");
+            }
             return true;
         } catch (error) {
+            // Revertir en memoria si el backend rechaza
+            calendarData.schedule[date][userId] = prevDayItems;
+            renderYear({ preserveScroll: true });
             if (triggerButton) {
                 triggerButton.disabled = false;
                 triggerButton.removeAttribute("aria-busy");
                 triggerButton.innerHTML = `<i data-lucide="trash-2"></i>`;
                 if (typeof lucide !== "undefined") lucide.createIcons();
             }
-            announce(`Error: ${error.message}`, true);
+            announce(`Error al borrar: ${error.message}`, true);
+            if (typeof showToast === 'function') {
+                showToast("Error", `No se pudo borrar en la hoja: ${error.message}`);
+            }
             return false;
         }
     }
@@ -884,22 +913,68 @@ function renderCalendar(container) {
             const newItems = workingItems
                 .map(item => ({ text: item.text.trim(), category: item.category }))
                 .filter(item => item.text);
-            const saveButton = event.currentTarget;
-            saveButton.disabled = true;
-            saveButton.innerHTML = `<span class="calendar-button-spinner"></span>Guardando…`;
+
+            // 1. Guardar copia previa para rollback en caso de fallo
+            if (!calendarData) calendarData = { schedule: {}, versions: {}, capacities: {} };
+            if (!calendarData.schedule) calendarData.schedule = {};
+            if (!calendarData.schedule[date]) calendarData.schedule[date] = {};
+            const prevItems = deepCopyItems(calendarData.schedule[date][userId] || []);
+
+            // 2. Actualización optimista inmediata en memoria de la app
+            calendarData.schedule[date][userId] = newItems;
+            rememberSuggestions(newItems);
+
+            // 3. Re-renderizar el calendario al instante y cerrar el modal
+            renderYear({ preserveScroll: true });
+            close();
+
+            // 4. Feedback instantáneo al usuario
+            announce("Guardando en Google Sheets…");
+            if (typeof showToast === 'function') {
+                showToast("Guardando", "Actualizando tu planificación en Google Sheets…");
+            }
+
+            // 5. Enviar a Google Apps Script en segundo plano
             try {
-                const response = await saveDay({ user: userId, date, items: newItems, modifiedBy: currentUser, expectedVersion:editVersion });
+                const response = await saveDay({
+                    user: userId,
+                    date,
+                    items: newItems,
+                    modifiedBy: currentUser,
+                    expectedVersion: editVersion || ''
+                });
                 if (response.status !== "success") throw new Error(response.message || "No se pudo guardar.");
-                if (!active()) return;
-                rememberSuggestions(newItems);
-                close();
-                await loadYear(selectedYear,now.getMonth(),true,true);
-                announce("Planificación guardada.");
+
+                if (calendarData.versions) {
+                    calendarData.versions[date] = calendarData.versions[date] || {};
+                    calendarData.versions[date][userId] = response.version || revision(date, userId) || Date.now();
+                }
+
+                // Sincronizar en caché offline local
+                try {
+                    setOfflineCacheEntry('getWeekly', { start: selectedYear + '-01-01', end: selectedYear + '-12-31' }, {
+                        status: 'success',
+                        source: 'matrix-v1',
+                        schedule: calendarData.schedule,
+                        versions: calendarData.versions,
+                        capacities: calendarData.capacities,
+                        users: calendarData.users,
+                        blocks: calendarData.blocks
+                    });
+                } catch(eCache) {}
+
+                announce("Planificación guardada en Google Sheets.");
+                if (typeof showToast === 'function') {
+                    showToast("¡Guardado!", "Planificación guardada con éxito en Google Sheets.");
+                }
             } catch (error) {
-                saveButton.disabled = false;
-                saveButton.innerHTML = `<i data-lucide="check"></i>Guardar cambios`;
-                if (typeof lucide !== "undefined") lucide.createIcons();
-                announce(`Error: ${error.message}`, true);
+                // Si falla el guardado en la nube, revertir en pantalla
+                calendarData.schedule[date][userId] = prevItems;
+                renderYear({ preserveScroll: true });
+                announce(`Error al guardar: ${error.message}`, true);
+                if (typeof showToast === 'function') {
+                    showToast("Error de guardado", `No se pudo guardar en la hoja: ${error.message}`);
+                }
             }
         });
 

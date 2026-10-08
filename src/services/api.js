@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbxt5JR6kGZKtI_1OMiLu_-8ns_cYPiD5ROrWp47vMjabfAoh6Cp-1-O7xVbMTsPzOd3IA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbybQLM2bOW2bZLeiaeEfzbt03NulV-fEhNI_KuD_1hy-78MfKCgqmRZQGTftj1_uKpJ/exec";
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
 const _metadataCache = new Map();
@@ -57,13 +57,16 @@ function sendGet(action, params = {}, useCache = false) {
         const callbackName = 'jsonp_' + (window.crypto?.randomUUID?.().replace(/-/g, '') || `${Date.now()}_${Math.round(1000000 * Math.random())}`);
         const script = document.createElement('script');
         
-        const timeoutMs = (action === 'getWeekly' || action === 'getDashboardStats') ? 60000 : 30000;
+        const timeoutMs = (action === 'getWeekly' || action === 'getDashboardStats') ? 90000 : 30000;
         const timeout = setTimeout(() => {
             cleanup();
             if (!current()) { resolve({status: 'stale'}); return; }
             const cached = getOfflineCacheEntry(action, params);
-            if (cached) resolve({ ...cached, offline: true });
-            else reject(new Error("Timeout: El servidor de Google no responde o hay mala cobertura."));
+            if (cached && (action !== 'getWeekly' || (cached.schedule && Object.keys(cached.schedule).length > 0))) {
+                resolve({ ...cached, offline: true });
+            } else {
+                reject(new Error("Timeout: El servidor de Google ha tardado en responder. Pulsa Reintentar."));
+            }
         }, timeoutMs); 
 
         function cleanup() {
@@ -93,8 +96,11 @@ function sendGet(action, params = {}, useCache = false) {
             cleanup(); 
             if (!current()) { resolve({status: 'stale'}); return; }
             const cached = getOfflineCacheEntry(action, params);
-            if (cached) resolve({ ...cached, offline: true });
-            else reject(new Error("Error de red o bloqueo de seguridad (CORS/VPN)."));
+            if (cached && (action !== 'getWeekly' || (cached.schedule && Object.keys(cached.schedule).length > 0))) {
+                resolve({ ...cached, offline: true });
+            } else {
+                reject(new Error("Error de red o bloqueo de seguridad (CORS/VPN)."));
+            }
         };
         
         document.body.appendChild(script);
@@ -112,8 +118,10 @@ async function sendPost(action, data = {}) {
     const session = getSessionData();
     const payload = JSON.stringify({ action, ...data, ...(session?.token && action !== "login" ? { token: session.token } : {}) });
     
+    const isPhotoOrReport = action === 'saveReport' || action === 'updateReport' || action === 'exportCustomPDF';
+    const timeoutMs = isPhotoOrReport ? 120000 : 35000;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
         const res = await fetch(API_URL, { 
             method: 'POST', 
@@ -136,7 +144,7 @@ async function sendPost(action, data = {}) {
         return result;
     } catch (e) {
         console.error(`[API] fetch error:`, e);
-        if (e.name === 'AbortError') throw new Error("La operación ha tardado demasiado. Revisa la conexión y vuelve a intentarlo.");
+        if (e.name === 'AbortError') throw new Error("La operación ha tardado demasiado tiempo. Revisa la conexión y vuelve a intentarlo.");
         if (e instanceof TypeError) throw new Error("Error de red o conexión bloqueada al enviar datos.");
         throw e;
     } finally {
@@ -181,7 +189,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "49.7"
+    VERSION: "50.2"
 };
 
 const api = {
