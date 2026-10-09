@@ -518,7 +518,7 @@ function renderReport(container, editData = null) {
     }
 
     // --- NUEVO COMPRESOR DE IMÁGENES PARA MÓVIL ---
-    async function compressImage(file, maxWidth = 1000, quality = 0.65) {
+    async function compressImage(file, maxWidth = 960, quality = 0.60) {
         let fileToProcess = file;
         
         // Soporte para HEIC/HEIF (Apple)

@@ -198,7 +198,36 @@ function renderCalendar(container) {
             if (!current()) return;
             if (usersRes.status !== 'success' || scheduleRes.status !== 'success') throw new Error(usersRes.message || scheduleRes.message || 'No se pudo cargar el calendario.');
             const wasConnected = Boolean(calendarData && !calendarData.offline);
-            calendarData = {users:scheduleRes.users || usersRes.data || [],schedule:scheduleRes.schedule || {},blocks:scheduleRes.blocks || {},source:scheduleRes.source,versions:scheduleRes.versions || {},capacities:scheduleRes.capacities || {},offline:Boolean(scheduleRes.offline && !wasConnected)};
+            
+            // Garantizar que todos los formadores activos de la intranet (incluyendo Francisco Javier / TL) estén en la lista
+            const appTrainers = (usersRes.data || []).filter(u => {
+                const uid = typeof u === 'object' ? u.user : u;
+                return uid !== 'Training Manager' && uid !== 'Training Coordinator' && uid !== 'Training Creator';
+            });
+            const scheduleUsers = scheduleRes.users || [];
+            const mergedUsers = [...scheduleUsers];
+            appTrainers.forEach(trainer => {
+                const tUid = typeof trainer === 'object' ? trainer.user : trainer;
+                const tName = typeof trainer === 'object' ? trainer.name : trainer;
+                const exists = mergedUsers.some(u => {
+                    const uid = typeof u === 'object' ? u.user : u;
+                    const name = typeof u === 'object' ? u.name : u;
+                    return uid === tUid || name === tName || (tUid === 'TL' && (uid === 'TL' || name === 'Francisco Javier'));
+                });
+                if (!exists) {
+                    mergedUsers.push(trainer);
+                }
+            });
+
+            calendarData = {
+                users: mergedUsers.length ? mergedUsers : appTrainers,
+                schedule: scheduleRes.schedule || {},
+                blocks: scheduleRes.blocks || {},
+                source: scheduleRes.source,
+                versions: scheduleRes.versions || {},
+                capacities: scheduleRes.capacities || {},
+                offline: Boolean(scheduleRes.offline && !wasConnected)
+            };
             if (isAdmin) {
                 const wrapper=container.querySelector('#calendarTrainerWrapper'),select=container.querySelector('#calendarTrainerFilter');
                 if (select && !select.tomselect) {
@@ -369,23 +398,24 @@ function renderCalendar(container) {
         return `
             <tr>
                 <td class="trainer-col" title="${escapeHTML(userId)}">${escapeHTML(displayName)}</td>
-                ${days.map((date, index) => renderDayCell(userId, date, monthIndex, index >= 5)).join("")}
+                ${days.map((date, index) => renderDayCell(userId, date, monthIndex, index >= 5, displayName)).join("")}
             </tr>
         `;
     }
 
-    function renderDayCell(userId, date, monthIndex, isWeekend) {
+    function renderDayCell(userId, date, monthIndex, isWeekend, displayName = "") {
         const iso = toISO(date);
         const outsideMonth = date.getMonth() !== monthIndex;
         if (outsideMonth) return `<td class="day-cell day-outside ${isWeekend ? "day-wknd" : ""}" aria-hidden="true"></td>`;
 
         const blocks = calendarData.blocks || {};
-        const userBlocks = blocks[userId] || blocks[String(userId).toLowerCase()] || {};
+        const userBlocks = blocks[userId] || blocks[String(userId).toLowerCase()] || (displayName ? (blocks[displayName] || blocks[String(displayName).toLowerCase()]) : {}) || {};
         const vacation = (userBlocks.vacationInfo || []).find(item => isInRange(iso, item.fechas));
         const isHoliday = userBlocks[iso] === "FESTIVO";
         const byDate = calendarData.schedule[iso] || {};
-        const items = byDate[userId] || byDate[String(userId).toLowerCase()] || [];
-        const canEdit = !vacation && (isAdmin || (userId === currentUser && !isWeekend && !isHoliday));
+        const items = byDate[userId] || byDate[String(userId).toLowerCase()] || (displayName ? (byDate[displayName] || byDate[String(displayName).toLowerCase()]) : []) || [];
+        const isMatchUser = userId === currentUser || displayName === currentUser || (String(currentUser).toLowerCase() === 'tl' && (String(userId).toLowerCase() === 'tl' || String(displayName).toLowerCase().includes('francisco')));
+        const canEdit = !vacation && (isAdmin || (isMatchUser && !isWeekend && !isHoliday));
         const blocked = vacation || (!isAdmin && isHoliday) || !canEdit;
         let content = "";
 
@@ -514,20 +544,90 @@ function renderCalendar(container) {
             const raw=event.dataTransfer.getData('application/json');
             if (!raw) return;
             transferBusy=true;
+            let prevSourceItems = null, prevTargetItems = null;
+            let sDate = null, sUser = null, tDate = null, tUser = null;
             try {
                 ensureConnected();
                 const data=JSON.parse(raw);
-                if (data.sourceDate===cell.dataset.date && data.sourceUser===cell.dataset.user) return;
-                const sourceVersion=revision(data.sourceDate,data.sourceUser) || '',targetVersion=revision(cell.dataset.date,cell.dataset.user) || '';
+                sDate = data.sourceDate; sUser = data.sourceUser;
+                tDate = cell.dataset.date; tUser = cell.dataset.user;
+                if (sDate === tDate && sUser === tUser) return;
+                const sourceVersion=revision(sDate,sUser) || '',targetVersion=revision(tDate,tUser) || '';
                 const mode=await requestMoveOrCopy();
                 if (!mode || !active()) return;
-                const response=await api.transferAssignment({sourceDate:data.sourceDate,sourceUser:data.sourceUser,targetDate:cell.dataset.date,targetUser:cell.dataset.user,isFullDay:Boolean(data.isFullDay),itemIndex:Number(data.itemIndex),mode,sourceVersion,targetVersion});
+
+                // 1. Guardar estados previos para rollback en caso de fallo
+                if (!calendarData.schedule) calendarData.schedule = {};
+                calendarData.schedule[sDate] = calendarData.schedule[sDate] || {};
+                calendarData.schedule[tDate] = calendarData.schedule[tDate] || {};
+                prevSourceItems = deepCopyItems(calendarData.schedule[sDate][sUser] || []);
+                prevTargetItems = deepCopyItems(calendarData.schedule[tDate][tUser] || []);
+
+                // 2. Modificación optimista inmediata en memoria local
+                const movingItems = data.isFullDay
+                    ? deepCopyItems(prevSourceItems)
+                    : (prevSourceItems[data.itemIndex] ? [deepCopyItems(prevSourceItems[data.itemIndex])] : []);
+
+                if (!movingItems.length) return;
+
+                if (mode === 'move') {
+                    if (data.isFullDay) {
+                        calendarData.schedule[sDate][sUser] = [];
+                    } else {
+                        const nextSource = deepCopyItems(prevSourceItems);
+                        nextSource.splice(data.itemIndex, 1);
+                        calendarData.schedule[sDate][sUser] = nextSource;
+                    }
+                }
+                calendarData.schedule[tDate][tUser] = prevTargetItems.concat(movingItems);
+
+                // 3. Re-renderizar la vista instantáneamente
+                renderYear({ preserveScroll: true });
+                announce(mode==='move'?'Moviendo actividad…':'Copiando actividad…');
+                if (typeof showToast === 'function') {
+                    showToast("Actualizando", mode==='move'?'Moviendo actividad en Google Sheets…':'Copiando actividad en Google Sheets…');
+                }
+
+                // 4. Enviar a Google Apps Script en segundo plano
+                const response=await api.transferAssignment({
+                    sourceDate: sDate,
+                    sourceUser: sUser,
+                    targetDate: tDate,
+                    targetUser: tUser,
+                    isFullDay: Boolean(data.isFullDay),
+                    itemIndex: Number(data.itemIndex),
+                    mode,
+                    sourceVersion,
+                    targetVersion
+                });
                 if (response.status!=='success') throw new Error(response.message || 'El movimiento no se ha confirmado.');
-                if (!active()) return;
-                await loadYear(selectedYear,now.getMonth(),true,true);
-                announce(mode==='move'?'Actividades movidas y guardadas en la hoja.':'Actividades copiadas y guardadas en la hoja.');
+
+                // 5. Persistencia offline local
+                try {
+                    setOfflineCacheEntry('getWeekly', { start: selectedYear + '-01-01', end: selectedYear + '-12-31' }, {
+                        status: 'success',
+                        source: 'matrix-v1',
+                        schedule: calendarData.schedule,
+                        versions: calendarData.versions,
+                        capacities: calendarData.capacities,
+                        users: calendarData.users,
+                        blocks: calendarData.blocks
+                    });
+                } catch(eCache) {}
+
+                announce(mode==='move'?'Actividades movidas y guardadas.':'Actividades copiadas y guardadas.');
+                if (typeof showToast === 'function') {
+                    showToast("¡Listo!", mode==='move'?'Actividades movidas y guardadas en la hoja.':'Actividades copiadas y guardadas en la hoja.');
+                }
             } catch(error) {
-                if (active()) {announce(error.message,true);await loadYear(selectedYear,now.getMonth(),true,true);}
+                // Rollback si la llamada fallase
+                if (prevSourceItems !== null && sDate && sUser) calendarData.schedule[sDate][sUser] = prevSourceItems;
+                if (prevTargetItems !== null && tDate && tUser) calendarData.schedule[tDate][tUser] = prevTargetItems;
+                renderYear({ preserveScroll: true });
+                announce(error.message, true);
+                if (typeof showToast === 'function') {
+                    showToast("Error", error.message);
+                }
             } finally {
                 transferBusy = false;
                 isDragging = false;

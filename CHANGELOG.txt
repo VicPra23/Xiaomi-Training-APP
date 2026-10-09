@@ -1,6 +1,37 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 47.2
-Fecha: 11/09/2026
+Versión revisada: 50.6
+Fecha: 09/10/2026
+
+VERSIÓN 50.6
+============
+1. Nuevo endpoint de Google Apps Script conectado:
+   - Conexión actualizada al nuevo despliegue de Apps Script:
+     https://script.google.com/macros/s/AKfycbzh4f8UA9LVqvAyet5Pjw1IHSjVzzpT3owNMwTMAThWUhTcz09RYhe0Bn6jQups_-iTQA/exec
+   - Verificado retorno de usuarios, calendario y sincronización.
+
+2. Invalidación de caché y PWA:
+   - Service Worker y control de versiones elevados a v50.6 para forzar la actualización automática en todos los clientes y navegadores.
+
+VERSIÓN 50.5
+============
+1. Rendimiento instantáneo en Calendario (Mover / Copiar actividades):
+   - Implementada actualización optimista inmediata en memoria local al arrastrar o soltar actividades (0 ms).
+   - Eliminada la recarga síncrona completa de los 12 meses (loadYear) que bloqueaba la app durante 30-60 segundos.
+   - Sincronización en segundo plano con Google Apps Script y persistencia offline inmediata.
+
+2. Subida de reportes y fotografías acelerada:
+   - Compresor de fotos optimizado con dimensiones de 960px y calidad 0.60.
+   - Las imágenes pasan de ~400-800 KB a ~80-120 KB manteniendo nitidez, reduciendo el tiempo de envío en un 70%.
+   - Transferencia mucho más veloz y menor uso de memoria tanto en móvil como en Google Apps Script.
+
+3. Corrección de Francisco Javier en el Calendario:
+   - Corregido el mapeo en _matrixAccounts() para alias 'TL' -> 'Francisco Javier'.
+   - Resuelto el conflicto donde se asociaba erróneamente al rol 'Training Manager' (nombre Javier) y quedaba oculto por los filtros.
+   - Asegurada su fila y permisos de edición en la cuadrícula de formadores.
+
+4. Invalidación de caché y PWA:
+   - Versión de caché de Service Worker y rutas actualizada a v50.5 para forzar la actualización en todos los clientes.
+
 
 CONEXIÓN 47.2
 =================

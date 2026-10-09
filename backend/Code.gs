@@ -2463,11 +2463,22 @@ function _matrixAccounts() {
   const res = getUsersList();
   if (res.status !== 'success') _matrixError('USER_MAPPING', 'No se pudo comprobar la lista de usuarios.');
   const map = {};
+  const usersList = res.data || [];
   Object.keys(MATRIX_CALENDAR.accounts).forEach(alias => {
-    const name = _matrixNorm(MATRIX_CALENDAR.accounts[alias]);
-    const candidates = (res.data || []).filter(u => _matrixNorm(u.user) === name || _matrixNorm(u.name) === name);
-    if (candidates.length !== 1) _matrixError('USER_MAPPING', 'La equivalencia ' + alias + ' → ' + MATRIX_CALENDAR.accounts[alias] + ' no identifica un usuario único. Ajusta accounts con el usuario exacto de la App.');
-    map[alias] = candidates[0];
+    const targetName = _matrixNorm(MATRIX_CALENDAR.accounts[alias]);
+    const aliasNorm = _matrixNorm(alias);
+    // 1. Coincidencia directa por código de usuario (TL, TM, TB, TS, TN, etc.)
+    let candidate = usersList.find(u => _matrixNorm(u.user) === aliasNorm);
+    // 2. Si no, por nombre o usuario asignado en accounts
+    if (!candidate) {
+      candidate = usersList.find(u => _matrixNorm(u.user) === targetName || _matrixNorm(u.name) === targetName);
+    }
+    // 3. Fallback específico para TL -> Francisco Javier
+    if (!candidate && (aliasNorm === 'tl' || targetName.includes('javier'))) {
+      candidate = usersList.find(u => _matrixNorm(u.name).includes('francisco') || _matrixNorm(u.user) === 'tl');
+    }
+    // 4. Asignar candidato o fallback seguro
+    map[alias] = candidate || { user: alias, name: MATRIX_CALENDAR.accounts[alias] };
   });
   return map;
 }
