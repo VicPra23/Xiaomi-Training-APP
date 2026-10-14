@@ -1646,6 +1646,10 @@ html {
 
 .continuous-calendar .assignment-tag {
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
     padding: 0.35rem 0.42rem;
     border: 0;
     border-radius: 5px;
@@ -1656,10 +1660,51 @@ html {
     overflow-wrap: anywhere;
 }
 
+.continuous-calendar .assignment-tag .assignment-tag-text {
+    flex: 1;
+    min-width: 0;
+}
+
 .continuous-calendar .assignment-tag a {
     color: inherit;
     text-decoration: underline;
     text-underline-offset: 2px;
+}
+
+.continuous-calendar .assignment-tag .assignment-tag-copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.22);
+    color: currentColor;
+    cursor: pointer;
+    opacity: 0.65;
+    transition: opacity 120ms ease, background 120ms ease, transform 120ms ease;
+    flex-shrink: 0;
+}
+
+.continuous-calendar .assignment-tag:hover .assignment-tag-copy,
+.continuous-calendar .assignment-tag:focus-within .assignment-tag-copy {
+    opacity: 1;
+}
+
+.continuous-calendar .assignment-tag .assignment-tag-copy:hover,
+.continuous-calendar .assignment-tag .assignment-tag-copy:focus-visible {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.42);
+    transform: scale(1.15);
+}
+
+.continuous-calendar .assignment-tag .assignment-tag-copy svg {
+    width: 10px;
+    height: 10px;
+    stroke-width: 2.2;
 }
 
 .calendar-absence {
@@ -5167,3 +5212,210 @@ p,
     .calendar-weekend-toggle { display: inline-flex !important; }
     .ts-dropdown .ts-dropdown-content { max-height: min(240px, 35dvh); overscroll-behavior: contain; }
 }
+
+/* --- Modal de Sincronización Móvil y Notificaciones (v50.7) --- */
+.calendar-phone-sync-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 650;
+}
+.calendar-sync-phone-dialog {
+    width: min(560px, calc(100vw - 2rem));
+    max-width: none;
+    padding: 0;
+    border: 1px solid var(--border-main);
+    border-radius: 18px;
+    background: var(--bg-card);
+    color: var(--text-main);
+    box-shadow: 0 28px 80px rgba(15, 10, 6, 0.26);
+}
+.calendar-sync-phone-dialog::backdrop {
+    background: rgba(18, 12, 8, 0.52);
+    backdrop-filter: blur(5px);
+}
+.calendar-phone-dialog-card {
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem 1.4rem;
+    gap: 1.15rem;
+}
+.calendar-phone-dialog-header {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    position: relative;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border-main);
+}
+.calendar-phone-icon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255, 103, 0, 0.12);
+    color: var(--xiaomi-orange);
+    flex-shrink: 0;
+}
+.calendar-phone-icon svg { width: 22px; height: 22px; }
+.calendar-phone-dialog-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    color: var(--text-main);
+}
+.calendar-phone-dialog-header p {
+    margin: 0.15rem 0 0;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.calendar-phone-dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    max-height: min(65vh, 520px);
+    overflow-y: auto;
+    padding-right: 2px;
+}
+.phone-sync-section {
+    background: var(--bg-main);
+    border: 1px solid var(--border-main);
+    border-radius: 14px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+.phone-sync-sec-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+}
+.phone-sync-sec-title svg {
+    color: var(--xiaomi-orange);
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+.phone-sync-sec-title strong {
+    display: block;
+    font-size: 0.88rem;
+    color: var(--text-main);
+}
+.phone-sync-sec-title span {
+    display: block;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.phone-sync-actions-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.phone-action-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-main);
+    border-radius: 10px;
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.phone-action-copy strong {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--text-main);
+}
+.phone-action-copy small {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+    margin-top: 2px;
+}
+.phone-notif-toggle-row {
+    background: var(--bg-card);
+    border: 1px solid var(--border-main);
+    border-radius: 10px;
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.phone-notif-toggle-copy strong {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--text-main);
+}
+.phone-notif-toggle-copy small {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+    margin-top: 2px;
+}
+.switch-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.switch-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider-round {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #cbd5e1;
+    transition: .25s ease;
+    border-radius: 24px;
+}
+.slider-round:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .25s ease;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.switch-toggle input:checked + .slider-round {
+    background-color: var(--xiaomi-orange);
+}
+.switch-toggle input:checked + .slider-round:before {
+    transform: translateX(20px);
+}
+.calendar-phone-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-main);
+}
+.btn-close-dialog {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    margin-left: auto;
+}
+.btn-close-dialog:hover {
+    background: var(--bg-hover);
+    color: var(--text-main);
+}
+

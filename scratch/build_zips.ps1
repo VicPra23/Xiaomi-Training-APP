@@ -57,14 +57,10 @@ function Create-AppZip($zipFlatPath, $zipFolderPath) {
     Remove-Item $tempFolder -Recurse -Force
 }
 
-# Generar v50.6
-$zip50_6 = Join-Path $docDir 'xiaomi-trainer-app v.50.6.zip'
-$zip50_6_folder = Join-Path $docDir 'xiaomi-trainer-app-folder v.50.6.zip'
-Create-AppZip $zip50_6 $zip50_6_folder
+# Generar v51.0 (Principal)
+$zip51_0 = Join-Path $docDir 'xiaomi-trainer-app v.51.0.zip'
+$zip51_0_folder = Join-Path $docDir 'xiaomi-trainer-app-folder v.51.0.zip'
+Create-AppZip $zip51_0 $zip51_0_folder
 
-# También refrescar v50.5
-$zip50_5 = Join-Path $docDir 'xiaomi-trainer-app v.50.5.zip'
-$zip50_5_folder = Join-Path $docDir 'xiaomi-trainer-app-folder v.50.5.zip'
-Create-AppZip $zip50_5 $zip50_5_folder
+Get-Item $zip51_0, $zip51_0_folder | Select-Object Name, Length, LastWriteTime
 
-Get-Item $zip50_6, $zip50_6_folder, $zip50_5, $zip50_5_folder | Select-Object Name, Length, LastWriteTime

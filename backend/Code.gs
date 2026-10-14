@@ -256,6 +256,9 @@ function doGet(e) {
       // Endpoint público mínimo para completar el selector de acceso.
       // No expone contraseña, rol, sede, correo ni ningún otro dato privado.
       res = getLoginUsers();
+    } else if (action === "calendarFeed" || action === "getCalendarFeed") {
+      // Endpoint para suscripción continua de calendarios nativos (iCal / Webcal / Google Calendar)
+      return _generateCalendarFeed(p);
     } else {
       const session = _requireSession(p, action === "getAdminData");
       if (session.role !== "Admin") p.targetUser = session.user;
@@ -2836,10 +2839,11 @@ function _matrixTransfer(req,session) {
     const index = _matrixRead(req.sourceDate < req.targetDate ? req.sourceDate : req.targetDate, req.sourceDate > req.targetDate ? req.sourceDate : req.targetDate);
     const source = _matrixDay(index,req.sourceDate,req.sourceUser,req.sourceVersion,session);
     const target = _matrixDay(index,req.targetDate,req.targetUser,req.targetVersion,session);
-    const selected = req.isFullDay ? source.items : source.items.filter((_,i)=>i===req.itemIndex);
+    const itemIdx = Number(req.itemIndex);
+    const selected = req.isFullDay ? source.items : source.items.filter((_,i)=>i===itemIdx);
     if (!selected.length) _matrixError('INVALID_ITEMS','La actividad de origen ya no existe.');
     const destination = _matrixValidateItems(target.items.concat(selected),target,true);
-    const remainder = req.isFullDay ? [] : source.items.filter((_,i)=>i!==req.itemIndex);
+    const remainder = req.isFullDay ? [] : source.items.filter((_,i)=>i!==itemIdx);
     const requests = _matrixRequests(target,destination).concat(req.mode === 'move' ? _matrixRequests(source,remainder) : []);
     // One atomic Sheets batch: no independent deletion of the source.
     if (requests.length) _matrixExecuteRequests(requests);
@@ -2888,3 +2892,82 @@ function matrixCalendarPreflight() {
   console.log(JSON.stringify(result));
   return result;
 }
+
+function _generateCalendarFeed(p) {
+  const user = String(p.user || '').trim();
+  if (!user) {
+    return ContentService.createTextOutput("Error: Usuario no especificado").setMimeType(ContentService.MimeType.TEXT);
+  }
+  const year = parseInt(p.year || '', 10) || (new Date()).getFullYear();
+  const start = year + "-01-01";
+  const end = year + "-12-31";
+  
+  let targetUser = user;
+  let targetName = user;
+  try {
+    const accounts = _matrixAccounts();
+    const sNorm = _matrixNorm(user);
+    const matched = Object.values(accounts).find(a => _matrixNorm(a.user) === sNorm || _matrixNorm(a.name) === sNorm);
+    if (matched) {
+      targetUser = matched.user;
+      targetName = matched.name || matched.user;
+    }
+  } catch(e) {}
+
+  const index = _matrixRead(start, end);
+  const events = [];
+  const nowStr = Utilities.formatDate(new Date(), "UTC", "yyyyMMdd'T'HHmmss'Z'");
+
+  Object.values(index.days || {}).forEach(day => {
+    if (_matrixNorm(day.user) !== _matrixNorm(targetUser)) return;
+    (day.items || []).forEach((item, idx) => {
+      const text = String(item.text || '').trim();
+      if (!text || /^VACACIONES|^FESTIVO/i.test(text)) return;
+      
+      const parts = day.date.split('-');
+      const dStart = parts[0] + parts[1] + parts[2];
+      const nextDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + 1));
+      const dEnd = Utilities.formatDate(nextDate, "UTC", "yyyyMMdd");
+      
+      const uid = "xiaomi-" + day.date + "-" + idx + "-" + _matrixTextHash(text).slice(0, 8) + "@xiaomitrainer";
+      const cleanSummary = text.replace(/[\r\n]+/g, ' - ').replace(/,/g, '\\,').replace(/;/g, '\\;');
+      const cat = String(item.category || 'otros').toUpperCase();
+      
+      events.push([
+        "BEGIN:VEVENT",
+        "UID:" + uid,
+        "DTSTAMP:" + nowStr,
+        "DTSTART;VALUE=DATE:" + dStart,
+        "DTEND;VALUE=DATE:" + dEnd,
+        "SUMMARY:" + cleanSummary,
+        "DESCRIPTION:Formación Xiaomi (" + cat + ") - " + cleanSummary,
+        "CATEGORIES:" + cat,
+        "STATUS:CONFIRMED",
+        "TRANSP:OPAQUE",
+        "BEGIN:VALARM",
+        "ACTION:DISPLAY",
+        "DESCRIPTION:Recordatorio de formación: " + cleanSummary,
+        "TRIGGER:-PT1H",
+        "END:VALARM",
+        "END:VEVENT"
+      ].join("\r\n"));
+    });
+  });
+
+  const calName = "Xiaomi Formaciones - " + targetName;
+  const icsLines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Xiaomi Trainer Platform//ES",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:" + calName,
+    "X-WR-TIMEZONE:Europe/Madrid",
+    events.join("\r\n"),
+    "END:VCALENDAR"
+  ];
+
+  return ContentService.createTextOutput(icsLines.join("\r\n"))
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+

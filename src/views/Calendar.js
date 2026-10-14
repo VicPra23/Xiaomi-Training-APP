@@ -52,7 +52,13 @@ function renderCalendar(container) {
     const createLocalDate = (year, month, day) => new Date(year, month, day, 0, 0, 0, 0);
     const toISO = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     const todayISO = toISO(now);
-    const deepCopyItems = (items) => (items || []).map(item => ({ text: String(item.text || ""), category: item.category || "otros" }));
+    const deepCopyItems = (items) => {
+        if (!items) return [];
+        if (!Array.isArray(items)) {
+            return [{ text: String(items.text || ""), category: items.category || "otros" }];
+        }
+        return items.map(item => ({ text: String(item?.text || ""), category: item?.category || "otros" }));
+    };
     const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, char => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
     }[char]));
@@ -68,6 +74,9 @@ function renderCalendar(container) {
                 <div class="calendar-primary-actions">
                     <button id="calendarSyncBtn" class="btn-secondary calendar-sync-btn" type="button" aria-label="Sincronizar ahora con Google Sheets" title="Sincronizar ahora con Google Sheets">
                         <i data-lucide="refresh-cw"></i><span>Sincronizar</span>
+                    </button>
+                    <button id="calendarPhoneSyncBtn" class="btn-secondary calendar-phone-sync-btn" type="button" aria-label="Sincronizar calendario con el móvil y avisos" title="Sincronizar con el móvil y avisos">
+                        <i data-lucide="bell-ring"></i><span>Móvil y Avisos</span>
                     </button>
                     <button id="calendarToday" class="btn-primary calendar-today-btn" type="button" aria-label="Ir al día de hoy">
                         <i data-lucide="locate-fixed"></i><span>Hoy</span>
@@ -161,6 +170,10 @@ function renderCalendar(container) {
         }
     });
 
+    container.querySelector("#calendarPhoneSyncBtn")?.addEventListener("click", () => {
+        showPhoneSyncDialog();
+    });
+
     container.querySelector("#calendarToday").addEventListener("click", async () => {
         if (selectedYear !== now.getFullYear()) {
             selectedYear = now.getFullYear();
@@ -248,6 +261,7 @@ function renderCalendar(container) {
                     }
                 };
             }
+            if (window.triggerDailyTrainerNotification && session) window.triggerDailyTrainerNotification(session);
             if (scheduleRes.offline && !isBackground && !wasConnected) announce('Mostrando una copia sin conexión. No guardes cambios hasta volver a sincronizar.',true);
             if (!preserveScroll && !isBackground) requestAnimationFrame(()=>{if(current()) year===now.getFullYear() && focusMonth===now.getMonth()?scrollToToday(false):scrollToMonth(focusMonth,false);});
         } catch(error) {
@@ -424,7 +438,12 @@ function renderCalendar(container) {
         } else {
             if (isHoliday) content += `<div class="assignment-tag cat-fest">Festivo</div>`;
             content += items.map((item, idx) => `
-                <div class="assignment-tag cat-${escapeHTML(item.category || "otros")}" ${canEdit ? `draggable="true" data-index="${idx}"` : ""}>${linkify(item.text)}</div>
+                <div class="assignment-tag cat-${escapeHTML(item.category || "otros")}" ${canEdit ? `draggable="true" data-index="${idx}"` : ""}>
+                    <span class="assignment-tag-text">${linkify(item.text)}</span>
+                    <button type="button" class="assignment-tag-copy" data-copy-item="${idx}" draggable="false" title="Copiar esta actividad" aria-label="Copiar actividad: ${escapeHTML(item.text)}">
+                        <i data-lucide="copy"></i>
+                    </button>
+                </div>
             `).join("");
             if (!content && canEdit) content = `<span class="calendar-cell-empty">Añadir actividad</span>`;
         }
@@ -451,6 +470,21 @@ function renderCalendar(container) {
         monthsContainer.addEventListener("click", async event => {
             const cell = event.target.closest(".day-cell[data-date]");
             if (!cell || !monthsContainer.contains(cell)) return;
+
+            // 1. Botón copiar actividad individual dentro de la pastilla
+            const copyItemBtn = event.target.closest("[data-copy-item]");
+            if (copyItemBtn) {
+                event.stopPropagation();
+                event.preventDefault();
+                const itemIdx = Number(copyItemBtn.dataset.copyItem);
+                const dayItems = getItems(cell.dataset.date, cell.dataset.user);
+                const targetItem = dayItems[itemIdx];
+                if (targetItem && targetItem.text.trim()) {
+                    await copyActivity(targetItem, cell.dataset.user, cell.dataset.date);
+                }
+                return;
+            }
+
             const items = () => getItems(cell.dataset.date, cell.dataset.user);
             const action = event.target.closest("[data-copy-day], [data-paste-day], [data-delete-day]");
             if (action) {
@@ -458,7 +492,16 @@ function renderCalendar(container) {
                 if (action.matches("[data-copy-day]")) copyDay(items(), cell.dataset.user, cell.dataset.date);
                 if (action.matches("[data-paste-day]")) {
                     const clipboard = await pickClipboard();
-                    if (clipboard?.items?.length) openEditPanel(cell.dataset.user, cell.dataset.date, clipboard.items, true);
+                    if (clipboard?.items?.length) {
+                        const currentItems = items();
+                        if (currentItems.length) {
+                            const addChoice = window.confirm("Este día ya tiene actividades planificadas.\n\n• Pulsa 'Aceptar' para AÑADIR la copia a las existentes\n• Pulsa 'Cancelar' para REEMPLAZAR las actividades del día");
+                            const combined = addChoice ? currentItems.concat(deepCopyItems(clipboard.items)) : clipboard.items;
+                            openEditPanel(cell.dataset.user, cell.dataset.date, combined, true);
+                        } else {
+                            openEditPanel(cell.dataset.user, cell.dataset.date, clipboard.items, true);
+                        }
+                    }
                 }
                 if (action.matches("[data-delete-day]")) await deleteDay(cell.dataset.user, cell.dataset.date, items(), action);
                 return;
@@ -484,6 +527,10 @@ function renderCalendar(container) {
         });
 
         monthsContainer.addEventListener("dragstart", event => {
+            if (event.target.closest("[data-copy-item]")) {
+                event.preventDefault();
+                return;
+            }
             const pill = event.target.closest(".assignment-tag[draggable]");
             const cellDrag = event.target.closest(".day-cell[draggable]");
             
@@ -546,6 +593,7 @@ function renderCalendar(container) {
             transferBusy=true;
             let prevSourceItems = null, prevTargetItems = null;
             let sDate = null, sUser = null, tDate = null, tUser = null;
+            let sKey = null, tKey = null;
             try {
                 ensureConnected();
                 const data=JSON.parse(raw);
@@ -560,26 +608,30 @@ function renderCalendar(container) {
                 if (!calendarData.schedule) calendarData.schedule = {};
                 calendarData.schedule[sDate] = calendarData.schedule[sDate] || {};
                 calendarData.schedule[tDate] = calendarData.schedule[tDate] || {};
-                prevSourceItems = deepCopyItems(calendarData.schedule[sDate][sUser] || []);
-                prevTargetItems = deepCopyItems(calendarData.schedule[tDate][tUser] || []);
+                sKey = getUserScheduleKey(sDate, sUser);
+                tKey = getUserScheduleKey(tDate, tUser);
+                prevSourceItems = deepCopyItems(calendarData.schedule[sDate][sKey] || []);
+                prevTargetItems = deepCopyItems(calendarData.schedule[tDate][tKey] || []);
+
+                const itemIdx = Number.isInteger(Number(data.itemIndex)) ? Number(data.itemIndex) : 0;
 
                 // 2. Modificación optimista inmediata en memoria local
                 const movingItems = data.isFullDay
                     ? deepCopyItems(prevSourceItems)
-                    : (prevSourceItems[data.itemIndex] ? [deepCopyItems(prevSourceItems[data.itemIndex])] : []);
+                    : (prevSourceItems[itemIdx] ? [{ text: String(prevSourceItems[itemIdx].text || ""), category: prevSourceItems[itemIdx].category || "otros" }] : []);
 
                 if (!movingItems.length) return;
 
                 if (mode === 'move') {
                     if (data.isFullDay) {
-                        calendarData.schedule[sDate][sUser] = [];
+                        calendarData.schedule[sDate][sKey] = [];
                     } else {
                         const nextSource = deepCopyItems(prevSourceItems);
-                        nextSource.splice(data.itemIndex, 1);
-                        calendarData.schedule[sDate][sUser] = nextSource;
+                        nextSource.splice(itemIdx, 1);
+                        calendarData.schedule[sDate][sKey] = nextSource;
                     }
                 }
-                calendarData.schedule[tDate][tUser] = prevTargetItems.concat(movingItems);
+                calendarData.schedule[tDate][tKey] = prevTargetItems.concat(movingItems);
 
                 // 3. Re-renderizar la vista instantáneamente
                 renderYear({ preserveScroll: true });
@@ -595,7 +647,7 @@ function renderCalendar(container) {
                     targetDate: tDate,
                     targetUser: tUser,
                     isFullDay: Boolean(data.isFullDay),
-                    itemIndex: Number(data.itemIndex),
+                    itemIndex: itemIdx,
                     mode,
                     sourceVersion,
                     targetVersion
@@ -621,8 +673,8 @@ function renderCalendar(container) {
                 }
             } catch(error) {
                 // Rollback si la llamada fallase
-                if (prevSourceItems !== null && sDate && sUser) calendarData.schedule[sDate][sUser] = prevSourceItems;
-                if (prevTargetItems !== null && tDate && tUser) calendarData.schedule[tDate][tUser] = prevTargetItems;
+                if (prevSourceItems !== null && sDate && sKey) calendarData.schedule[sDate][sKey] = prevSourceItems;
+                if (prevTargetItems !== null && tDate && tKey) calendarData.schedule[tDate][tKey] = prevTargetItems;
                 renderYear({ preserveScroll: true });
                 announce(error.message, true);
                 if (typeof showToast === 'function') {
@@ -636,9 +688,23 @@ function renderCalendar(container) {
         });
     }
 
+    function getUserScheduleKey(date, userId) {
+        if (!calendarData?.schedule?.[date]) return userId;
+        const byDate = calendarData.schedule[date];
+        if (byDate[userId]) return userId;
+        const lower = String(userId).toLowerCase();
+        if (byDate[lower]) return lower;
+        const userObj = (calendarData.users || []).find(u => (typeof u === 'object' ? u.user : u) === userId);
+        const displayName = typeof userObj === 'object' && userObj.name ? userObj.name : '';
+        if (displayName && byDate[displayName]) return displayName;
+        if (displayName && byDate[displayName.toLowerCase()]) return displayName.toLowerCase();
+        return userId;
+    }
+
     function getItems(date, userId) {
         const byUser = calendarData.schedule[date] || {};
-        return deepCopyItems(byUser[userId] || byUser[String(userId).toLowerCase()] || []);
+        const key = getUserScheduleKey(date, userId);
+        return deepCopyItems(byUser[key] || []);
     }
 
     async function copyDay(items, userId, date) {
@@ -647,6 +713,30 @@ function renderCalendar(container) {
         updateClipboardStatus();
         renderYear({ preserveScroll: true });
         announce(`Día copiado: ${items.length} ${items.length === 1 ? "actividad" : "actividades"}.`);
+        if (typeof showToast === 'function') {
+            showToast("¡Día copiado!", `${items.length} ${items.length === 1 ? "actividad copiada" : "actividades copiadas"}.`);
+        }
+        return true;
+    }
+
+    async function copyActivity(item, userId, date) {
+        if (!item || !item.text.trim()) return false;
+        const singleItem = [{ text: String(item.text || "").trim(), category: item.category || "otros" }];
+        const copied = await storeClipboardEntry(singleItem, userId, date);
+        if (!copied) return false;
+
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(item.text.trim());
+            }
+        } catch (eClip) {}
+
+        updateClipboardStatus();
+        renderYear({ preserveScroll: true });
+        announce(`Actividad copiada: "${item.text.trim()}".`);
+        if (typeof showToast === 'function') {
+            showToast("¡Actividad copiada!", `"${item.text.trim()}" guardada en el portapapeles.`);
+        }
         return true;
     }
 
@@ -933,6 +1023,7 @@ function renderCalendar(container) {
                 <div class="calendar-editor-tools">
                     <button type="button" data-editor-copy><i data-lucide="copy"></i>Copiar día</button>
                     <button type="button" data-editor-paste ${getClipboards().length ? "" : "disabled"}><i data-lucide="clipboard-paste"></i>Pegar</button>
+                    <button type="button" data-editor-gcal title="Añadir a Google Calendar / Móvil"><i data-lucide="calendar-plus"></i>Añadir a mi Calendario</button>
                     ${currentItems.length ? `<button type="button" class="calendar-editor-delete" data-editor-delete><i data-lucide="trash-2"></i>Borrar día</button>` : ""}
                 </div>
                 <div class="calendar-assignment-list" data-items></div>
@@ -997,10 +1088,28 @@ function renderCalendar(container) {
             const clipboard = await pickClipboard();
             if (!clipboard?.items?.length) return;
             syncRows();
-            if (workingItems.some(item => item.text.trim()) && !window.confirm("¿Reemplazar las actividades actuales por las copiadas?")) return;
-            workingItems = deepCopyItems(clipboard.items);
+            const existingNonEmpty = workingItems.filter(item => item.text.trim());
+            if (existingNonEmpty.length) {
+                const addChoice = window.confirm("¿Deseas AÑADIR las actividades copiadas a las existentes de este día?\n\n• Aceptar: Añadirlas a las existentes\n• Cancelar: Reemplazar todo el día");
+                if (addChoice) {
+                    workingItems = existingNonEmpty.concat(deepCopyItems(clipboard.items));
+                } else {
+                    workingItems = deepCopyItems(clipboard.items);
+                }
+            } else {
+                workingItems = deepCopyItems(clipboard.items);
+            }
             renderRows();
             announce("Contenido pegado. Todavía no se ha guardado.");
+            if (typeof showToast === 'function') {
+                showToast("Pegado", "Actividades pegadas en el panel. Pulsa 'Guardar cambios'.");
+            }
+        });
+
+        overlay.querySelector("[data-editor-gcal]")?.addEventListener("click", () => {
+            syncRows();
+            const nonEmptyItems = workingItems.filter(item => item.text && item.text.trim());
+            openDayCalendarExport(userId, date, nonEmptyItems);
         });
 
         overlay.querySelector("[data-editor-delete]")?.addEventListener("click", async event => {
@@ -1102,6 +1211,7 @@ function renderCalendar(container) {
                     </div>
                 </div>
                 <div class="calendar-row-actions">
+                    <button type="button" data-copy-row title="Copiar esta actividad" aria-label="Copiar esta actividad"><i data-lucide="copy"></i></button>
                     <button type="button" data-move-up aria-label="Subir actividad"><i data-lucide="chevron-up"></i></button>
                     <button type="button" data-move-down aria-label="Bajar actividad"><i data-lucide="chevron-down"></i></button>
                     <button type="button" data-remove aria-label="Eliminar actividad"><i data-lucide="trash-2"></i></button>
@@ -1136,6 +1246,18 @@ function renderCalendar(container) {
                 categorySelect.value = option.dataset.category;
                 suggestions.classList.remove("is-visible");
                 input.focus();
+            });
+
+            row.querySelector("[data-copy-row]")?.addEventListener("click", () => {
+                syncRows();
+                const currentItem = workingItems[index];
+                if (currentItem && currentItem.text.trim()) {
+                    copyActivity(currentItem, userId, date);
+                } else {
+                    if (typeof showToast === 'function') {
+                        showToast("Actividad vacía", "Escribe una actividad antes de copiarla.");
+                    }
+                }
             });
 
             row.querySelector("[data-remove]").addEventListener("click", () => {
@@ -1300,6 +1422,259 @@ function renderCalendar(container) {
         date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
         const weekOne = new Date(date.getFullYear(), 0, 4);
         return 1 + Math.round(((date.getTime() - weekOne.getTime()) / 86400000 - 3 + (weekOne.getDay() + 6) % 7) / 7);
+    }
+
+    function openDayCalendarExport(userId, date, items) {
+        const validItems = (items || []).filter(it => it.text && it.text.trim() && !/^VACACIONES|^FESTIVO/i.test(it.text.trim()));
+        if (!validItems.length) {
+            if (typeof showToast === 'function') showToast("Sin actividades", "No hay actividades en este día para añadir al calendario.");
+            return;
+        }
+        const summary = validItems.map(it => it.text.trim()).join(' · ');
+        const parts = date.split('-');
+        const dStart = parts[0] + parts[1] + parts[2];
+        const nextDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + 1));
+        const dEnd = nextDate.toISOString().slice(0, 10).replace(/-/g, '');
+        
+        const gCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(summary)}&dates=${dStart}/${dEnd}&details=${encodeURIComponent('Planificación de formación Xiaomi: ' + summary)}&location=España&sf=true&output=xml`;
+        window.open(gCalUrl, '_blank', 'noopener,noreferrer');
+        if (typeof showToast === 'function') showToast("Abriendo calendario", "Guardando el evento con recordatorio en tu calendario.");
+    }
+
+    function downloadTrainerICS(trainerId, year) {
+        if (!calendarData?.schedule) {
+            if (typeof showToast === 'function') showToast("Cargando datos", "Espera un momento mientras carga el calendario.");
+            return;
+        }
+        const events = [];
+        const nowStr = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '') + 'Z';
+        const targetTrainer = trainerId || currentUser;
+        
+        Object.entries(calendarData.schedule).forEach(([date, byUser]) => {
+            if (!date.startsWith(String(year))) return;
+            const items = byUser[targetTrainer] || byUser[String(targetTrainer).toLowerCase()] || [];
+            items.forEach((item, idx) => {
+                const text = String(item.text || '').trim();
+                if (!text || /^VACACIONES|^FESTIVO/i.test(text)) return;
+                const parts = date.split('-');
+                const dStart = parts[0] + parts[1] + parts[2];
+                const nextDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + 1));
+                const dEnd = nextDate.toISOString().slice(0, 10).replace(/-/g, '');
+                const uid = `xiaomi-${date}-${idx}-${targetTrainer}@xiaomitrainer`;
+                const cleanSummary = text.replace(/[\r\n]+/g, ' - ').replace(/,/g, '\\,').replace(/;/g, '\\;');
+                const cat = String(item.category || 'otros').toUpperCase();
+
+                events.push([
+                    "BEGIN:VEVENT",
+                    "UID:" + uid,
+                    "DTSTAMP:" + nowStr,
+                    "DTSTART;VALUE=DATE:" + dStart,
+                    "DTEND;VALUE=DATE:" + dEnd,
+                    "SUMMARY:" + cleanSummary,
+                    "DESCRIPTION:Formación Xiaomi (" + cat + ") - " + cleanSummary,
+                    "CATEGORIES:" + cat,
+                    "STATUS:CONFIRMED",
+                    "TRANSP:OPAQUE",
+                    "BEGIN:VALARM",
+                    "ACTION:DISPLAY",
+                    "DESCRIPTION:Recordatorio de formación: " + cleanSummary,
+                    "TRIGGER:-PT1H",
+                    "END:VALARM",
+                    "END:VEVENT"
+                ].join("\r\n"));
+            });
+        });
+
+        if (!events.length) {
+            if (typeof showToast === 'function') showToast("Sin actividades", "No hay actividades registradas en " + year + " para este usuario.");
+            return;
+        }
+
+        const icsContent = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Xiaomi Trainer Platform//ES",
+            "CALSCALE:GREGORIAN",
+            "METHOD:PUBLISH",
+            "X-WR-CALNAME:Xiaomi Formaciones " + year + " - " + targetTrainer,
+            "X-WR-TIMEZONE:Europe/Madrid",
+            events.join("\r\n"),
+            "END:VCALENDAR"
+        ].join("\r\n");
+
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `xiaomi_formaciones_${targetTrainer}_${year}.ics`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+        if (typeof showToast === 'function') {
+            showToast("Calendario descargado", "Abre el archivo para guardarlo en la app de Calendario de tu móvil.");
+        }
+    }
+
+    function showPhoneSyncDialog() {
+        const dialog = document.createElement("dialog");
+        dialog.className = "calendar-sync-phone-dialog";
+        
+        const targetUser = currentUser;
+        const apiEndpoint = (typeof API_URL !== 'undefined') ? API_URL : '';
+        const baseFeedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(targetUser)}&year=${selectedYear}`;
+        const webcalUrl = `webcal://${apiEndpoint.replace(/^https?:\/\//, '')}?action=calendarFeed&user=${encodeURIComponent(targetUser)}&year=${selectedYear}`;
+        const gcalSubUrl = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(baseFeedUrl)}`;
+        
+        const notifSupported = 'Notification' in window;
+        const notifGranted = notifSupported && Notification.permission === 'granted';
+        const notifEnabled = notifGranted && localStorage.getItem('xiaomiDailyNotif') === 'true';
+
+        dialog.innerHTML = `
+            <div class="calendar-phone-dialog-card">
+                <header class="calendar-phone-dialog-header">
+                    <div class="calendar-phone-icon"><i data-lucide="smartphone"></i></div>
+                    <div>
+                        <h3>Móvil y Notificaciones</h3>
+                        <p>Sincroniza tus formaciones con el calendario de tu móvil y gestiona avisos.</p>
+                    </div>
+                    <button type="button" class="btn-close-dialog" data-close-dialog aria-label="Cerrar"><i data-lucide="x"></i></button>
+                </header>
+
+                <div class="calendar-phone-dialog-body">
+                    <!-- SECCIÓN 1: CALENDARIO DEL MÓVIL (PUNTO 2) -->
+                    <div class="phone-sync-section">
+                        <div class="phone-sync-sec-title">
+                            <i data-lucide="calendar"></i>
+                            <div>
+                                <strong>1. Calendario de tu móvil (Google Calendar / iPhone)</strong>
+                                <span>Añade todas tus actividades del año con avisos sonoros 1 hora antes.</span>
+                            </div>
+                        </div>
+
+                        <div class="phone-sync-actions-grid">
+                            <div class="phone-action-card">
+                                <div class="phone-action-copy">
+                                    <strong>Descargar archivo (.ics)</strong>
+                                    <small>Recomendado para iPhone / iPad y calendarios locales. Importa todo el año ${selectedYear} en un solo toque con alarmas.</small>
+                                </div>
+                                <button type="button" class="btn-primary" id="btnDownloadIcs" style="align-self:flex-start; margin-top:4px;">
+                                    <i data-lucide="download"></i><span>Descargar .ics (${selectedYear})</span>
+                                </button>
+                            </div>
+
+                            <div class="phone-action-card">
+                                <div class="phone-action-copy">
+                                    <strong>Suscripción automática (Google Calendar / Webcal)</strong>
+                                    <small>Se actualiza automáticamente en tu calendario cada vez que se modifiquen actividades en la intranet.</small>
+                                </div>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                                    <a href="${escapeHTML(gcalSubUrl)}" target="_blank" rel="noopener,noreferrer" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; padding:0.5rem 0.8rem;">
+                                        <i data-lucide="external-link"></i><span>Google Calendar</span>
+                                    </a>
+                                    <a href="${escapeHTML(webcalUrl)}" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; padding:0.5rem 0.8rem;">
+                                        <i data-lucide="calendar-plus"></i><span>Apple / Webcal</span>
+                                    </a>
+                                    <button type="button" class="btn-outline" id="btnCopyFeedUrl" title="Copiar enlace de suscripción" style="font-size:0.8rem; padding:0.5rem 0.8rem;">
+                                        <i data-lucide="copy"></i><span>Copiar enlace</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECCIÓN 2: AVISOS DIARIOS NO INTRUSIVOS (PUNTO 3) -->
+                    <div class="phone-sync-section">
+                        <div class="phone-sync-sec-title">
+                            <i data-lucide="bell"></i>
+                            <div>
+                                <strong>2. Avisos diarios en la app (No intrusivos)</strong>
+                                <span>Un único aviso discreto a primera hora solo los días que tengas actividades programadas.</span>
+                            </div>
+                        </div>
+
+                        <div class="phone-notif-toggle-row">
+                            <div class="phone-notif-toggle-copy">
+                                <strong>Aviso matinal los días con formación</strong>
+                                <small id="notifStatusText">${
+                                    !notifSupported
+                                        ? 'Este navegador no soporta notificaciones web.'
+                                        : (notifEnabled ? 'Activo ✓ · Recibirás un aviso diario si tienes actividad hoy.' : 'Desactivado · No recibirás ninguna notificación.')
+                                }</small>
+                            </div>
+                            <label class="switch-toggle" style="${!notifSupported ? 'opacity:0.5; pointer-events:none;' : ''}">
+                                <input type="checkbox" id="dailyNotifSwitch" ${notifEnabled ? 'checked' : ''}>
+                                <span class="slider-round"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="calendar-phone-dialog-footer">
+                    <button type="button" class="btn-primary" data-close-dialog>Listo</button>
+                </footer>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+        if (typeof lucide !== 'undefined') lucide.createIcons({ root: dialog });
+
+        const close = () => {
+            dialog.close();
+            dialog.remove();
+        };
+
+        dialog.querySelectorAll("[data-close-dialog]").forEach(btn => btn.addEventListener("click", close));
+        dialog.addEventListener("cancel", () => dialog.remove());
+
+        // Descargar .ics
+        dialog.querySelector("#btnDownloadIcs")?.addEventListener("click", () => {
+            downloadTrainerICS(targetUser, selectedYear);
+        });
+
+        // Copiar enlace de suscripción
+        dialog.querySelector("#btnCopyFeedUrl")?.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(baseFeedUrl);
+                if (typeof showToast === 'function') showToast("Enlace copiado", "Enlace de suscripción iCal copiado al portapapeles.");
+            } catch(e) {
+                if (typeof showToast === 'function') showToast("Enlace de suscripción", baseFeedUrl);
+            }
+        });
+
+        // Switch de notificaciones (Punto 3)
+        const toggleSwitch = dialog.querySelector("#dailyNotifSwitch");
+        const statusText = dialog.querySelector("#notifStatusText");
+        toggleSwitch?.addEventListener("change", async (e) => {
+            if (e.target.checked) {
+                if (!('Notification' in window)) {
+                    if (typeof showToast === 'function') showToast("No compatible", "Tu navegador no admite notificaciones.");
+                    e.target.checked = false;
+                    return;
+                }
+                let permission = Notification.permission;
+                if (permission !== 'granted') {
+                    permission = await Notification.requestPermission();
+                }
+                if (permission === 'granted') {
+                    localStorage.setItem('xiaomiDailyNotif', 'true');
+                    if (statusText) statusText.textContent = 'Activo ✓ · Recibirás un aviso diario si tienes actividad hoy.';
+                    if (typeof showToast === 'function') showToast("Avisos activados", "Recibirás un único aviso los días con actividad programada.");
+                    if (window.triggerDailyTrainerNotification && session) window.triggerDailyTrainerNotification(session);
+                } else {
+                    localStorage.setItem('xiaomiDailyNotif', 'false');
+                    e.target.checked = false;
+                    if (statusText) statusText.textContent = 'Permiso no concedido en el navegador.';
+                    if (typeof showToast === 'function') showToast("Permiso no concedido", "Activa los permisos de notificación en los ajustes de tu navegador.");
+                }
+            } else {
+                localStorage.setItem('xiaomiDailyNotif', 'false');
+                if (statusText) statusText.textContent = 'Desactivado · No recibirás ninguna notificación.';
+                if (typeof showToast === 'function') showToast("Avisos desactivados", "No se enviarán avisos en este dispositivo.");
+            }
+        });
+
+        dialog.showModal();
     }
 }
 

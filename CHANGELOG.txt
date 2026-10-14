@@ -1,6 +1,52 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 50.6
-Fecha: 09/10/2026
+Versión revisada: 51.0
+Fecha: 14/10/2026
+
+VERSIÓN 51.0
+============
+1. Nuevo endpoint de Google Apps Script conectado:
+   - Conexión del backend actualizada al nuevo despliegue de Apps Script:
+     https://script.google.com/macros/s/AKfycbz-TK_9JBvC0nsmZN2_CZ10rvdgTKosiKiRzgn6SwxNKFTJeIHgDwQWjI6_NFmR0toJ3g/exec
+   - Comprobada la conectividad y respuesta del servicio.
+
+2. Invalidación de caché y PWA:
+   - Service Worker y control de versiones elevados a v51.0 para forzar la actualización automática e inmediata en todos los clientes y navegadores.
+
+1. Copia directa de actividades individuales al pulsar:
+   - Añadido botón directo de copia integrado en cada pastilla de actividad del calendario (.assignment-tag-copy con icono copy).
+   - Al pulsar el icono de copia de una actividad específica, se copia únicamente esa actividad al portapapeles de la app (gestor multi-copia con selección de ranura) y al portapapeles del sistema (navigator.clipboard).
+   - Añadido botón "Copiar actividad" en cada fila del panel de edición de día (openEditPanel) junto a Subir, Bajar y Eliminar.
+   - Mejora inteligente en el pegado (Pegar día): al pegar en un día que ya tiene actividades, la app pregunta si se desea AÑADIR las actividades copiadas a las existentes o REEMPLAZAR el día entero, evitando sobreescrituras accidentales.
+
+2. Invalidación de caché y PWA:
+   - Versión de caché de Service Worker y rutas elevada a v50.9 para actualización automática e inmediata.
+
+VERSIÓN 50.8
+============
+1. Corrección crítica en Arrastrar y Soltar (Drag and Drop) de actividades individuales:
+   - Resuelto el fallo por el cual al arrastrar una actividad individual (.assignment-tag) a otro día y pulsar "Mover" o "Copiar", la aplicación no realizaba ninguna acción.
+   - Diagnóstico: 'deepCopyItems' esperaba un Array y se invocaba con un objeto individual ('prevSourceItems[data.itemIndex]'), lo que provocaba un TypeError interno ("(items || []).map is not a function") y abortaba la operación revirtiendo al estado original.
+   - Solución: 'deepCopyItems' ahora soporta defensivamente tanto objetos individuales como arrays. Además, la extracción del elemento individual se realiza con clonado de objeto directo seguro.
+   - Unificación de resolución de claves en memoria ('getUserScheduleKey'): garantizada la compatibilidad mayúsculas/minúsculas y alias de usuarios ('TL' / 'Francisco Javier', 'Training Coordinator' / 'Victor') tanto en origen como en destino.
+   - Backend ('_matrixTransfer'): normalizada la conversión de 'itemIndex' a Number para asegurar coincidencia estricta en el filtrado de actividades atómicas en Google Sheets.
+
+2. Invalidación de caché y PWA:
+   - Versión de caché de Service Worker y rutas elevada a v50.8 para actualización instantánea en todos los clientes.
+1. Sincronización continua con el Calendario del móvil (Punto 2):
+   - Nuevo diálogo interactivo "Móvil y Avisos" en la barra de herramientas del Calendario.
+   - Generación y descarga directa de archivos iCalendar (.ics) para todo el año del formador con alertas sonoras 1 hora antes. Compatible al 100% con iPhone (Apple Calendar) y Android (Google Calendar / Samsung).
+   - Generador de suscripción continua en tiempo real (iCal / Webcal) para que las actividades añadidas o cambiadas en la app se sincronicen solas en el calendario nativo del teléfono.
+   - Botón directo "Añadir a mi Calendario" en el panel de detalle de cada día para guardar eventos sueltos con alarma.
+
+2. Avisos diarios en la app no intrusivos (Punto 3):
+   - Interruptor de activación voluntaria (ON / OFF) para avisos en el móvil.
+   - Cero intrusión: estrictamente 1 aviso por día como máximo, únicamente por la mañana y únicamente los días que el formador tenga formaciones programadas.
+   - En festivos, fines de semana, vacaciones o días sin actividad, no se envía ninguna notificación.
+   - Control total: el usuario puede desactivar los avisos en cualquier momento.
+
+3. Soporte en Service Worker y PWA:
+   - Handlers para mostrar notificaciones nativas en segundo plano y redirigir al calendario al pulsarlas.
+   - Versión elevada a v50.7 para invalidación inmediata de caché.
 
 VERSIÓN 50.6
 ============

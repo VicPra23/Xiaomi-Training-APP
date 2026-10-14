@@ -1,4 +1,5 @@
-const CACHE_NAME = 'xiaomi-trainer-v50.6';
+const CACHE_NAME = 'xiaomi-trainer-v51.0';
+
 const APP_SHELL = [
   './',
   './index.html',
@@ -80,4 +81,35 @@ self.addEventListener('fetch', event => {
 
 self.addEventListener('message', event => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data && event.data.type === 'SHOW_DAILY_NOTIFICATION') {
+    const payload = event.data;
+    event.waitUntil(
+      self.registration.showNotification(payload.title || 'Xiaomi Trainer', {
+        body: payload.body || '',
+        icon: './Xiaomi_logo_(2021-).svg.png',
+        badge: './Xiaomi_logo_(2021-).svg.png',
+        tag: payload.tag || 'xiaomi-daily',
+        data: { url: payload.url || './#calendar' }
+      })
+    );
+  }
 });
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || './#calendar';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          if (client.url && !client.url.includes('#calendar')) {
+            client.navigate(targetUrl);
+          }
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
+});
+

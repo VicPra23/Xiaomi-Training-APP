@@ -68,12 +68,12 @@ window.loadStyleOnce = href => {
 };
 
 const routeViews = {
-    '#dashboard': { src: 'src/views/Dashboard.js?v=50.6', global: 'renderDashboard', needsTomSelect: true },
-    '#report': { src: 'src/views/ReportForm.js?v=50.6', global: 'renderReport', needsTomSelect: true },
-    '#calendar': { src: 'src/views/Calendar.js?v=50.6', global: 'renderCalendar', needsTomSelect: true },
-    '#vacations': { src: 'src/views/Vacations.js?v=50.6', global: 'renderVacations' },
-    '#materials': { src: 'src/views/Materials.js?v=50.6', global: 'renderMaterials' },
-    '#mensajes': { src: 'src/views/Messages.js?v=50.6', global: 'renderMessages' }
+    '#dashboard': { src: 'src/views/Dashboard.js?v=51.0', global: 'renderDashboard', needsTomSelect: true },
+    '#report': { src: 'src/views/ReportForm.js?v=51.0', global: 'renderReport', needsTomSelect: true },
+    '#calendar': { src: 'src/views/Calendar.js?v=51.0', global: 'renderCalendar', needsTomSelect: true },
+    '#vacations': { src: 'src/views/Vacations.js?v=51.0', global: 'renderVacations' },
+    '#materials': { src: 'src/views/Materials.js?v=51.0', global: 'renderMaterials' },
+    '#mensajes': { src: 'src/views/Messages.js?v=51.0', global: 'renderMessages' }
 };
 
 async function ensureRouteView(hash) {
@@ -278,6 +278,7 @@ async function navigateRouter() {
                 }
             }).catch(() => {});
         }
+        triggerDailyTrainerNotification(user).catch(() => {});
     }
 
     try {
@@ -467,6 +468,59 @@ function stopPoller() { if (pollerInterval) clearInterval(pollerInterval); polle
 document.addEventListener('visibilitychange', () => document.hidden ? stopPoller() : startPoller());
 window.addEventListener('online', startPoller);
 window.addEventListener('offline', stopPoller);
+
+// AVISOS DIARIOS NO INTRUSIVOS (PUNTO 3)
+async function triggerDailyTrainerNotification(user) {
+    if (!user || !user.user) return;
+    if (localStorage.getItem('xiaomiDailyNotif') !== 'true') return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    const now = new Date();
+    const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    
+    // Regla estricta no intrusiva: máximo 1 aviso al día
+    if (localStorage.getItem('xiaomiLastNotifDate') === todayISO) return;
+
+    try {
+        const cached = (typeof getOfflineCacheEntry === 'function') 
+            ? getOfflineCacheEntry('getWeekly', { start: now.getFullYear() + '-01-01', end: now.getFullYear() + '-12-31' })
+            : null;
+        let todayItems = [];
+        if (cached && cached.schedule && cached.schedule[todayISO]) {
+            const byUser = cached.schedule[todayISO];
+            todayItems = byUser[user.user] || byUser[String(user.user).toLowerCase()] || [];
+        }
+
+        const validItems = (todayItems || []).filter(it => it && it.text && it.text.trim() && !/^VACACIONES|^FESTIVO/i.test(it.text.trim()));
+        // Si no hay formaciones hoy, no molestar (silencio absoluto)
+        if (!validItems.length) return;
+
+        localStorage.setItem('xiaomiLastNotifDate', todayISO);
+        const summary = validItems.map(it => it.text.trim()).join(' · ');
+        const notifTitle = 'Xiaomi Trainer · Formación de hoy';
+        const notifBody = `Tienes programado: ${summary}`;
+
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'SHOW_DAILY_NOTIFICATION',
+                title: notifTitle,
+                body: notifBody,
+                tag: 'xiaomi-daily-' + todayISO,
+                url: './#calendar'
+            });
+        } else {
+            new Notification(notifTitle, {
+                body: notifBody,
+                icon: './Xiaomi_logo_(2021-).svg.png',
+                badge: './Xiaomi_logo_(2021-).svg.png',
+                tag: 'xiaomi-daily-' + todayISO
+            });
+        }
+    } catch(err) {
+        console.warn("Aviso diario:", err);
+    }
+}
+window.triggerDailyTrainerNotification = triggerDailyTrainerNotification;
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp, { once: true });
 else initApp();
