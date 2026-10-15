@@ -2320,8 +2320,9 @@ button.toast {
     background: color-mix(in oklch, var(--bg-card) 74%, transparent);
 }
 
-.dashboard-filter-card-compact {
-    max-width: 540px;
+.dashboard-filter-card-compact,
+.dashboard-filter-card-standard {
+    max-width: 680px;
 }
 
 .dashboard-filter-toggle {

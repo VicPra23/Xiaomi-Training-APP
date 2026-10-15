@@ -120,6 +120,7 @@ function renderDashboard(container) {
                         <option value="Todos">Todos</option>
                     </select>
                 </div>
+                <div style="display:flex; gap:8px; align-self: flex-end;">
                     <button id="btnToggleRange" class="btn-secondary" aria-label="Cambiar entre periodo y rango de fechas" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Cambiar entre periodo y rango"><i data-lucide="calendar" style="width:18px;"></i></button>
                     <button id="btnExportTop" class="btn-secondary" aria-label="Exportar PDF" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Exportar Reporte PDF" onclick="window.exportDashboardToPDF()"><i data-lucide="file-text" style="width:18px;"></i></button>
                     <button id="btnFilter" class="btn-primary" aria-label="Aplicar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Aplicar filtros"><i data-lucide="search" style="width:18px;"></i></button>
@@ -127,20 +128,38 @@ function renderDashboard(container) {
                 </div>
             </div>
         </div>` : `
-        <div class="dashboard-filter-card dashboard-filter-card-compact">
+        <div class="dashboard-filter-card dashboard-filter-card-standard">
             <button type="button" class="dashboard-filter-toggle dashboard-filter-toggle-minimal" aria-expanded="true" aria-label="Mostrar u ocultar filtros">
                 <span class="dashboard-filter-toggle-label"><i data-lucide="sliders-horizontal"></i> Filtros</span>
                 <i data-lucide="chevron-down"></i>
             </button>
             <div class="dashboard-filter-content">
-                <div id="periodFiltersContainer" style="display:flex; gap:12px;">
-                    <div class="form-group" style="margin:0; min-width: 180px; flex: 0 1 auto; text-align: center;">
-                        <label class="form-label" style="display: block; width: 100%;">Periodo de métricas</label>
-                        <select id="dashboardWeek" class="form-control" disabled aria-label="Semana actual"></select>
-                    </div>
+                <input type="hidden" id="dashboardTarget" value="${esc(currentUser)}">
+                
+                <div class="form-group" style="margin:0; min-width: 90px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Año</label>
+                    <select id="dashboardYear" class="form-control" onchange="window.onDashboardYearChange()">
+                        <option value="Todos">Todos</option>
+                    </select>
                 </div>
+                
+                <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Mes</label>
+                    <select id="dashboardMonth" class="form-control" onchange="window.onDashboardMonthChange()">
+                        <option value="Todos">Todos</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
+                    <label class="form-label" style="display: block; width: 100%;">Semana</label>
+                    <select id="dashboardWeek" class="form-control" onchange="window.onDashboardWeekChange()">
+                        <option value="Todos">Todas</option>
+                    </select>
+                </div>
+
                 <div style="display:flex; gap:8px; align-self: flex-end;">
-                    <button id="btnClearFilters" class="btn-secondary" aria-label="Actualizar dashboard" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Actualizar"><i data-lucide="refresh-ccw" style="width:18px;"></i></button>
+                    <button id="btnFilter" class="btn-primary" aria-label="Aplicar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Aplicar filtros"><i data-lucide="search" style="width:18px;"></i></button>
+                    <button id="btnClearFilters" class="btn-secondary" aria-label="Limpiar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Limpiar filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
                 </div>
             </div>
         </div>`;
@@ -478,12 +497,9 @@ function renderDashboard(container) {
     const sW = document.getElementById('dashboardWeek');
     const hW = document.getElementById('histFilterWeek');
     const mWeekCont = document.getElementById('multiWeekContainer');
-    if (!isAdmin && sW) {
-        sW.innerHTML = `<option value="${currentWeek}">Semana ${currentWeek} (actual)</option>`;
-        sW.value = currentWeek.toString();
-    }
     
     // El usuario ha pedido cambiar el filtro base para que arranque con la semana actual de nuevo,
+
     // pero manteniendo el mes actual para la gráfica de tendencia semanal.
     let selectedWeeksSet = new Set([currentWeek]);
 
@@ -537,7 +553,88 @@ function renderDashboard(container) {
     updateMultiMonthUI();
     window.updateMultiMonthUI = updateMultiMonthUI;
 
-    if(isAdmin && mMonthCont) {
+    window.syncWeeksByMonth = () => {
+        const monthStr = document.getElementById('dashboardMonth')?.value || "Todos";
+        const year = parseInt(document.getElementById('dashboardYear')?.value) || new Date().getFullYear();
+        
+        const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+        const monthWeeks = [];
+        
+        if (monthStr !== "Todos" && monthStr.trim() !== "") {
+            const selectedMonths = monthStr.split(',').map(m => m.trim());
+            selectedMonths.forEach(mName => {
+                const mIdx = mNames.indexOf(mName);
+                if (mIdx !== -1) {
+                    for (let d = 1; d <= 31; d++) {
+                        const date = new Date(year, mIdx, d);
+                        if (date.getMonth() !== mIdx) break;
+                        const w = weekNumberISO(date);
+                        if (!monthWeeks.includes(w)) monthWeeks.push(w);
+                    }
+                }
+            });
+        }
+
+        if(monthStr !== "Todos" && monthStr.trim() !== "") {
+            selectedWeeksSet = new Set(monthWeeks);
+        }
+        updateMultiWeekUI();
+
+        // Soporte para usuario estándar (select simple sin multiselección)
+        if (!isAdmin) {
+            const selW = document.getElementById('dashboardWeek');
+            if (selW && selW.tagName === 'SELECT') {
+                const prevVal = selW.value;
+                const listToInject = (monthStr !== "Todos" && monthWeeks.length > 0) ? monthWeeks : weeksList;
+                injectWeeks(selW, listToInject);
+                if (prevVal && (prevVal === "Todos" || listToInject.includes(Number(prevVal)))) {
+                    selW.value = prevVal;
+                } else if (listToInject.includes(currentWeek)) {
+                    selW.value = currentWeek;
+                } else {
+                    selW.value = "Todos";
+                }
+            }
+        }
+    };
+
+    window.onDashboardYearChange = () => {
+        if (isAdmin) {
+            const dM = document.getElementById('dashboardMonth');
+            if(dM) dM.value = "Todos";
+            selectedMonthsSet.clear();
+            if(window.updateMultiMonthUI) window.updateMultiMonthUI();
+            selectedWeeksSet = new Set(weeksList);
+            updateMultiWeekUI();
+        } else {
+            window.syncWeeksByMonth();
+            if (typeof loadStats === 'function') loadStats();
+        }
+    };
+
+    window.onDashboardMonthChange = () => {
+        window.syncWeeksByMonth();
+        if (!isAdmin && typeof loadStats === 'function') {
+            loadStats();
+        }
+    };
+
+    window.onDashboardWeekChange = () => {
+        if (!isAdmin && typeof loadStats === 'function') {
+            loadStats();
+        }
+    };
+
+    if (!isAdmin) {
+        if (sMonthInput && sMonthInput.tagName === 'SELECT') {
+            const curMonthName = allMonthsList[new Date().getMonth()];
+            sMonthInput.innerHTML = '<option value="Todos">Todos</option>' + allMonthsList.map(m => `<option value="${m}" ${m === curMonthName ? 'selected' : ''}>${m}</option>`).join('');
+            sMonthInput.value = curMonthName;
+        }
+        window.syncWeeksByMonth();
+    }
+
+    if(mMonthCont) {
         mMonthCont.onclick = (e) => {
             let picker = document.getElementById('monthPickerPop');
             if(picker) { picker.remove(); return; }
@@ -590,7 +687,7 @@ function renderDashboard(container) {
     }
 
     // Lógica de Multi-Selección de Semanas con Botón Contextual "Seleccionar Todas"
-    if(isAdmin) {
+    if(mWeekCont) {
         updateMultiWeekUI();
         mWeekCont.onclick = (e) => {
             let picker = document.getElementById('weekPickerPop');
@@ -723,53 +820,9 @@ function renderDashboard(container) {
         };
     }
 
-    window.onDashboardYearChange = () => {
-        const dM = document.getElementById('dashboardMonth');
-        if(dM) dM.value = "Todos";
-        selectedMonthsSet.clear();
-        if(window.updateMultiMonthUI) window.updateMultiMonthUI();
-        
-        // Cuando se cambia el año, automáticamente seleccionamos todas las semanas
-        selectedWeeksSet = new Set(weeksList);
-        updateMultiWeekUI();
-    };
 
-    window.syncWeeksByMonth = () => {
-        const monthStr = document.getElementById('dashboardMonth')?.value || "Todos";
-        const year = parseInt(document.getElementById('dashboardYear')?.value) || new Date().getFullYear();
-        
-        const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-        const monthWeeks = [];
-        
-        if (monthStr !== "Todos" && monthStr.trim() !== "") {
-            const selectedMonths = monthStr.split(',').map(m => m.trim());
-            selectedMonths.forEach(mName => {
-                const mIdx = mNames.indexOf(mName);
-                if (mIdx === -1) return;
-                for (let d = 1; d <= 31; d++) {
-                    const date = new Date(year, mIdx, d);
-                    if (date.getMonth() !== mIdx) break;
-                    const w = weekNumberISO(date);
-                    if (!monthWeeks.includes(w)) monthWeeks.push(w);
-                }
-            });
-        }
-
-        if(isAdmin) {
-            if(monthStr !== "Todos" && monthStr.trim() !== "") {
-                // FIX CRÍTICO: Limpiamos el Set completamente para evitar leak de la semana actual
-                selectedWeeksSet = new Set(monthWeeks);
-            }
-            updateMultiWeekUI();
-        } else {
-            if (monthStr === "Todos" || monthStr.trim() === "") injectWeeks(sW, weeksList);
-            else injectWeeks(sW, monthWeeks);
-        }
-    };
 
     const populateAllFilters = () => {
-        if (!isAdmin) return;
-        
         api.getFilterMetadata({}, true).then(res => {
             if (!active()) return;
             if (res.status === 'success') {
@@ -779,9 +832,17 @@ function renderDashboard(container) {
                 const dM = document.getElementById('dashboardMethodology');
                 
                 if (res.data.years) {
-                    if (yS) yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}">${y}</option>`).join('');
+                    const prevY = yS ? yS.value : "Todos";
+                    if (yS) {
+                        yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}" ${y.toString() === prevY.toString() ? 'selected' : ''}>${y}</option>`).join('');
+                        yS.value = prevY;
+                    }
                 }
-                if (mS && mS.tagName === "SELECT") mS.innerHTML = '<option value="Todos">Todos</option>' + res.data.months.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+                if (mS && mS.tagName === "SELECT") {
+                    const prevM = mS.value || allMonthsList[new Date().getMonth()];
+                    mS.innerHTML = '<option value="Todos">Todos</option>' + (res.data.months || allMonthsList).map(m => `<option value="${esc(m)}" ${m === prevM ? 'selected' : ''}>${esc(m)}</option>`).join('');
+                    mS.value = prevM;
+                }
                 
                 if (dS && res.data.devices) {
                     dS.innerHTML = '<option value="Todos" selected>Todos</option>' + res.data.devices.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
@@ -812,21 +873,23 @@ function renderDashboard(container) {
             }
         });
 
-        api.getUsersList({}, true).then(res => {
-            if (!active()) return;
-            if (res.status === 'success') {
-                const s = document.getElementById('dashboardTarget');
-                const ht = document.getElementById('histFilterTrainer');
-                const optionsHtml = `
-                    <option value="Total">Dato Global</option>
-                    <option value="${esc(currentUser)}">Solo Mío</option>
-                    <hr>
-                    ${res.data.map(u => `<option value="${esc(u.user || u)}">${esc(u.name || u)}</option>`).join('')}
-                `;
-                if (s) s.innerHTML = optionsHtml;
-                if (ht) ht.innerHTML = optionsHtml;
-            }
-        });
+        if (isAdmin) {
+            api.getUsersList({}, true).then(res => {
+                if (!active()) return;
+                if (res.status === 'success') {
+                    const s = document.getElementById('dashboardTarget');
+                    const ht = document.getElementById('histFilterTrainer');
+                    const optionsHtml = `
+                        <option value="Total">Dato Global</option>
+                        <option value="${esc(currentUser)}">Solo Mío</option>
+                        <hr>
+                        ${res.data.map(u => `<option value="${esc(u.user || u)}">${esc(u.name || u)}</option>`).join('')}
+                    `;
+                    if (s) s.innerHTML = optionsHtml;
+                    if (ht) ht.innerHTML = optionsHtml;
+                }
+            });
+        }
         
         // Historial (No requiere caché estricto pero se mantiene la lógica)
         api.getFilterMetadata().then(res => {
@@ -867,14 +930,7 @@ function renderDashboard(container) {
     };
     populateAllFilters();
 
-    const updateWeekSelect = (weeks, isAdmin) => {
-        if (isAdmin) return; // Admins use the multi-picker
-        const sel = document.getElementById('dashboardWeek');
-        if (!sel) return;
-        
-        sel.innerHTML = `<option value="${currentWeek}">Semana ${currentWeek} (actual)</option>`;
-        sel.value = currentWeek.toString();
-    };
+    const updateWeekSelect = () => {};
 
     const loadStats = (force = false) => {
         ++statsRequest;
@@ -915,7 +971,7 @@ function renderDashboard(container) {
 
         let params = { targetUser: target, device: device, methodology: methodology, content: content, refresh: force };
         
-        if (isAdmin && isRangeMode) {
+        if (isRangeMode) {
             params.startDate = dStart ? dStart.value : "";
             params.endDate = dEnd ? dEnd.value : "";
         } else {
@@ -968,39 +1024,44 @@ function renderDashboard(container) {
     // Botón de Limpiar Filtros
     const clearBtn = document.getElementById('btnClearFilters');
     if(clearBtn) clearBtn.onclick = () => {
-        if(isAdmin) {
-            document.getElementById('dashboardTarget').value = 'Total';
-            document.getElementById('dashboardYear').value = 'Todos';
-            document.getElementById('dashboardMonth').value = allMonthsList[new Date().getMonth()];
-            if (window.tsInstances && window.tsInstances['dashboardDevice']) {
-                window.tsInstances['dashboardDevice'].setValue('Todos');
-            } else {
-                document.getElementById('dashboardDevice').value = 'Todos';
-            }
-            if (window.tsInstances && window.tsInstances['dashboardMethodology']) {
-                window.tsInstances['dashboardMethodology'].setValue(['Todos']);
-            } else if (document.getElementById('dashboardMethodology')) {
-                document.getElementById('dashboardMethodology').value = 'Todos';
-            }
-            if (window.tsInstances && window.tsInstances['dashboardContent']) {
-                window.tsInstances['dashboardContent'].setValue(['Todos']);
-            } else if (document.getElementById('dashboardContent')) {
-                document.getElementById('dashboardContent').value = 'Todos';
-            }
-            
-            if(document.getElementById('dashboardDateStart')) document.getElementById('dashboardDateStart').value = '';
-            if(document.getElementById('dashboardDateEnd')) document.getElementById('dashboardDateEnd').value = '';
-            
-            selectedMonthsSet = new Set([allMonthsList[new Date().getMonth()]]);
-            if(window.updateMultiMonthUI) window.updateMultiMonthUI();
-            
-            if(isRangeMode && btnToggle) btnToggle.click();
+        const dTarget = document.getElementById('dashboardTarget');
+        if (dTarget) dTarget.value = isAdmin ? 'Total' : currentUser;
 
-            selectedWeeksSet = new Set([currentWeek]);
-            updateMultiWeekUI(); 
-        } else {
-            if(document.getElementById('dashboardWeek')) document.getElementById('dashboardWeek').value = currentWeek;
+        if (document.getElementById('dashboardYear')) document.getElementById('dashboardYear').value = 'Todos';
+        if (document.getElementById('dashboardMonth')) document.getElementById('dashboardMonth').value = allMonthsList[new Date().getMonth()];
+        if (window.tsInstances && window.tsInstances['dashboardDevice']) {
+            window.tsInstances['dashboardDevice'].setValue('Todos');
+        } else if (document.getElementById('dashboardDevice')) {
+            document.getElementById('dashboardDevice').value = 'Todos';
         }
+        if (window.tsInstances && window.tsInstances['dashboardMethodology']) {
+            window.tsInstances['dashboardMethodology'].setValue(['Todos']);
+        } else if (document.getElementById('dashboardMethodology')) {
+            document.getElementById('dashboardMethodology').value = 'Todos';
+        }
+        if (window.tsInstances && window.tsInstances['dashboardContent']) {
+            window.tsInstances['dashboardContent'].setValue(['Todos']);
+        } else if (document.getElementById('dashboardContent')) {
+            document.getElementById('dashboardContent').value = 'Todos';
+        }
+        
+        if(document.getElementById('dashboardDateStart')) document.getElementById('dashboardDateStart').value = '';
+        if(document.getElementById('dashboardDateEnd')) document.getElementById('dashboardDateEnd').value = '';
+        
+        selectedMonthsSet = new Set([allMonthsList[new Date().getMonth()]]);
+        if(window.updateMultiMonthUI) window.updateMultiMonthUI();
+        
+        if(isRangeMode && btnToggle) btnToggle.click();
+
+        selectedWeeksSet = new Set([currentWeek]);
+        updateMultiWeekUI(); 
+
+        if (!isAdmin) {
+            window.syncWeeksByMonth();
+            const dW = document.getElementById('dashboardWeek');
+            if (dW) dW.value = currentWeek;
+        }
+
         // Historial
         if(isAdmin && document.getElementById('histFilterTrainer')) document.getElementById('histFilterTrainer').value = 'Total';
         if(document.getElementById('histFilterWeek')) document.getElementById('histFilterWeek').value = currentWeek;
@@ -1340,7 +1401,7 @@ function renderDashboard(container) {
 
         let params = { targetUser: target, device: device, methodology: methodology, content: content };
         
-        if (isAdmin && isRangeMode) {
+        if (isRangeMode) {
             params.startDate = dStart ? dStart.value : "";
             params.endDate = dEnd ? dEnd.value : "";
         } else {
@@ -1580,7 +1641,23 @@ function renderDashboard(container) {
     };
 
     const btnFilter = document.getElementById('btnFilter');
-    if(btnFilter) btnFilter.onclick = () => { loadStats(); loadHistory(); };
+    if(btnFilter) btnFilter.onclick = () => {
+        if (!isAdmin) {
+            const dMonth = document.getElementById('dashboardMonth');
+            const dWeek = document.getElementById('dashboardWeek');
+            const hMonth = document.getElementById('histFilterMonth');
+            const hWeek = document.getElementById('histFilterWeek');
+            if (dMonth && hMonth && dMonth.value) {
+                hMonth.value = dMonth.value;
+            }
+            if (dWeek && hWeek && dWeek.value) {
+                injectWeeks(hWeek, weeksList, dWeek.value);
+                hWeek.value = dWeek.value;
+            }
+        }
+        loadStats();
+        loadHistory();
+    };
 
     const btnClearHistory = document.getElementById('btnClearHistory');
     if(btnClearHistory) btnClearHistory.onclick = () => {

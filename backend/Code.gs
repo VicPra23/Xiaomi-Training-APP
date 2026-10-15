@@ -704,15 +704,16 @@ function getDashboardStats(p, session) {
   const defaultWeek = getWeekNumber(now).toString();
   const defaultMonth = mNames[now.getMonth()];
   const defaultYear = now.getFullYear().toString();
+  // Seguridad: el usuario estándar solo puede consultar sus propios datos
   const target = (isStandardUser ? session.user : (p.targetUser || "Total")).toString().trim();
-  const targetWeeksStr = (isStandardUser ? defaultWeek : (p.weeks || p.week || "")).toString().trim();
-  const targetMonth = (isStandardUser ? defaultMonth : (p.month || "Todos")).toString().trim();
-  const targetYear = (isStandardUser ? defaultYear : (p.year || "Todos")).toString().trim();
+  const targetWeeksStr = (p.weeks !== undefined && p.weeks !== null ? p.weeks : (p.week !== undefined && p.week !== null ? p.week : "")).toString().trim();
+  const targetMonth = (p.month || "Todos").toString().trim();
+  const targetYear = (p.year || "Todos").toString().trim();
   const targetDevice = (p.device || "todos").toString().trim().toLowerCase();
   const targetMethodology = (p.methodology || "Todos").toString().trim().toLowerCase();
   const targetContent = (p.content || "Todos").toString().trim().toLowerCase();
 
-  // 1️⃣ NUEVO: Leer Rango de Fechas (Si el Admin lo usa)
+  // 1️⃣ NUEVO: Leer Rango de Fechas
   const startDateStr = (p.startDate || "").toString().trim();
   const endDateStr = (p.endDate || "").toString().trim();
   let startD = startDateStr ? new Date(startDateStr) : null;
@@ -728,7 +729,7 @@ function getDashboardStats(p, session) {
 
   // 2️⃣ NUEVO: Soporte para Múltiples Meses (Ej: "Mayo,Junio")
   let selectedMonths = [];
-  if (targetMonth !== "Todos") {
+  if (targetMonth !== "Todos" && targetMonth !== "") {
       selectedMonths = targetMonth.split(',').map(m => m.trim());
   }
 
@@ -753,16 +754,21 @@ function getDashboardStats(p, session) {
   const currentWeekEnd = new Date(currentWeekStart);
   currentWeekEnd.setDate(currentWeekEnd.getDate() + 7);
 
-  // Los trainers comparan todas las semanas del mes actual, incluidas las que están a cero.
-  if (isStandardUser) {
-    const cursor = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0, 12, 0, 0).getDate();
-    for (let day = 1; day <= lastDay; day++) {
-      cursor.setDate(day);
-      const week = getWeekNumber(cursor);
-      if (!monthlyWS[week]) monthlyWS[week] = { sesiones:0, alumnos:0 };
+  // Si se selecciona un único mes y no estamos en rango libre, rellenamos las semanas del mes a 0 para graficar la evolución completa
+  if (selectedMonths.length === 1 && !startD) {
+    const mIdx = mNames.indexOf(selectedMonths[0]);
+    if (mIdx !== -1) {
+      const yNum = parseInt(targetYear, 10) || now.getFullYear();
+      const cursor = new Date(yNum, mIdx, 1, 12, 0, 0);
+      const lastDay = new Date(yNum, mIdx + 1, 0, 12, 0, 0).getDate();
+      for (let day = 1; day <= lastDay; day++) {
+        cursor.setDate(day);
+        const week = getWeekNumber(cursor);
+        if (!monthlyWS[week]) monthlyWS[week] = { sesiones:0, alumnos:0 };
+      }
     }
   }
+
 
   for (var i=1; i<d.length; i++) {
     var fVal = colMap.FECHA !== undefined ? d[i][colMap.FECHA] : d[i][2];
@@ -779,9 +785,6 @@ function getDashboardStats(p, session) {
         // Modo Rango de Fechas
         if (dO.getTime() < startD.getTime() || dO.getTime() > endD.getTime()) continue;
         availableWeeks.add(rowWeek);
-    } else if (isStandardUser) {
-        // Las métricas y la gráfica usan periodos diferentes; se filtran al acumular.
-        availableWeeks.add(defaultWeek);
     } else {
         // Modo Estándar (Año, Mes, Semana)
         if (targetYear !== "Todos" && rowYear.toString() !== targetYear) continue;
@@ -831,10 +834,8 @@ function getDashboardStats(p, session) {
     var trainer = (d[i][colMap.TRAINER]||d[i][1]||"Desconocido").toString().trim();
     var cuenta = (d[i][colMap.CUENTA]||"Otros").toString().trim();
 
-    // Sumar a totales si coincide la semana (o si estamos en modo Rango de Fechas)
-    const inSelectedWeek = isStandardUser
-      ? (dO.getTime() >= currentWeekStart.getTime() && dO.getTime() < currentWeekEnd.getTime())
-      : ((startD && endD) ? true : (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek)));
+    // Sumar a totales si coincide la semana (o si estamos en modo Rango de Fechas o todas las semanas)
+    const inSelectedWeek = (startD && endD) ? true : (selectedWeeks.length === 0 || selectedWeeks.includes(rowWeek));
 
     if (inSelectedWeek) {
       if (matchesUser) {
@@ -850,9 +851,7 @@ function getDashboardStats(p, session) {
 
     // Acumular para el gráfico de barras semanal
     if (matchesUser) {
-        const matchesMonthForChart = isStandardUser
-          ? (rowYear === now.getFullYear() && rowMonth === now.getMonth())
-          : ((startD && endD) ? true : (selectedMonths.length === 0 || selectedMonths.includes(mNames[rowMonth])));
+        const matchesMonthForChart = (startD && endD) ? true : (selectedMonths.length === 0 || selectedMonths.includes(mNames[rowMonth]));
         if (matchesMonthForChart) {
             if(!monthlyWS[rowWeek]) monthlyWS[rowWeek] = { sesiones:0, alumnos:0 };
             monthlyWS[rowWeek].sesiones += ses; monthlyWS[rowWeek].alumnos += alu;

@@ -1,6 +1,38 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 51.0
-Fecha: 14/10/2026
+Versión revisada: 51.3
+Fecha: 15/10/2026
+
+VERSIÓN 51.3
+============
+1. Nuevo endpoint de Google Apps Script conectado:
+   - Conexión del backend actualizada al nuevo despliegue de Apps Script:
+     https://script.google.com/macros/s/AKfycbxeO-7LP6cQsNAUH-rMveh1_fYbWH8v1G3Mz96_hFFwvrON7OW_zj-_K65HNYGQFulzow/exec
+   - Comprobada la conectividad y respuesta satisfactoria del servicio.
+
+2. Invalidación de caché y Service Worker:
+   - Service Worker y control de versiones elevados a v51.3 en index.html, main.js y sw.js para actualización automática e inmediata.
+
+VERSIÓN 51.2
+============
+1. Filtro simplificado, directo y funcional en Dashboard para usuarios estándar:
+   - Diseño específico para formadores estándar (rol no admin): sustituido el panel complejo multi-selección por tres selectores simples e intuitivos (Año, Mes y Semana), eliminando multi-selección, insignias complejas, metodología, contenidos, dispositivos y rango libre en la barra superior.
+   - Cascada dinámica de periodos: al cambiar de Mes, el selector de Semana se sincroniza al instante mostrando únicamente las semanas correspondientes a ese mes (o todas las semanas 1-52 si se selecciona "Todos"), evitando selecciones fuera de periodo.
+   - Consulta instantánea y reactiva: cualquier cambio en Año, Mes o Semana actualiza inmediatamente las métricas clave (actividades, sesiones, alumnos, horas) y gráficos de evolución semanal respetando de forma estricta los datos privados del formador.
+   - Sincronización con el botón Filtrar y Limpiar: pulsar el botón de Filtrar aplica la selección tanto al resumen general como al historial de actividades inferior. El botón Limpiar restablece Año a 'Todos', Mes al mes actual y Semana a la semana en curso.
+   - Preservación íntegra de la suite avanzada para Administradores: los usuarios administradores mantienen su selector de trainer global, multi-mes, multi-semana, rango de calendario, dispositivos, metodologías, contenidos y exportación PDF.
+
+2. Invalidación de caché y Service Worker:
+   - Service Worker y control de versiones elevados a v51.2 en index.html, main.js y sw.js para actualización inmediata en todos los dispositivos.
+
+VERSIÓN 51.1
+============
+1. Filtros del Dashboard 100% funcionales para usuarios estándar:
+   - Resuelto el bloqueo por el cual los formadores estándar veían el selector de periodo desactivado (disabled) y no podían filtrar métricas ni actividades.
+   - Panel de filtros unificado: los usuarios estándar ahora disponen de toda la suite de filtrado (Año, Meses multi-selección, Semanas multi-selección, Rango libre de fechas Desde/Hasta, Metodología, Contenidos, Dispositivos, botón Filtrar, Limpiar y exportación a PDF).
+   - El selector de Trainer queda fijado de forma segura y transparente a su propio usuario ('Solo Mío'), garantizando que cada formador consulte únicamente su actividad.
+   - Activados los selectores emergentes interactivos de meses y semanas (multi-picker) para todos los usuarios.
+   - 'populateAllFilters' ahora inicializa los metadatos de filtros tanto para el dashboard superior como para la tabla de historial en usuarios estándar.
+   - En backend (Code.gs -> getDashboardStats): eliminada la restricción que forzaba los datos a la semana actual fija si el rol era estándar, procesando ahora dinámicamente los parámetros de semanas, meses, años, rango de fechas, metodología, dispositivo y contenido mientras se preserva estrictamente la privacidad del formador.
 
 VERSIÓN 51.0
 ============
@@ -12,6 +44,8 @@ VERSIÓN 51.0
 2. Invalidación de caché y PWA:
    - Service Worker y control de versiones elevados a v51.0 para forzar la actualización automática e inmediata en todos los clientes y navegadores.
 
+VERSIÓN 50.9
+============
 1. Copia directa de actividades individuales al pulsar:
    - Añadido botón directo de copia integrado en cada pastilla de actividad del calendario (.assignment-tag-copy con icono copy).
    - Al pulsar el icono de copia de una actividad específica, se copia únicamente esa actividad al portapapeles de la app (gestor multi-copia con selección de ranura) y al portapapeles del sistema (navigator.clipboard).
