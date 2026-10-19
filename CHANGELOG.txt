@@ -1,9 +1,27 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 51.3
-Fecha: 15/10/2026
+Versión revisada: 51.5
+Fecha: 19/10/2026
 
-VERSIÓN 51.3
+VERSIÓN 51.5
 ============
+1. Corrección del duplicado en la carátula/miniatura de fotos en reportes:
+   - Diagnóstico del problema: En el Service Worker (`sw.js`), la estrategia de caché interceptaba indiscriminadamente peticiones de imágenes con `{ ignoreSearch: true }`. Al consultar las miniaturas de Google Drive (`https://drive.google.com/thumbnail?id=...&sz=w200`), la primera foto que cargaba se almacenaba en caché bajo la ruta base ignorando el parámetro `?id=...`. Como consecuencia, todas las fotos restantes del reporte recibían y mostraban la carátula de la primera foto, aunque el enlace real (`<a>`) conservaba correctamente la URL única de cada foto.
+   - Solución en Service Worker: Excluidos de la interceptación del Service Worker todos los dominios de Google, Drive, GoogleUserContent y CDNs externas, restringiendo el almacenamiento estático en caché exclusivamente al propio origen de la aplicación (`self.location.origin`).
+   - Mejora de resolución y políticas de privacidad en visor de fotos: Añadido `referrerpolicy="no-referrer"` a las etiquetas `<img>` para evitar bloqueos por cabecera Referer en Google Drive, ampliada la resolución de miniatura a `sz=w300` para pantallas móviles de alta densidad y configurado fallback automático al CDN directo `lh3.googleusercontent.com` ante cualquier fallo de red.
+
+2. Invalidación de caché y despliegue:
+   - Elevado el nombre de caché a `xiaomi-trainer-v51.5` en `sw.js` (lo que elimina automáticamente las versiones previas en los dispositivos de los usuarios) y actualizadas las referencias de scripts y estilos a `?v=51.5` en `index.html` y `main.js`.
+
+1. Solución integral a la integración del Calendario con el Móvil y Avisos:
+   - Aclaración de permisos y rediseño de interfaz: Separados claramente en dos bloques visuales la descarga/volcado a la app de Calendario y las notificaciones en pantalla del navegador. Por seguridad, los navegadores web (Chrome, Safari, Edge) no pueden escribir directamente en la base de datos de la agenda del móvil sin confirmación explícita del usuario.
+   - Botón destacado 'Volcar a mi Calendario': Genera el archivo .ics completo del año con recordatorios y alarmas automáticas 1 hora antes (-PT1H) y utiliza la Web Share API (navigator.share con archivo) en móviles Android e iOS para abrir directamente la hoja nativa del sistema ("Añadir al Calendario", "Google Calendar" o "Calendario de Apple"). En navegadores de escritorio se descarga el archivo .ics directamente.
+   - Corrección en la generación de eventos iCal: Sustituido el acceso directo por diccionario por la función getItems(date, userId) con resolución bidireccional de alias y nombres de usuario, asegurando que todos los eventos programados se incluyan sin importar si el usuario usa su ID o nombre de pila. Añadido fallback automático que consulta el feed directo de Google Apps Script si no hay datos en memoria local.
+   - Implementación de 'triggerDailyTrainerNotification': Implementado el sistema de avisos matinales diarios con Service Worker y Notification API. Al activar el interruptor de avisos en el diálogo, se lanza de inmediato una notificación de prueba en pantalla para confirmar visualmente al usuario que los permisos y avisos están funcionando.
+   - Enlaces directos de suscripción online a Google Calendar (vía cid) y Apple Calendar / Webcal con actualización automática cada vez que se modifique la intranet.
+
+2. Invalidación de caché y Service Worker:
+   - Service Worker y control de versiones elevados a v51.4 en index.html, main.js y sw.js para propagación inmediata.
+
 1. Nuevo endpoint de Google Apps Script conectado:
    - Conexión del backend actualizada al nuevo despliegue de Apps Script:
      https://script.google.com/macros/s/AKfycbxeO-7LP6cQsNAUH-rMveh1_fYbWH8v1G3Mz96_hFFwvrON7OW_zj-_K65HNYGQFulzow/exec

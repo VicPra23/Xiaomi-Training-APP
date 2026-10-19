@@ -1,4 +1,4 @@
-const CACHE_NAME = 'xiaomi-trainer-v51.3';
+const CACHE_NAME = 'xiaomi-trainer-v51.5';
 
 
 const APP_SHELL = [
@@ -46,7 +46,16 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
 
-  if (url.hostname === 'script.google.com' || url.hostname === 'script.googleusercontent.com') return;
+  // Omitir peticiones externas a Google, Drive, CDNs y APIs para que nunca se intercepten ni se cacheen de forma cruzada
+  if (
+    url.hostname.endsWith('google.com') ||
+    url.hostname.endsWith('googleusercontent.com') ||
+    url.hostname.endsWith('gstatic.com') ||
+    url.hostname.endsWith('jsdelivr.net') ||
+    url.hostname.endsWith('unpkg.com')
+  ) {
+    return;
+  }
 
   if (request.mode === 'navigate') {
     const fresh = fetch(request).then(async response => {
@@ -61,8 +70,8 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  const isCacheableStatic = url.origin === self.location.origin ||
-    ['script', 'style', 'font', 'image'].includes(request.destination);
+  // Solo cachear estáticos del propio origen de la aplicación
+  const isCacheableStatic = url.origin === self.location.origin;
   if (isCacheableStatic) {
     const result = caches.open(CACHE_NAME).then(cache =>
       cache.match(request, { ignoreSearch: true }).then(cached => {

@@ -1594,10 +1594,12 @@ function renderDashboard(container) {
                                 const p = window.safeExternalUrl ? window.safeExternalUrl(url.trim()) : '';
                                 if (!p) return '';
                                 const idMatch = p.match(/id=([^&]+)/) || p.match(/\/d\/([^/]+)/);
-                                const thumb = idMatch ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w200` : p;
+                                const fileId = idMatch ? idMatch[1] : '';
+                                const thumb = fileId ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w300` : p;
+                                const fallbackThumb = fileId ? `https://lh3.googleusercontent.com/d/${fileId}=w300` : '';
                                 return `
                                     <a href="${esc(p)}" target="_blank" rel="noopener noreferrer" class="report-photo-link" title="Ver foto ${i + 1} en Google Drive">
-                                        <img src="${esc(thumb)}" loading="lazy" alt="Foto adjunta ${i + 1}">
+                                        <img src="${esc(thumb)}" loading="lazy" referrerpolicy="no-referrer" alt="Foto adjunta ${i + 1}" ${fallbackThumb ? `onerror="if(!this.dataset.triedFallback){this.dataset.triedFallback='1';this.src='${esc(fallbackThumb)}';}"` : ''}>
                                     </a>
                                 `;
                             }).join('') : '<span style="color:var(--text-muted); font-style:italic; font-size:0.8rem;">No hay fotos adjuntas</span>'}

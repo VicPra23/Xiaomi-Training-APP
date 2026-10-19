@@ -694,10 +694,17 @@ function renderCalendar(container) {
         if (byDate[userId]) return userId;
         const lower = String(userId).toLowerCase();
         if (byDate[lower]) return lower;
-        const userObj = (calendarData.users || []).find(u => (typeof u === 'object' ? u.user : u) === userId);
+        const userObj = (calendarData.users || []).find(u => {
+            const uid = (typeof u === 'object' ? u.user : u);
+            const uname = (typeof u === 'object' && u.name ? u.name : '');
+            return uid === userId || (uname && uname === userId);
+        });
         const displayName = typeof userObj === 'object' && userObj.name ? userObj.name : '';
         if (displayName && byDate[displayName]) return displayName;
         if (displayName && byDate[displayName.toLowerCase()]) return displayName.toLowerCase();
+        const objUserId = typeof userObj === 'object' && userObj.user ? userObj.user : '';
+        if (objUserId && byDate[objUserId]) return objUserId;
+        if (objUserId && byDate[objUserId.toLowerCase()]) return objUserId.toLowerCase();
         return userId;
     }
 
@@ -1441,81 +1448,210 @@ function renderCalendar(container) {
         if (typeof showToast === 'function') showToast("Abriendo calendario", "Guardando el evento con recordatorio en tu calendario.");
     }
 
-    function downloadTrainerICS(trainerId, year) {
-        if (!calendarData?.schedule) {
-            if (typeof showToast === 'function') showToast("Cargando datos", "Espera un momento mientras carga el calendario.");
-            return;
-        }
+    async function getTrainerICSContent(trainerId, year) {
+        const targetTrainer = trainerId || currentUser;
         const events = [];
         const nowStr = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '') + 'Z';
-        const targetTrainer = trainerId || currentUser;
-        
-        Object.entries(calendarData.schedule).forEach(([date, byUser]) => {
-            if (!date.startsWith(String(year))) return;
-            const items = byUser[targetTrainer] || byUser[String(targetTrainer).toLowerCase()] || [];
-            items.forEach((item, idx) => {
-                const text = String(item.text || '').trim();
-                if (!text || /^VACACIONES|^FESTIVO/i.test(text)) return;
-                const parts = date.split('-');
-                const dStart = parts[0] + parts[1] + parts[2];
-                const nextDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + 1));
-                const dEnd = nextDate.toISOString().slice(0, 10).replace(/-/g, '');
-                const uid = `xiaomi-${date}-${idx}-${targetTrainer}@xiaomitrainer`;
-                const cleanSummary = text.replace(/[\r\n]+/g, ' - ').replace(/,/g, '\\,').replace(/;/g, '\\;');
-                const cat = String(item.category || 'otros').toUpperCase();
 
-                events.push([
-                    "BEGIN:VEVENT",
-                    "UID:" + uid,
-                    "DTSTAMP:" + nowStr,
-                    "DTSTART;VALUE=DATE:" + dStart,
-                    "DTEND;VALUE=DATE:" + dEnd,
-                    "SUMMARY:" + cleanSummary,
-                    "DESCRIPTION:Formación Xiaomi (" + cat + ") - " + cleanSummary,
-                    "CATEGORIES:" + cat,
-                    "STATUS:CONFIRMED",
-                    "TRANSP:OPAQUE",
-                    "BEGIN:VALARM",
-                    "ACTION:DISPLAY",
-                    "DESCRIPTION:Recordatorio de formación: " + cleanSummary,
-                    "TRIGGER:-PT1H",
-                    "END:VALARM",
-                    "END:VEVENT"
-                ].join("\r\n"));
+        if (calendarData?.schedule) {
+            Object.keys(calendarData.schedule).forEach(date => {
+                if (!date.startsWith(String(year))) return;
+                const items = getItems(date, targetTrainer);
+                items.forEach((item, idx) => {
+                    const text = String(item.text || '').trim();
+                    if (!text || /^VACACIONES|^FESTIVO/i.test(text)) return;
+                    const parts = date.split('-');
+                    const dStart = parts[0] + parts[1] + parts[2];
+                    const nextDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + 1));
+                    const dEnd = nextDate.toISOString().slice(0, 10).replace(/-/g, '');
+                    const uid = `xiaomi-${date}-${idx}-${targetTrainer}@xiaomitrainer`;
+                    const cleanSummary = text.replace(/[\r\n]+/g, ' - ').replace(/,/g, '\\,').replace(/;/g, '\\;');
+                    const cat = String(item.category || 'otros').toUpperCase();
+
+                    events.push([
+                        "BEGIN:VEVENT",
+                        "UID:" + uid,
+                        "DTSTAMP:" + nowStr,
+                        "DTSTART;VALUE=DATE:" + dStart,
+                        "DTEND;VALUE=DATE:" + dEnd,
+                        "SUMMARY:" + cleanSummary,
+                        "DESCRIPTION:Formación Xiaomi (" + cat + ") - " + cleanSummary,
+                        "CATEGORIES:" + cat,
+                        "STATUS:CONFIRMED",
+                        "TRANSP:OPAQUE",
+                        "BEGIN:VALARM",
+                        "ACTION:DISPLAY",
+                        "DESCRIPTION:Recordatorio de formación: " + cleanSummary,
+                        "TRIGGER:-PT1H",
+                        "END:VALARM",
+                        "END:VEVENT"
+                    ].join("\r\n"));
+                });
             });
-        });
+        }
 
-        if (!events.length) {
-            if (typeof showToast === 'function') showToast("Sin actividades", "No hay actividades registradas en " + year + " para este usuario.");
+        if (events.length > 0) {
+            return [
+                "BEGIN:VCALENDAR",
+                "VERSION:2.0",
+                "PRODID:-//Xiaomi Trainer Platform//ES",
+                "CALSCALE:GREGORIAN",
+                "METHOD:PUBLISH",
+                "X-WR-CALNAME:Xiaomi Formaciones " + year + " - " + targetTrainer,
+                "X-WR-TIMEZONE:Europe/Madrid",
+                events.join("\r\n"),
+                "END:VCALENDAR"
+            ].join("\r\n");
+        }
+
+        // Fallback: descargar feed directo generado en el backend por Apps Script si no hay eventos locales
+        const apiEndpoint = (typeof API_URL !== 'undefined') ? API_URL : '';
+        if (apiEndpoint) {
+            try {
+                const feedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(targetTrainer)}&year=${year}`;
+                const resp = await fetch(feedUrl);
+                if (resp.ok) {
+                    const icsText = await resp.text();
+                    if (icsText && icsText.includes('BEGIN:VCALENDAR') && icsText.includes('BEGIN:VEVENT')) {
+                        return icsText;
+                    }
+                }
+            } catch (err) {
+                console.warn('No se pudo obtener el feed de calendario remoto:', err);
+            }
+        }
+
+        return null;
+    }
+
+    async function smartSyncTrainerICS(trainerId, year) {
+        const targetTrainer = trainerId || currentUser;
+        if (typeof showToast === 'function') {
+            showToast("Preparando calendario", "Compilando tus formaciones con recordatorios...");
+        }
+
+        const icsContent = await getTrainerICSContent(targetTrainer, year);
+        if (!icsContent) {
+            if (typeof showToast === 'function') {
+                showToast("Sin actividades", "No se encontraron actividades registradas en " + year + " para " + targetTrainer + ".");
+            }
             return;
         }
 
-        const icsContent = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//Xiaomi Trainer Platform//ES",
-            "CALSCALE:GREGORIAN",
-            "METHOD:PUBLISH",
-            "X-WR-CALNAME:Xiaomi Formaciones " + year + " - " + targetTrainer,
-            "X-WR-TIMEZONE:Europe/Madrid",
-            events.join("\r\n"),
-            "END:VCALENDAR"
-        ].join("\r\n");
-
+        const safeName = String(targetTrainer).replace(/[^a-zA-Z0-9_\u00C0-\u017F]+/g, '_');
+        const fileName = `xiaomi_formaciones_${safeName}_${year}.ics`;
         const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+
+        // Intento 1: Web Share API con archivo para móviles (permite "Abrir con Calendario / Google Calendar / Apple Calendar")
+        if (typeof File !== 'undefined' && navigator.canShare) {
+            try {
+                const file = new File([blob], fileName, { type: 'text/calendar' });
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `Xiaomi Formaciones ${year}`,
+                        text: `Calendario de formaciones Xiaomi de ${targetTrainer} (${year})`
+                    });
+                    if (typeof showToast === 'function') {
+                        showToast("Calendario enviado", "Elige tu app de Calendario para guardarlo en tu móvil.");
+                    }
+                    return;
+                }
+            } catch (shareErr) {
+                if (shareErr.name === 'AbortError') return; // Cancelado por el usuario
+                console.warn('Error al compartir con Web Share, usando descarga directa:', shareErr);
+            }
+        }
+
+        // Intento 2 / Fallback directo: Descargar archivo .ics
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `xiaomi_formaciones_${targetTrainer}_${year}.ics`);
+        link.setAttribute('download', fileName);
         document.body.appendChild(link);
         link.click();
         link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
 
         if (typeof showToast === 'function') {
-            showToast("Calendario descargado", "Abre el archivo para guardarlo en la app de Calendario de tu móvil.");
+            showToast("Calendario descargado", "Abre el archivo descargado para agregarlo con avisos a tu aplicación de Calendario.");
         }
     }
+
+    const downloadTrainerICS = smartSyncTrainerICS;
+
+    window.triggerDailyTrainerNotification = async function(userSession, forceTest = false) {
+        if (!('Notification' in window)) return;
+        const isEnabled = localStorage.getItem('xiaomiDailyNotif') === 'true';
+        if (!forceTest && !isEnabled) return;
+        if (Notification.permission !== 'granted') return;
+
+        const nowLocal = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const todayStr = `${nowLocal.getFullYear()}-${pad(nowLocal.getMonth() + 1)}-${pad(nowLocal.getDate())}`;
+
+        if (!forceTest) {
+            const lastNotif = localStorage.getItem('xiaomiLastDailyNotifDate');
+            if (lastNotif === todayStr) return;
+        }
+
+        const targetUser = userSession?.displayName || userSession?.user || currentUser;
+        let todayItems = [];
+        if (calendarData?.schedule?.[todayStr]) {
+            todayItems = getItems(todayStr, targetUser).filter(it => {
+                const txt = String(it.text || '').trim();
+                return txt && !/^VACACIONES|^FESTIVO/i.test(txt);
+            });
+        }
+
+        let title = '';
+        let body = '';
+
+        if (todayItems.length > 0) {
+            const list = todayItems.map(it => it.text).join(' · ');
+            title = `Xiaomi Trainer · Hoy (${todayItems.length} actividad${todayItems.length > 1 ? 'es' : ''})`;
+            body = list;
+        } else if (forceTest) {
+            title = 'Xiaomi Trainer · Avisos en Pantalla';
+            body = '¡Notificaciones activadas correctamente! Te avisaremos a primera hora únicamente los días con actividades programadas.';
+        } else {
+            return; // No hay actividad hoy
+        }
+
+        if (!forceTest) {
+            localStorage.setItem('xiaomiLastDailyNotifDate', todayStr);
+        }
+
+        // Enviar por Service Worker para soporte móvil en segundo plano
+        try {
+            if ('serviceWorker' in navigator) {
+                const reg = await navigator.serviceWorker.ready;
+                if (reg && reg.showNotification) {
+                    await reg.showNotification(title, {
+                        body,
+                        icon: './Xiaomi_logo_(2021-).svg.png',
+                        badge: './Xiaomi_logo_(2021-).svg.png',
+                        tag: 'xiaomi-daily-' + (forceTest ? 'test-' + Date.now() : todayStr),
+                        data: { url: './#calendar' },
+                        renotify: true
+                    });
+                    return;
+                }
+            }
+        } catch (swErr) {
+            console.warn('Fallo en notificación via Service Worker:', swErr);
+        }
+
+        try {
+            new Notification(title, {
+                body,
+                icon: './Xiaomi_logo_(2021-).svg.png',
+                tag: 'xiaomi-daily'
+            });
+        } catch (nErr) {
+            console.warn('Fallo en Notification API directa:', nErr);
+        }
+    };
 
     function showPhoneSyncDialog() {
         const dialog = document.createElement("dialog");
@@ -1536,8 +1672,8 @@ function renderCalendar(container) {
                 <header class="calendar-phone-dialog-header">
                     <div class="calendar-phone-icon"><i data-lucide="smartphone"></i></div>
                     <div>
-                        <h3>Móvil y Notificaciones</h3>
-                        <p>Sincroniza tus formaciones con el calendario de tu móvil y gestiona avisos.</p>
+                        <h3>Móvil y Avisos</h3>
+                        <p>Integra tus formaciones con la app de Calendario de tu móvil y gestiona avisos en pantalla.</p>
                     </div>
                     <button type="button" class="btn-close-dialog" data-close-dialog aria-label="Cerrar"><i data-lucide="x"></i></button>
                 </header>
@@ -1548,26 +1684,32 @@ function renderCalendar(container) {
                         <div class="phone-sync-sec-title">
                             <i data-lucide="calendar"></i>
                             <div>
-                                <strong>1. Calendario de tu móvil (Google Calendar / iPhone)</strong>
-                                <span>Añade todas tus actividades del año con avisos sonoros 1 hora antes.</span>
+                                <strong>1. Guardar en tu app de Calendario (Google / iPhone / Samsung)</strong>
+                                <span>Añade las formaciones de ${selectedYear} con alarmas sonoras automáticas 1 hora antes.</span>
+                            </div>
+                        </div>
+
+                        <div class="phone-sync-notice">
+                            <i data-lucide="info"></i>
+                            <div>
+                                <strong>Importante:</strong> Por privacidad y seguridad del sistema operativo, las webs no pueden inyectar citas en tu agenda sin confirmación. Pulsa el botón de abajo para volcar todos tus eventos con recordatorios a tu app de Calendario:
                             </div>
                         </div>
 
                         <div class="phone-sync-actions-grid">
                             <div class="phone-action-card">
-                                <div class="phone-action-copy">
-                                    <strong>Descargar archivo (.ics)</strong>
-                                    <small>Recomendado para iPhone / iPad y calendarios locales. Importa todo el año ${selectedYear} en un solo toque con alarmas.</small>
-                                </div>
-                                <button type="button" class="btn-primary" id="btnDownloadIcs" style="align-self:flex-start; margin-top:4px;">
-                                    <i data-lucide="download"></i><span>Descargar .ics (${selectedYear})</span>
+                                <button type="button" class="btn-primary" id="btnSmartSync" style="width:100%; justify-content:center; padding:0.75rem 1rem; font-size:0.92rem; font-weight:650;">
+                                    <i data-lucide="calendar-plus"></i><span>Volcar a mi Calendario (${selectedYear})</span>
                                 </button>
+                                <small style="color:var(--text-muted); font-size:0.73rem; margin-top:4px; text-align:center;">
+                                    Abre la importación directa en tu teléfono o descarga el archivo <strong>.ics</strong> con alarmas de 1 hora antes.
+                                </small>
                             </div>
 
                             <div class="phone-action-card">
                                 <div class="phone-action-copy">
-                                    <strong>Suscripción automática (Google Calendar / Webcal)</strong>
-                                    <small>Se actualiza automáticamente en tu calendario cada vez que se modifiquen actividades en la intranet.</small>
+                                    <strong>Suscripción online (Actualización en tiempo real)</strong>
+                                    <small>Se sincroniza solo cuando la oficina modifique o asigne nuevas fechas:</small>
                                 </div>
                                 <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
                                     <a href="${escapeHTML(gcalSubUrl)}" target="_blank" rel="noopener,noreferrer" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; padding:0.5rem 0.8rem;">
@@ -1584,13 +1726,13 @@ function renderCalendar(container) {
                         </div>
                     </div>
 
-                    <!-- SECCIÓN 2: AVISOS DIARIOS NO INTRUSIVOS (PUNTO 3) -->
+                    <!-- SECCIÓN 2: AVISOS DIARIOS EN PANTALLA (PUNTO 3) -->
                     <div class="phone-sync-section">
                         <div class="phone-sync-sec-title">
                             <i data-lucide="bell"></i>
                             <div>
-                                <strong>2. Avisos diarios en la app (No intrusivos)</strong>
-                                <span>Un único aviso discreto a primera hora solo los días que tengas actividades programadas.</span>
+                                <strong>2. Avisos diarios en pantalla (Notificaciones Web)</strong>
+                                <span>Aviso emergente matinal discreto solo los días que tengas actividades programadas.</span>
                             </div>
                         </div>
 
@@ -1600,7 +1742,7 @@ function renderCalendar(container) {
                                 <small id="notifStatusText">${
                                     !notifSupported
                                         ? 'Este navegador no soporta notificaciones web.'
-                                        : (notifEnabled ? 'Activo ✓ · Recibirás un aviso diario si tienes actividad hoy.' : 'Desactivado · No recibirás ninguna notificación.')
+                                        : (notifEnabled ? 'Activo ✓ · Recibirás un aviso en pantalla los días con actividad.' : 'Desactivado · No se mostrarán avisos en pantalla.')
                                 }</small>
                             </div>
                             <label class="switch-toggle" style="${!notifSupported ? 'opacity:0.5; pointer-events:none;' : ''}">
@@ -1612,7 +1754,7 @@ function renderCalendar(container) {
                 </div>
 
                 <footer class="calendar-phone-dialog-footer">
-                    <button type="button" class="btn-primary" data-close-dialog>Listo</button>
+                    <button type="button" class="btn-primary" data-close-dialog>Entendido</button>
                 </footer>
             </div>
         `;
@@ -1627,9 +1769,9 @@ function renderCalendar(container) {
         dialog.querySelectorAll("[data-close-dialog]").forEach(btn => btn.addEventListener("click", close));
         dialog.addEventListener("cancel", () => dialog.remove());
 
-        // Descargar .ics
-        dialog.querySelector("#btnDownloadIcs")?.addEventListener("click", () => {
-            downloadTrainerICS(targetUser, selectedYear);
+        // Botón principal: Volcar a Calendario del móvil
+        dialog.querySelector("#btnSmartSync")?.addEventListener("click", () => {
+            smartSyncTrainerICS(targetUser, selectedYear);
         });
 
         // Copiar enlace de suscripción
@@ -1658,19 +1800,21 @@ function renderCalendar(container) {
                 }
                 if (permission === 'granted') {
                     localStorage.setItem('xiaomiDailyNotif', 'true');
-                    if (statusText) statusText.textContent = 'Activo ✓ · Recibirás un aviso diario si tienes actividad hoy.';
-                    if (typeof showToast === 'function') showToast("Avisos activados", "Recibirás un único aviso los días con actividad programada.");
-                    if (window.triggerDailyTrainerNotification && session) window.triggerDailyTrainerNotification(session);
+                    if (statusText) statusText.textContent = 'Activo ✓ · Recibirás un aviso en pantalla los días con actividad.';
+                    if (typeof showToast === 'function') showToast("Avisos activados", "Te hemos enviado una notificación de prueba para comprobar que funciona.");
+                    if (window.triggerDailyTrainerNotification && session) {
+                        window.triggerDailyTrainerNotification(session, true);
+                    }
                 } else {
                     localStorage.setItem('xiaomiDailyNotif', 'false');
                     e.target.checked = false;
                     if (statusText) statusText.textContent = 'Permiso no concedido en el navegador.';
-                    if (typeof showToast === 'function') showToast("Permiso no concedido", "Activa los permisos de notificación en los ajustes de tu navegador.");
+                    if (typeof showToast === 'function') showToast("Permiso no concedido", "Activa las notificaciones en los ajustes de tu navegador.");
                 }
             } else {
                 localStorage.setItem('xiaomiDailyNotif', 'false');
-                if (statusText) statusText.textContent = 'Desactivado · No recibirás ninguna notificación.';
-                if (typeof showToast === 'function') showToast("Avisos desactivados", "No se enviarán avisos en este dispositivo.");
+                if (statusText) statusText.textContent = 'Desactivado · No se mostrarán avisos en pantalla.';
+                if (typeof showToast === 'function') showToast("Avisos desactivados", "No se enviarán avisos en pantalla en este dispositivo.");
             }
         });
 

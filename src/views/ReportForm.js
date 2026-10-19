@@ -757,7 +757,8 @@ function renderReport(container, editData = null) {
             const div = document.createElement('div');
             div.className = 'photo-thumb-v9 fade-in';
             const idMatch = p.match(/id=([^&]+)/) || p.match(/\/d\/([^/]+)/);
-            const thumb = idMatch ? `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w200` : p;
+            const fileId = idMatch ? idMatch[1] : '';
+            const thumb = fileId ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w300` : p;
             div.style.cssText = `width: 100px; height: 100px; border-radius: var(--border-radius-md); background: url(${thumb}) center/cover; position: relative; border: 2px solid #3b82f6; cursor:pointer; overflow: hidden;`;
             div.title = "Foto guardada en Drive · Clic para abrir";
             div.onclick = () => {
