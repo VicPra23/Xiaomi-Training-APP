@@ -28,6 +28,17 @@ function renderDashboard(container) {
             return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
         };
 
+        const weekNumberISO = (d) => {
+            let d2 = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            d2.setUTCDate(d2.getUTCDate() + 4 - (d2.getUTCDay() || 7));
+            return Math.ceil((((d2 - new Date(Date.UTC(d2.getUTCFullYear(), 0, 1))) / 86400000) + 1) / 7);
+        };
+        const currentNow = new Date();
+        const currentYear = currentNow.getFullYear();
+        const currentWeek = weekNumberISO(currentNow);
+        const allMonthsList = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        const currentMonthName = allMonthsList[currentNow.getMonth()];
+
         // Helper para pintar la fecha perfecta en el HTML sin saltos de zona horaria
         const formatDateSafe = (dateStr) => {
             if (!dateStr) return '';
@@ -139,6 +150,7 @@ function renderDashboard(container) {
                 <div class="form-group" style="margin:0; min-width: 90px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Año</label>
                     <select id="dashboardYear" class="form-control" onchange="window.onDashboardYearChange()">
+                        <option value="${currentYear}" selected>${currentYear}</option>
                         <option value="Todos">Todos</option>
                     </select>
                 </div>
@@ -146,6 +158,7 @@ function renderDashboard(container) {
                 <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Mes</label>
                     <select id="dashboardMonth" class="form-control" onchange="window.onDashboardMonthChange()">
+                        <option value="${currentMonthName}" selected>${currentMonthName}</option>
                         <option value="Todos">Todos</option>
                     </select>
                 </div>
@@ -153,6 +166,7 @@ function renderDashboard(container) {
                 <div class="form-group" style="margin:0; min-width: 140px; flex: 0 1 auto; text-align: center;">
                     <label class="form-label" style="display: block; width: 100%;">Semana</label>
                     <select id="dashboardWeek" class="form-control" onchange="window.onDashboardWeekChange()">
+                        <option value="${currentWeek}" selected>Semana ${currentWeek}</option>
                         <option value="Todos">Todas</option>
                     </select>
                 </div>
@@ -486,20 +500,12 @@ function renderDashboard(container) {
         window.tsInstances[selectId] = new TomSelect("#" + selectId, config);
     };
 
-    const weekNumberISO = (d) => {
-        let d2 = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-        d2.setUTCDate(d2.getUTCDate() + 4 - (d2.getUTCDay() || 7));
-        return Math.ceil((((d2 - new Date(Date.UTC(d2.getUTCFullYear(), 0, 1))) / 86400000) + 1) / 7);
-    };
-    const currentWeek = weekNumberISO(new Date());
-    
     const weeksList = Array.from({length: 52}, (_, i) => i + 1);
     const sW = document.getElementById('dashboardWeek');
     const hW = document.getElementById('histFilterWeek');
     const mWeekCont = document.getElementById('multiWeekContainer');
     
     // El usuario ha pedido cambiar el filtro base para que arranque con la semana actual de nuevo,
-
     // pero manteniendo el mes actual para la gráfica de tendencia semanal.
     let selectedWeeksSet = new Set([currentWeek]);
 
@@ -536,8 +542,7 @@ function renderDashboard(container) {
     // Lógica de Multi-Selección de Meses (Pop-up)
     const mMonthCont = document.getElementById('multiMonthContainer');
     const sMonthInput = document.getElementById('dashboardMonth');
-    const allMonthsList = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    let selectedMonthsSet = new Set([allMonthsList[new Date().getMonth()]]); // Arranca en el mes actual
+    let selectedMonthsSet = new Set([currentMonthName]); // Arranca en el mes actual
 
     const updateMultiMonthUI = () => {
         if (!mMonthCont) return;
@@ -553,11 +558,11 @@ function renderDashboard(container) {
     updateMultiMonthUI();
     window.updateMultiMonthUI = updateMultiMonthUI;
 
-    window.syncWeeksByMonth = () => {
+    window.syncWeeksByMonth = (forceCurrentWeek = false) => {
         const monthStr = document.getElementById('dashboardMonth')?.value || "Todos";
-        const year = parseInt(document.getElementById('dashboardYear')?.value) || new Date().getFullYear();
+        const year = parseInt(document.getElementById('dashboardYear')?.value) || currentYear;
         
-        const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+        const mNames = allMonthsList;
         const monthWeeks = [];
         
         if (monthStr !== "Todos" && monthStr.trim() !== "") {
@@ -587,8 +592,12 @@ function renderDashboard(container) {
                 const prevVal = selW.value;
                 const listToInject = (monthStr !== "Todos" && monthWeeks.length > 0) ? monthWeeks : weeksList;
                 injectWeeks(selW, listToInject);
-                if (prevVal && (prevVal === "Todos" || listToInject.includes(Number(prevVal)))) {
+                if (forceCurrentWeek && listToInject.includes(currentWeek)) {
+                    selW.value = currentWeek;
+                } else if (prevVal && prevVal !== "Todos" && listToInject.includes(Number(prevVal))) {
                     selW.value = prevVal;
+                } else if (prevVal === "Todos" && !forceCurrentWeek) {
+                    selW.value = "Todos";
                 } else if (listToInject.includes(currentWeek)) {
                     selW.value = currentWeek;
                 } else {
@@ -626,12 +635,21 @@ function renderDashboard(container) {
     };
 
     if (!isAdmin) {
-        if (sMonthInput && sMonthInput.tagName === 'SELECT') {
-            const curMonthName = allMonthsList[new Date().getMonth()];
-            sMonthInput.innerHTML = '<option value="Todos">Todos</option>' + allMonthsList.map(m => `<option value="${m}" ${m === curMonthName ? 'selected' : ''}>${m}</option>`).join('');
-            sMonthInput.value = curMonthName;
+        const sYearInput = document.getElementById('dashboardYear');
+        if (sYearInput && sYearInput.tagName === 'SELECT') {
+            const recentYears = [currentYear - 1, currentYear, currentYear + 1];
+            sYearInput.innerHTML = '<option value="Todos">Todos</option>' + recentYears.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
+            sYearInput.value = currentYear.toString();
         }
-        window.syncWeeksByMonth();
+        if (sMonthInput && sMonthInput.tagName === 'SELECT') {
+            sMonthInput.innerHTML = '<option value="Todos">Todos</option>' + allMonthsList.map(m => `<option value="${m}" ${m === currentMonthName ? 'selected' : ''}>${m}</option>`).join('');
+            sMonthInput.value = currentMonthName;
+        }
+        window.syncWeeksByMonth(true);
+        const selW = document.getElementById('dashboardWeek');
+        if (selW) {
+            selW.value = currentWeek;
+        }
     }
 
     if(mMonthCont) {
@@ -832,14 +850,20 @@ function renderDashboard(container) {
                 const dM = document.getElementById('dashboardMethodology');
                 
                 if (res.data.years) {
-                    const prevY = yS ? yS.value : "Todos";
+                    const prevY = yS ? yS.value : (isAdmin ? "Todos" : currentYear.toString());
                     if (yS) {
                         yS.innerHTML = '<option value="Todos">Todos</option>' + res.data.years.map(y => `<option value="${y}" ${y.toString() === prevY.toString() ? 'selected' : ''}>${y}</option>`).join('');
-                        yS.value = prevY;
+                        if (prevY && (prevY === "Todos" || res.data.years.map(String).includes(prevY.toString()))) {
+                            yS.value = prevY;
+                        } else if (!isAdmin) {
+                            yS.value = currentYear.toString();
+                        } else {
+                            yS.value = "Todos";
+                        }
                     }
                 }
                 if (mS && mS.tagName === "SELECT") {
-                    const prevM = mS.value || allMonthsList[new Date().getMonth()];
+                    const prevM = mS.value || currentMonthName;
                     mS.innerHTML = '<option value="Todos">Todos</option>' + (res.data.months || allMonthsList).map(m => `<option value="${esc(m)}" ${m === prevM ? 'selected' : ''}>${esc(m)}</option>`).join('');
                     mS.value = prevM;
                 }
@@ -1027,8 +1051,12 @@ function renderDashboard(container) {
         const dTarget = document.getElementById('dashboardTarget');
         if (dTarget) dTarget.value = isAdmin ? 'Total' : currentUser;
 
-        if (document.getElementById('dashboardYear')) document.getElementById('dashboardYear').value = 'Todos';
-        if (document.getElementById('dashboardMonth')) document.getElementById('dashboardMonth').value = allMonthsList[new Date().getMonth()];
+        if (document.getElementById('dashboardYear')) {
+            document.getElementById('dashboardYear').value = isAdmin ? 'Todos' : currentYear.toString();
+        }
+        if (document.getElementById('dashboardMonth')) {
+            document.getElementById('dashboardMonth').value = currentMonthName;
+        }
         if (window.tsInstances && window.tsInstances['dashboardDevice']) {
             window.tsInstances['dashboardDevice'].setValue('Todos');
         } else if (document.getElementById('dashboardDevice')) {
@@ -1048,7 +1076,7 @@ function renderDashboard(container) {
         if(document.getElementById('dashboardDateStart')) document.getElementById('dashboardDateStart').value = '';
         if(document.getElementById('dashboardDateEnd')) document.getElementById('dashboardDateEnd').value = '';
         
-        selectedMonthsSet = new Set([allMonthsList[new Date().getMonth()]]);
+        selectedMonthsSet = new Set([currentMonthName]);
         if(window.updateMultiMonthUI) window.updateMultiMonthUI();
         
         if(isRangeMode && btnToggle) btnToggle.click();
@@ -1057,7 +1085,7 @@ function renderDashboard(container) {
         updateMultiWeekUI(); 
 
         if (!isAdmin) {
-            window.syncWeeksByMonth();
+            window.syncWeeksByMonth(true);
             const dW = document.getElementById('dashboardWeek');
             if (dW) dW.value = currentWeek;
         }

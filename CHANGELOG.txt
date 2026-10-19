@@ -1,9 +1,20 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 51.5
+Versión revisada: 51.6
 Fecha: 19/10/2026
 
-VERSIÓN 51.5
+VERSIÓN 51.6
 ============
+1. Arranque predeterminado en la semana actual para usuarios estándar:
+   - Diagnóstico: En el dashboard de los usuarios estándar (no administradores), los desplegables de filtrado arrancaban con la opción "Todas" seleccionada para la semana, provocando que las tarjetas métricas y la tabla de historial mostrasen datos agregados de todo el mes o del total en lugar de centrarse en la actividad de la semana en curso.
+   - Solución en inicialización del Dashboard:
+     - El desplegable de semana (`#dashboardWeek`) arranca automáticamente seleccionado con la semana ISO actual (`currentWeek`).
+     - El desplegable de año (`#dashboardYear`) arranca con el año en curso (`new Date().getFullYear()`) y el desplegable de mes (`#dashboardMonth`) con el mes actual.
+     - `window.syncWeeksByMonth(forceCurrentWeek)` ahora prioriza la semana actual durante el inicio y tras pulsar el botón de limpiar filtros, inyectando las semanas correspondientes al mes y fijando el valor en la semana actual.
+     - Si el usuario cambia manualmente a otro mes o año, o selecciona "Todas", puede explorar libremente su trabajo por semana, mes completo o año completo.
+     - El botón de limpiar filtros (`#btnClearFilters`) restablece de inmediato el dashboard al año, mes y semana actuales.
+
+2. Invalidación de caché y despliegue:
+   - Elevado el nombre de caché a `xiaomi-trainer-v51.6` en `sw.js` y actualizadas las referencias de scripts y hojas de estilo a `?v=51.6` en `index.html` y `main.js`.
 1. Corrección del duplicado en la carátula/miniatura de fotos en reportes:
    - Diagnóstico del problema: En el Service Worker (`sw.js`), la estrategia de caché interceptaba indiscriminadamente peticiones de imágenes con `{ ignoreSearch: true }`. Al consultar las miniaturas de Google Drive (`https://drive.google.com/thumbnail?id=...&sz=w200`), la primera foto que cargaba se almacenaba en caché bajo la ruta base ignorando el parámetro `?id=...`. Como consecuencia, todas las fotos restantes del reporte recibían y mostraban la carátula de la primera foto, aunque el enlace real (`<a>`) conservaba correctamente la URL única de cada foto.
    - Solución en Service Worker: Excluidos de la interceptación del Service Worker todos los dominios de Google, Drive, GoogleUserContent y CDNs externas, restringiendo el almacenamiento estático en caché exclusivamente al propio origen de la aplicación (`self.location.origin`).
