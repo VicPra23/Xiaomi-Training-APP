@@ -387,23 +387,46 @@ function getAdminData(forceRefresh = false) {
   try {
     const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME, forceRefresh);
     const dE = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME, forceRefresh);
+    const dF = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.FESTIVOS_SHEET_NAME, forceRefresh);
     const extraMap = {}; 
     for(let i=1; i<dE.length; i++) {
        if (!dE[i][0]) continue;
        const uKey = dE[i][0].toString().trim().toLowerCase();
        if(uKey) extraMap[uKey] = parseFloat(dE[i][1]) || 0;
     }
+
+    const festivosByUser = {};
+    const festivosSetByUser = {};
+    for (let i = 1; i < dF.length; i++) {
+      if (!dF[i][0]) continue;
+      const uKey = dF[i][0].toString().trim().toLowerCase();
+      if (!festivosByUser[uKey]) { festivosByUser[uKey] = []; festivosSetByUser[uKey] = new Set(); }
+      for (let col = 3; col < dF[i].length; col++) {
+        const dO = parseDateStable(dF[i][col]);
+        if (dO) {
+          const dStr = dO.getFullYear() + "-" + ("0" + (dO.getMonth() + 1)).slice(-2) + "-" + ("0" + dO.getDate()).slice(-2);
+          festivosByUser[uKey].push(dStr);
+          festivosSetByUser[uKey].add(dStr);
+        }
+      }
+    }
     
     const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME, forceRefresh);
     const consumedMap = {}; 
+    const seenDatesMap = {};
     for(let i=1; i<dV.length; i++) {
         if (!dV[i][1]) continue; 
         const u = dV[i][1].toString().trim().toLowerCase();
         if(dV[i][5] !== 'Rechazado') {
             if(!consumedMap[u]) consumedMap[u] = {base:0, extra:0};
+            if(!seenDatesMap[u]) seenDatesMap[u] = {base: new Set(), extra: new Set()};
             
             const rangeStr = dV[i][2] ? dV[i][2].toString() : "";
-            let count = parseFloat(dV[i][6]) || 0;
+            const storedCount = parseFloat(dV[i][6]) || 0;
+            let count = storedCount;
+            const isBase = dV[i][4] === 'Vacaciones';
+            const userSeen = isBase ? seenDatesMap[u].base : seenDatesMap[u].extra;
+            const userFestivos = festivosSetByUser[u] || new Set();
             
             const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
             if (matches) {
@@ -416,17 +439,22 @@ function getAdminData(forceRefresh = false) {
                 const start = parseDate(matches[0]);
                 const end = matches.length > 1 ? parseDate(matches[matches.length - 1]) : start;
                 let cur = new Date(start);
-                let laborableCount = 0;
+                let newUniqueDays = 0;
                 while (cur <= end) {
-                    if (cur.getDay() !== 0 && cur.getDay() !== 6) {
-                        laborableCount++;
+                    const dow = cur.getDay();
+                    if (dow !== 0 && dow !== 6) {
+                        const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
+                        if (!userFestivos.has(iso) && !userSeen.has(iso)) {
+                            userSeen.add(iso);
+                            newUniqueDays++;
+                        }
                     }
                     cur.setDate(cur.getDate() + 1);
                 }
-                count = laborableCount;
+                count = storedCount > 0 ? Math.min(storedCount, newUniqueDays) : newUniqueDays;
             }
             
-            if(dV[i][4] === 'Vacaciones') consumedMap[u].base += count;
+            if(isBase) consumedMap[u].base += count;
             else consumedMap[u].extra += count;
         }
     }
@@ -441,16 +469,16 @@ function getAdminData(forceRefresh = false) {
           name: r[1], 
           sede: r[2], 
           baseTotal: totalBase,
-          baseAvail: totalBase - cons.base, 
+          baseAvail: Math.max(0, totalBase - cons.base), 
           extraTotal: totalExtra,
-          extraAvail: totalExtra - cons.extra
+          extraAvail: Math.max(0, totalExtra - cons.extra)
         };
     });
 
     const pending = dV.slice(1).filter(r => r[5] === 'Pendiente').map(r => ({ id: r[7], date: r[0], user: r[1], fechas: r[2], month: r[3], type: r[4], count: r[6] }));
     const approved = dV.slice(1).filter(r => r[5] === 'Aprobado').map(r => ({ id: r[7], date: r[0], user: r[1], fechas: r[2], month: r[3], type: r[4], count: r[6] }));
 
-    return { status: "success", allUsers: allUsers, pendingRequests: pending, approvedRequests: approved };
+    return { status: "success", allUsers: allUsers, pendingRequests: pending, approvedRequests: approved, festivosByUser: festivosByUser };
   } catch(e) { return { status: "error", message: e.toString() }; }
 }
 
@@ -575,13 +603,47 @@ function getVacationData(user, forceRefresh = false) {
   for (let i=1; i<dE.length; i++) if (dE[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) { extra = parseFloat(dE[i][1]) || 0; break; }
 
   let uB = 0, uE = 0, history = [];
+  const festivosSet = new Set(festivos);
+  const seenBase = new Set();
+  const seenExtra = new Set();
   const dV = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME, forceRefresh);
   for (let i = 1; i < dV.length; i++) {
     if (!dV[i][1]) continue;
     const rowUser = dV[i][1].toString().trim().toLowerCase();
     if (rowUser === user.trim().toLowerCase()) {
-      const status = dV[i][5], count = parseFloat(dV[i][6]) || 0, type = dV[i][4];
-      if (status !== "Rechazado") { if (type === "Vacaciones") uB += count; else uE += count; }
+      const status = dV[i][5], storedCount = parseFloat(dV[i][6]) || 0, type = dV[i][4];
+      let count = storedCount;
+      const rangeStr = dV[i][2] ? dV[i][2].toString() : "";
+      if (status !== "Rechazado") {
+        const isBase = type === "Vacaciones";
+        const seenSet = isBase ? seenBase : seenExtra;
+        const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
+        if (matches) {
+          const parseDate = (s) => {
+            const parts = s.split("/");
+            let y = parseInt(parts[2]);
+            if (y < 100) y += 2000;
+            return new Date(y, parseInt(parts[1]) - 1, parseInt(parts[0]));
+          };
+          const start = parseDate(matches[0]);
+          const end = matches.length > 1 ? parseDate(matches[matches.length - 1]) : start;
+          let cur = new Date(start);
+          let newUniqueDays = 0;
+          while (cur <= end) {
+            const dow = cur.getDay();
+            if (dow !== 0 && dow !== 6) {
+              const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
+              if (!festivosSet.has(iso) && !seenSet.has(iso)) {
+                seenSet.add(iso);
+                newUniqueDays++;
+              }
+            }
+            cur.setDate(cur.getDate() + 1);
+          }
+          count = storedCount > 0 ? Math.min(storedCount, newUniqueDays) : newUniqueDays;
+        }
+        if (isBase) uB += count; else uE += count;
+      }
       history.push({ id: dV[i][7], user: rowUser, date: dV[i][0], fechas: dV[i][2], month: dV[i][3], type: type, status: status, count: count });
     }
   }
@@ -1500,17 +1562,30 @@ function adminProcessSelection(req) {
       const datesToRemove = req.dates; 
       const toISO = (dateObj) => dateObj.getFullYear() + "-" + String(dateObj.getMonth() + 1).padStart(2, '0') + "-" + String(dateObj.getDate()).padStart(2, '0');
 
+      const dF = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.FESTIVOS_SHEET_NAME);
+      const userFestivos = new Set();
+      for (let f = 1; f < dF.length; f++) {
+        if (dF[f][0] && dF[f][0].toString().trim().toLowerCase() === userNorm) {
+          for (let col = 3; col < dF[f].length; col++) {
+            const dO = parseDateStable(dF[f][col]);
+            if (dO) userFestivos.add(toISO(dO));
+          }
+          break;
+        }
+      }
+
       let newData = [d[0]]; 
       let newIndividualDays = [];
 
       for (let i = 1; i < d.length; i++) {
-        if (d[i][1].toString().trim().toLowerCase() !== userNorm) {
+        if (d[i][1].toString().trim().toLowerCase() !== userNorm || d[i][5] === 'Rechazado') {
             newData.push(d[i]); 
             continue;
         }
         
         const rangeStr = d[i][2].toString();
         const type = d[i][4];
+        const rowStatus = d[i][5] || "Aprobado";
         const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
         
         if (!matches) { newData.push(d[i]); continue; }
@@ -1529,7 +1604,11 @@ function adminProcessSelection(req) {
         let curEnd = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
         
         while(cur.getTime() <= curEnd.getTime()) {
-           daysInRow.push(new Date(cur.getTime()));
+           const dow = cur.getDay();
+           const iso = toISO(cur);
+           if (dow !== 0 && dow !== 6 && !userFestivos.has(iso)) {
+               daysInRow.push(new Date(cur.getTime()));
+           }
            cur.setDate(cur.getDate()+1);
         }
 
@@ -1542,7 +1621,7 @@ function adminProcessSelection(req) {
         });
 
         if (thisRowRemoved) {
-            daysToKeep.forEach(day => newIndividualDays.push({date: day, type: type, originalDateVal: d[i][0]}));
+            daysToKeep.forEach(day => newIndividualDays.push({date: day, type: type, status: rowStatus, originalDateVal: d[i][0]}));
         } else {
             newData.push(d[i]); 
         }
@@ -1554,7 +1633,7 @@ function adminProcessSelection(req) {
           const label = "Día " + Utilities.formatDate(dObj, Session.getScriptTimeZone(), "dd/MM/yy");
           const mLabel = mNames[dObj.getMonth()] + " " + dObj.getFullYear();
           const id = "ADM_" + Date.now() + "_" + Math.floor(Math.random()*1000) + "_" + idx;
-          newData.push([obj.originalDateVal, req.user, label, mLabel, obj.type, "Aprobado", 1, id]);
+          newData.push([obj.originalDateVal, req.user, label, mLabel, obj.type, obj.status || "Aprobado", 1, id]);
       });
 
       s.clearContents();

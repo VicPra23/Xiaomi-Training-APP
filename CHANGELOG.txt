@@ -1,6 +1,28 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 51.6
-Fecha: 19/10/2026
+Versión revisada: 51.8
+Fecha: 22/10/2026
+
+VERSIÓN 51.8
+============
+1. Actualización del endpoint de Google Apps Script:
+   - Conectado el frontend (`src/services/api.js`) al nuevo despliegue de Google Apps Script:
+     https://script.google.com/macros/s/AKfycbzqi5ux6Y72UMGkQhChgb8qykvrm5zKllqNPlmDc_AqHP-NcL5FNjqT8owZcAofNUJztA/exec
+   - Elevada la versión de caché a `xiaomi-trainer-v51.8` en `sw.js`, `index.html` y `src/main.js`.
+
+VERSIÓN 51.7
+============
+1. Corrección del saldo de vacaciones con valor -1 al agotar todos los días disponibles:
+   - Diagnóstico: Cuando un usuario solicitaba la totalidad de sus días de vacaciones (ej. 23 días) y alguno de sus tramos ("Del dd/MM/yy al dd/MM/yy") contenía en su interior un día festivo entre semana (o existía algún día solapado entre tramos), la función `getAdminData` del backend recalculaba los días consumidos contando todos los días de lunes a viernes dentro del rango sin descontar los festivos de la sede del usuario (`FESTIVOS`) ni deduplicar fechas ya contabilizadas, sobreescribiendo el contador real (`count`) guardado en la hoja `VACACIONES`. Como resultado, contabilizaba 24 días consumidos sobre 23 disponibles (`23 - 24 = -1`) y lo mostraba como `-1` en el panel lateral de Gestión de Usuarios.
+   - Solución en Frontend (`src/views/Vacations.js`):
+     - Añadida la función `computeConsumedDays` que deduplica fechas laborables mediante un `Set`, excluye los festivos del usuario y respeta el mínimo entre el contador real almacenado en la solicitud (`r.count`, que ya descontó los festivos al crearse) y los días laborables únicos del tramo (`Math.min(storedCount, newUniqueInRow)`).
+     - Recálculo automático en cliente de `baseAvail` y `extraAvail` para todos los usuarios del panel de administración (`adminData.allUsers`) aplicando `Math.max(0, ...)` y sincronización en tiempo real de los indicadores `#base-{user}` y `#extra-{user}`, garantizando que la corrección funcione de inmediato incluso antes de redesplegar el script de Google Apps Script.
+     - Excluidos también los días ya solicitados/aprobados (`alreadyBooked`) al seleccionar y enviar nuevos rangos en el calendario para impedir solapamientos accidentales.
+   - Solución en Backend (`backend/Code.gs`):
+     - En `getAdminData` y `getVacationData`: Cruce con la hoja `FESTIVOS` por usuario, deduplicación de fechas laborables por usuario (`Set`), respeto del contador `storedCount` frente a festivos intermedios y acotado con `Math.max(0, ...)` para que ningún saldo pueda quedar en negativo.
+     - En `adminProcessSelection` (`remove`): Al eliminar un día suelto dentro de un rango de vacaciones desde administración, ahora se excluyen fines de semana, festivos del usuario y filas rechazadas al dividir el tramo en días individuales.
+
+2. Invalidación de caché y despliegue:
+   - Elevado el nombre de caché a `xiaomi-trainer-v51.7` en `sw.js` y actualizadas las referencias de scripts y hojas de estilo a `?v=51.7` en `index.html` y `main.js`.
 
 VERSIÓN 51.6
 ============

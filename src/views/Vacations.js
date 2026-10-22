@@ -218,6 +218,48 @@ function renderVacations(container) {
 
     loadData();
 
+    function computeConsumedDays(items, targetType, userHolidays = [], sharedSeenSet = null) {
+        const seenDates = sharedSeenSet || new Set();
+        const holidaySet = new Set(userHolidays || []);
+        let totalConsumed = 0;
+        const filtered = (items || []).filter(h =>
+            h.status !== 'Rechazado' &&
+            (targetType === 'Vacaciones' ? h.type === 'Vacaciones' : h.type !== 'Vacaciones')
+        );
+        filtered.forEach(h => {
+            const rangeStr = String(h.fechas || '');
+            const storedCount = parseFloat(h.count) || 0;
+            const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
+            if (matches) {
+                const parseLocal = (s) => {
+                    const p = s.split("/");
+                    let y = parseInt(p[2], 10); if (y < 100) y += 2000;
+                    return new Date(y, parseInt(p[1], 10) - 1, parseInt(p[0], 10));
+                };
+                const start = parseLocal(matches[0]);
+                const end = matches.length > 1 ? parseLocal(matches[matches.length - 1]) : start;
+                let cur = new Date(start);
+                let newUniqueInRow = 0;
+                while (cur <= end) {
+                    const iso = cur.getFullYear() + "-" + String(cur.getMonth() + 1).padStart(2, '0') + "-" + String(cur.getDate()).padStart(2, '0');
+                    if (cur.getDay() !== 0 && cur.getDay() !== 6 && !holidaySet.has(iso)) {
+                        if (!seenDates.has(iso)) {
+                            seenDates.add(iso);
+                            newUniqueInRow++;
+                        }
+                    }
+                    cur.setDate(cur.getDate() + 1);
+                }
+                // Si storedCount es menor que newUniqueInRow (porque el rango incluye algún festivo de la sede
+                // del usuario ya descontado al crear la solicitud, o días sueltos del mismo mes), respetamos storedCount.
+                totalConsumed += (storedCount > 0 ? Math.min(storedCount, newUniqueInRow) : newUniqueInRow);
+            } else if (storedCount > 0) {
+                totalConsumed += storedCount;
+            }
+        });
+        return totalConsumed;
+    }
+
     async function loadData() {
         try {
             const [uRes, aRes] = await Promise.all([
@@ -225,13 +267,40 @@ function renderVacations(container) {
                 isAdmin ? api.getAdminData() : Promise.resolve({ status: 'skip' })
             ]);
 
+            if (uRes && uRes.status === 'success') {
+                holidayDates = uRes.festivos || [];
+            }
+
             let userColorMap = {};
             let userPositionMap = {};
             if (isAdmin && aRes && aRes.status === 'success') { 
                 adminData = aRes; 
                 if (adminData.allUsers) {
+                    const allActiveReqs = [
+                        ...(adminData.approvedRequests || []),
+                        ...(adminData.pendingRequests || [])
+                    ];
+                    const hasReqsArrays = Array.isArray(adminData.approvedRequests) || Array.isArray(adminData.pendingRequests);
+
                     adminData.allUsers.forEach(u => {
-                        userPositionMap[u.user.toLowerCase()] = u.user;
+                        const uNorm = String(u.user || '').trim().toLowerCase();
+                        userPositionMap[uNorm] = u.user;
+
+                        if (hasReqsArrays) {
+                            const userReqs = allActiveReqs.filter(r => String(r.user || '').trim().toLowerCase() === uNorm);
+                            const uHolidays = (adminData.festivosByUser && adminData.festivosByUser[uNorm])
+                                ? adminData.festivosByUser[uNorm]
+                                : (uNorm === targetUser.toLowerCase() ? holidayDates : []);
+                            const usedB = computeConsumedDays(userReqs, 'Vacaciones', uHolidays);
+                            const usedE = computeConsumedDays(userReqs, 'Extra', uHolidays);
+                            const bTot = parseFloat(u.baseTotal) || 23;
+                            const eTot = parseFloat(u.extraTotal) || 0;
+                            u.baseAvail = Math.max(0, bTot - usedB);
+                            u.extraAvail = Math.max(0, eTot - usedE);
+                        } else {
+                            u.baseAvail = Math.max(0, parseFloat(u.baseAvail) || 0);
+                            u.extraAvail = Math.max(0, parseFloat(u.extraAvail) || 0);
+                        }
                     });
                 }
                 if (adminData.approvedRequests) {
@@ -285,39 +354,15 @@ function renderVacations(container) {
                 
                 const hist = (uRes.history || []).filter(h => h.user.toLowerCase() === targetUser.toLowerCase());
                 
-                // MEJORA CRÍTICA: Cálculo basado en DÍAS ÚNICOS para evitar duplicidades (Filtro Fin de Semana Aplicado)
-                const getUniqueDaysCount = (items, targetStatus, targetType) => {
-                    const uniqueDates = new Set();
-                    items.filter(h => h.status === targetStatus && (targetType === 'Vacaciones' ? h.type === 'Vacaciones' : h.type !== 'Vacaciones'))
-                         .forEach(h => {
-                             const matches = h.fechas.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
-                             if (matches) {
-                                 const parseLocal = (s) => {
-                                     const p = s.split("/");
-                                     let y = parseInt(p[2]); if (y < 100) y += 2000;
-                                     return new Date(y, parseInt(p[1]) - 1, parseInt(p[0]));
-                                 };
-                                 const start = parseLocal(matches[0]);
-                                 const end = matches.length > 1 ? parseLocal(matches[matches.length - 1]) : start;
-                                 let cur = new Date(start);
-                                 while(cur <= end) {
-                                     const iso = cur.getFullYear() + "-" + String(cur.getMonth()+1).padStart(2,'0') + "-" + String(cur.getDate()).padStart(2,'0');
-                                     
-                                     // FIX APLICADO: Ignorar sábados (6), domingos (0) y festivos al contar el rango
-                                     if (cur.getDay() !== 0 && cur.getDay() !== 6 && !holidayDates.includes(iso)) {
-                                         uniqueDates.add(iso);
-                                     }
-                                     cur.setDate(cur.getDate() + 1);
-                                 }
-                             }
-                         });
-                    return uniqueDates.size;
-                };
+                const seenBaseDates = new Set();
+                const seenExtraDates = new Set();
+                const approvedHist = hist.filter(h => h.status === 'Aprobado');
+                const pendingHist = hist.filter(h => h.status === 'Pendiente');
 
-                const uB_A = getUniqueDaysCount(hist, 'Aprobado', 'Vacaciones');
-                const uE_A = getUniqueDaysCount(hist, 'Aprobado', 'Extra');
-                const pB = getUniqueDaysCount(hist, 'Pendiente', 'Vacaciones');
-                const pE = getUniqueDaysCount(hist, 'Pendiente', 'Extra');
+                const uB_A = computeConsumedDays(approvedHist, 'Vacaciones', holidayDates, seenBaseDates);
+                const uE_A = computeConsumedDays(approvedHist, 'Extra', holidayDates, seenExtraDates);
+                const pB = computeConsumedDays(pendingHist, 'Vacaciones', holidayDates, seenBaseDates);
+                const pE = computeConsumedDays(pendingHist, 'Extra', holidayDates, seenExtraDates);
 
                 vacationStats = { 
                     baseTotal: (uRes.stats && uRes.stats.baseTotal) || 23, 
@@ -358,11 +403,19 @@ function renderVacations(container) {
         const sP = document.getElementById('statPending'); if(!sP) return;
         const sA = document.getElementById('statAccepted'); if(!sA) return;
 
-        sB.innerText = Math.max(0, vacationStats.baseTotal - (vacationStats.usedBase + vacationStats.pendingBase));
-        sE.innerText = Math.max(0, vacationStats.extraTotal - (vacationStats.usedExtra + vacationStats.pendingExtra));
+        const availBase = Math.max(0, vacationStats.baseTotal - (vacationStats.usedBase + vacationStats.pendingBase));
+        const availExtra = Math.max(0, vacationStats.extraTotal - (vacationStats.usedExtra + vacationStats.pendingExtra));
+
+        sB.innerText = availBase;
+        sE.innerText = availExtra;
         sEA.innerText = Math.round(vacationStats.usedExtra);
         sP.innerText = Math.round(vacationStats.pendingBase + vacationStats.pendingExtra);
         sA.innerText = Math.round(vacationStats.usedBase);
+
+        const adminBaseEl = document.getElementById(`base-${targetUser}`);
+        if (adminBaseEl) adminBaseEl.innerText = availBase;
+        const adminExtraEl = document.getElementById(`extra-${targetUser}`);
+        if (adminExtraEl) adminExtraEl.innerText = availExtra;
     }
 
     function buildCalendar(colorMap) {
@@ -523,14 +576,15 @@ function renderVacations(container) {
             return;
         }
 
-        let selectedDates = []; // Laborables para Contar/Añadir
+        let selectedDates = []; // Laborables libres para Contar/Añadir
         let allPossibleDates = []; // Absolutamente todos para Borrar
         let s = new Date(selection.start.split('-').join('/')), e = selection.end ? new Date(selection.end.split('-').join('/')) : s;
         let cur = new Date(s);
         while(cur <= e) {
             const iso = cur.getFullYear() + "-" + String(cur.getMonth()+1).padStart(2,'0') + "-" + String(cur.getDate()).padStart(2,'0');
             allPossibleDates.push(iso);
-            if(cur.getDay()!==0 && cur.getDay()!==6 && !holidayDates.includes(iso)) selectedDates.push(iso);
+            const alreadyBooked = vacationStats.history.some(h => h.status !== 'Rechazado' && isInHistoryRange(cur, h.fechas));
+            if(cur.getDay()!==0 && cur.getDay()!==6 && !holidayDates.includes(iso) && !alreadyBooked) selectedDates.push(iso);
             cur.setDate(cur.getDate()+1);
         }
 
@@ -705,7 +759,8 @@ function renderVacations(container) {
         let cur = new Date(s);
         while(cur <= e) {
             const iso = cur.getFullYear() + "-" + String(cur.getMonth() + 1).padStart(2,'0') + "-" + String(cur.getDate()).padStart(2,'0');
-            if(cur.getDay()!==0 && cur.getDay()!==6 && !holidayDates.includes(iso)) laborables.push(iso);
+            const alreadyBooked = vacationStats.history.some(h => h.status !== 'Rechazado' && isInHistoryRange(cur, h.fechas));
+            if(cur.getDay()!==0 && cur.getDay()!==6 && !holidayDates.includes(iso) && !alreadyBooked) laborables.push(iso);
             cur.setDate(cur.getDate()+1);
         }
         try {
