@@ -2979,56 +2979,70 @@ function _generateCalendarFeed(p) {
   const year = parseInt(p.year || '', 10) || (new Date()).getFullYear();
   const start = year + "-01-01";
   const end = year + "-12-31";
-  
+  const isAll = user === 'ALL' || ['Training Manager', 'Training Coordinator', 'Training Creator'].indexOf(user) !== -1;
+
   let targetUser = user;
-  let targetName = user;
+  let targetName = isAll ? 'Equipo Completo' : user;
+  const userNamesMap = {};
   try {
     const accounts = _matrixAccounts();
-    const sNorm = _matrixNorm(user);
-    const matched = Object.values(accounts).find(a => _matrixNorm(a.user) === sNorm || _matrixNorm(a.name) === sNorm);
-    if (matched) {
-      targetUser = matched.user;
-      targetName = matched.name || matched.user;
+    Object.values(accounts).forEach(a => {
+      userNamesMap[_matrixNorm(a.user)] = a.name || a.user;
+    });
+    if (!isAll) {
+      const sNorm = _matrixNorm(user);
+      const matched = Object.values(accounts).find(a => _matrixNorm(a.user) === sNorm || _matrixNorm(a.name) === sNorm);
+      if (matched) {
+        targetUser = matched.user;
+        targetName = matched.name || matched.user;
+      }
     }
   } catch(e) {}
 
-  const index = _matrixRead(start, end);
+  const weekly = _matrixGetWeekly({ start: start, end: end });
+  const schedule = (weekly && weekly.schedule) ? weekly.schedule : {};
   const events = [];
   const nowStr = Utilities.formatDate(new Date(), "UTC", "yyyyMMdd'T'HHmmss'Z'");
 
-  Object.values(index.days || {}).forEach(day => {
-    if (_matrixNorm(day.user) !== _matrixNorm(targetUser)) return;
-    (day.items || []).forEach((item, idx) => {
-      const text = String(item.text || '').trim();
-      if (!text || /^VACACIONES|^FESTIVO/i.test(text)) return;
-      
-      const parts = day.date.split('-');
-      const dStart = parts[0] + parts[1] + parts[2];
-      const nextDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + 1));
-      const dEnd = Utilities.formatDate(nextDate, "UTC", "yyyyMMdd");
-      
-      const uid = "xiaomi-" + day.date + "-" + idx + "-" + _matrixTextHash(text).slice(0, 8) + "@xiaomitrainer";
-      const cleanSummary = text.replace(/[\r\n]+/g, ' - ').replace(/,/g, '\\,').replace(/;/g, '\\;');
-      const cat = String(item.category || 'otros').toUpperCase();
-      
-      events.push([
-        "BEGIN:VEVENT",
-        "UID:" + uid,
-        "DTSTAMP:" + nowStr,
-        "DTSTART;VALUE=DATE:" + dStart,
-        "DTEND;VALUE=DATE:" + dEnd,
-        "SUMMARY:" + cleanSummary,
-        "DESCRIPTION:Formación Xiaomi (" + cat + ") - " + cleanSummary,
-        "CATEGORIES:" + cat,
-        "STATUS:CONFIRMED",
-        "TRANSP:OPAQUE",
-        "BEGIN:VALARM",
-        "ACTION:DISPLAY",
-        "DESCRIPTION:Recordatorio de formación: " + cleanSummary,
-        "TRIGGER:-PT1H",
-        "END:VALARM",
-        "END:VEVENT"
-      ].join("\r\n"));
+  Object.keys(schedule).sort().forEach(date => {
+    if (date.indexOf(String(year)) !== 0) return;
+    const daySchedule = schedule[date] || {};
+    const parts = date.split('-');
+    const dStart = parts[0] + parts[1] + parts[2];
+    const nextDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + 1));
+    const dEnd = Utilities.formatDate(nextDate, "UTC", "yyyyMMdd");
+
+    Object.keys(daySchedule).forEach(dayUser => {
+      if (!isAll && _matrixNorm(dayUser) !== _matrixNorm(targetUser)) return;
+      const uDisplay = userNamesMap[_matrixNorm(dayUser)] || dayUser;
+      (daySchedule[dayUser] || []).forEach((item, idx) => {
+        const text = String(item.text || '').trim();
+        if (!text || /^VACACIONES|^FESTIVO/i.test(text)) return;
+
+        const uid = "xiaomi-" + date + "-" + idx + "-" + _matrixTextHash(dayUser + ":" + text).slice(0, 8) + "@xiaomitrainer";
+        const rawSummary = isAll ? "[" + uDisplay + "] " + text : text;
+        const cleanSummary = rawSummary.replace(/[\r\n]+/g, ' - ').replace(/,/g, '\\,').replace(/;/g, '\\;');
+        const cat = String(item.category || 'otros').toUpperCase();
+
+        events.push([
+          "BEGIN:VEVENT",
+          "UID:" + uid,
+          "DTSTAMP:" + nowStr,
+          "DTSTART;VALUE=DATE:" + dStart,
+          "DTEND;VALUE=DATE:" + dEnd,
+          "SUMMARY:" + cleanSummary,
+          "DESCRIPTION:Formación Xiaomi (" + cat + ") - " + cleanSummary,
+          "CATEGORIES:" + cat,
+          "STATUS:CONFIRMED",
+          "TRANSP:OPAQUE",
+          "BEGIN:VALARM",
+          "ACTION:DISPLAY",
+          "DESCRIPTION:Recordatorio de formación: " + cleanSummary,
+          "TRIGGER:-PT1H",
+          "END:VALARM",
+          "END:VEVENT"
+        ].join("\r\n"));
+      });
     });
   });
 
@@ -3040,12 +3054,12 @@ function _generateCalendarFeed(p) {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "X-WR-CALNAME:" + calName,
-    "X-WR-TIMEZONE:Europe/Madrid",
-    events.join("\r\n"),
-    "END:VCALENDAR"
+    "X-WR-TIMEZONE:Europe/Madrid"
   ];
+  if (events.length > 0) icsLines.push(events.join("\r\n"));
+  icsLines.push("END:VCALENDAR");
 
   return ContentService.createTextOutput(icsLines.join("\r\n"))
-    .setMimeType(ContentService.MimeType.TEXT);
+    .setMimeType(ContentService.MimeType.ICAL);
 }
 

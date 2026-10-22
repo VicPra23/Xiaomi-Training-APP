@@ -68,12 +68,12 @@ window.loadStyleOnce = href => {
 };
 
 const routeViews = {
-    '#dashboard': { src: 'src/views/Dashboard.js?v=51.8', global: 'renderDashboard', needsTomSelect: true },
-    '#report': { src: 'src/views/ReportForm.js?v=51.8', global: 'renderReport', needsTomSelect: true },
-    '#calendar': { src: 'src/views/Calendar.js?v=51.8', global: 'renderCalendar', needsTomSelect: true },
-    '#vacations': { src: 'src/views/Vacations.js?v=51.8', global: 'renderVacations' },
-    '#materials': { src: 'src/views/Materials.js?v=51.8', global: 'renderMaterials' },
-    '#mensajes': { src: 'src/views/Messages.js?v=51.8', global: 'renderMessages' }
+    '#dashboard': { src: 'src/views/Dashboard.js?v=52.0', global: 'renderDashboard', needsTomSelect: true },
+    '#report': { src: 'src/views/ReportForm.js?v=52.0', global: 'renderReport', needsTomSelect: true },
+    '#calendar': { src: 'src/views/Calendar.js?v=52.0', global: 'renderCalendar', needsTomSelect: true },
+    '#vacations': { src: 'src/views/Vacations.js?v=52.0', global: 'renderVacations' },
+    '#materials': { src: 'src/views/Materials.js?v=52.0', global: 'renderMaterials' },
+    '#mensajes': { src: 'src/views/Messages.js?v=52.0', global: 'renderMessages' }
 };
 
 async function ensureRouteView(hash) {

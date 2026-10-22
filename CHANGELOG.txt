@@ -1,6 +1,29 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 51.8
+Versión revisada: 52.0
 Fecha: 22/10/2026
+
+VERSIÓN 52.0
+============
+1. Actualización del endpoint de Google Apps Script:
+   - Conectado el frontend (`src/services/api.js`) al nuevo despliegue de Google Apps Script:
+     https://script.google.com/macros/s/AKfycbzfe7KcJjhdtIf_2Mb1Ko_jQAbdEhCqhig6qraGSTKlhcoBC4ct_tDw9auysrSP_S7trw/exec
+   - Elevada la versión de caché a `xiaomi-trainer-v52.0` en `sw.js`, `index.html` y `src/main.js`.
+
+VERSIÓN 51.9
+============
+1. Corrección del error de Google Calendar ("No se puede añadir el calendario. Comprueba la URL") al volcar el calendario:
+   - Diagnóstico:
+     1) El botón "Google Calendar" utilizaba el parámetro `?cid=https://script.google.com/macros/s/.../exec`. El importador interno de Google Calendar (`Google-Calendar-Importer`) rechaza las URLs `https://` en `?cid=` y bloquea por seguridad (SSRF/redirección 302 a `googleusercontent.com`) la descarga directa desde scripts de Google Apps Script, mostrando el mensaje "No se puede añadir el calendario. Comprueba la URL".
+     2) Además, cuando un usuario con rol Administrador (`Training Manager`) abría el modal de sincronización, el sistema intentaba exportar las actividades del usuario literal `"Training Manager"` (que no tiene fila propia en la matriz de formadores), generando un calendario vacío.
+   - Solución en Frontend (`src/views/Calendar.js`):
+     - El botón principal "Volcar a Google Calendar" ahora compila y descarga al instante el archivo `.ics` completo del año (con alarmas de 1 hora antes `-PT1H`) directamente desde la memoria de la aplicación y abre la pantalla oficial de importación de Google Calendar (`https://calendar.google.com/calendar/r/settings/export`), mostrando una guía visual de 2 pasos dentro del diálogo para subir el archivo descargado a la cuenta principal de Google Calendar (lo que sincroniza automáticamente los eventos con la app Google Calendar del móvil sin errores de URL).
+     - Añadido selector de formador (`#syncTrainerSelect`) para perfiles Administradores dentro del diálogo, permitiendo volcar tanto el calendario de "Todos los formadores (Equipo completo)" (con prefijo `[Nombre] Actividad`) como el de cualquier formador individual.
+     - En la opción de descarga `.ics` para móvil, se prioriza la descarga directa del archivo `text/calendar` para que Android e iOS lo abran directamente con la app nativa de Calendario (`ACTION_VIEW`) en lugar de mostrar únicamente apps de mensajería.
+   - Solución en Backend (`backend/Code.gs`):
+     - Optimizado `_generateCalendarFeed` para reutilizar la caché de `_matrixGetWeekly` (reduciendo el tiempo de respuesta de ~38s a <0.2s), añadido soporte para `user=ALL` y `Training Manager`, eliminado el salto de línea vacío en calendarios sin eventos y cambiado el MIME type a `ContentService.MimeType.ICAL`.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v51.9` en `sw.js`, `index.html` y `src/main.js`.
 
 VERSIÓN 51.8
 ============

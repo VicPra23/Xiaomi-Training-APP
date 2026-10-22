@@ -1450,54 +1450,83 @@ function renderCalendar(container) {
 
     async function getTrainerICSContent(trainerId, year) {
         const targetTrainer = trainerId || currentUser;
+        const isAllTrainers = targetTrainer === 'ALL' || ['Training Manager', 'Training Coordinator', 'Training Creator'].includes(targetTrainer);
         const events = [];
         const nowStr = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '') + 'Z';
 
-        if (calendarData?.schedule) {
-            Object.keys(calendarData.schedule).forEach(date => {
-                if (!date.startsWith(String(year))) return;
-                const items = getItems(date, targetTrainer);
-                items.forEach((item, idx) => {
-                    const text = String(item.text || '').trim();
-                    if (!text || /^VACACIONES|^FESTIVO/i.test(text)) return;
-                    const parts = date.split('-');
-                    const dStart = parts[0] + parts[1] + parts[2];
-                    const nextDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + 1));
-                    const dEnd = nextDate.toISOString().slice(0, 10).replace(/-/g, '');
-                    const uid = `xiaomi-${date}-${idx}-${targetTrainer}@xiaomitrainer`;
-                    const cleanSummary = text.replace(/[\r\n]+/g, ' - ').replace(/,/g, '\\,').replace(/;/g, '\\;');
-                    const cat = String(item.category || 'otros').toUpperCase();
+        const trainersList = (calendarData?.users || []).filter(u => {
+            const uid = typeof u === 'object' ? u.user : u;
+            return !['Training Manager', 'Training Coordinator', 'Training Creator'].includes(uid);
+        });
 
-                    events.push([
-                        "BEGIN:VEVENT",
-                        "UID:" + uid,
-                        "DTSTAMP:" + nowStr,
-                        "DTSTART;VALUE=DATE:" + dStart,
-                        "DTEND;VALUE=DATE:" + dEnd,
-                        "SUMMARY:" + cleanSummary,
-                        "DESCRIPTION:Formación Xiaomi (" + cat + ") - " + cleanSummary,
-                        "CATEGORIES:" + cat,
-                        "STATUS:CONFIRMED",
-                        "TRANSP:OPAQUE",
-                        "BEGIN:VALARM",
-                        "ACTION:DISPLAY",
-                        "DESCRIPTION:Recordatorio de formación: " + cleanSummary,
-                        "TRIGGER:-PT1H",
-                        "END:VALARM",
-                        "END:VEVENT"
-                    ].join("\r\n"));
+        const getTrainerDisplayName = (tId) => {
+            if (isAllTrainers) return 'Equipo Completo';
+            const found = trainersList.find(u => {
+                const uid = typeof u === 'object' ? u.user : u;
+                const name = typeof u === 'object' ? u.name : u;
+                return uid === tId || name === tId;
+            });
+            return found ? (typeof found === 'object' ? (found.name || found.user) : found) : tId;
+        };
+
+        if (calendarData?.schedule) {
+            const dates = Object.keys(calendarData.schedule).filter(d => d.startsWith(String(year))).sort();
+            const targets = isAllTrainers
+                ? trainersList.map(u => ({
+                    id: typeof u === 'object' ? u.user : u,
+                    name: typeof u === 'object' ? (u.name || u.user) : u
+                }))
+                : [{ id: targetTrainer, name: getTrainerDisplayName(targetTrainer) }];
+
+            dates.forEach(date => {
+                const parts = date.split('-');
+                const dStart = parts[0] + parts[1] + parts[2];
+                const nextDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + 1));
+                const dEnd = nextDate.toISOString().slice(0, 10).replace(/-/g, '');
+
+                targets.forEach(tObj => {
+                    const items = getItems(date, tObj.id);
+                    items.forEach((item, idx) => {
+                        const text = String(item.text || '').trim();
+                        if (!text || /^VACACIONES|^FESTIVO/i.test(text)) return;
+                        const safeUidTrainer = String(tObj.id).replace(/[^a-zA-Z0-9_-]/g, '');
+                        const uid = `xiaomi-${date}-${idx}-${safeUidTrainer}@xiaomitrainer`;
+                        const rawSummary = isAllTrainers ? `[${tObj.name}] ${text}` : text;
+                        const cleanSummary = rawSummary.replace(/[\r\n]+/g, ' - ').replace(/,/g, '\\,').replace(/;/g, '\\;');
+                        const cat = String(item.category || 'otros').toUpperCase();
+
+                        events.push([
+                            "BEGIN:VEVENT",
+                            "UID:" + uid,
+                            "DTSTAMP:" + nowStr,
+                            "DTSTART;VALUE=DATE:" + dStart,
+                            "DTEND;VALUE=DATE:" + dEnd,
+                            "SUMMARY:" + cleanSummary,
+                            "DESCRIPTION:Formación Xiaomi (" + cat + ") - " + cleanSummary,
+                            "CATEGORIES:" + cat,
+                            "STATUS:CONFIRMED",
+                            "TRANSP:OPAQUE",
+                            "BEGIN:VALARM",
+                            "ACTION:DISPLAY",
+                            "DESCRIPTION:Recordatorio de formación: " + cleanSummary,
+                            "TRIGGER:-PT1H",
+                            "END:VALARM",
+                            "END:VEVENT"
+                        ].join("\r\n"));
+                    });
                 });
             });
         }
 
         if (events.length > 0) {
+            const calLabel = getTrainerDisplayName(targetTrainer);
             return [
                 "BEGIN:VCALENDAR",
                 "VERSION:2.0",
                 "PRODID:-//Xiaomi Trainer Platform//ES",
                 "CALSCALE:GREGORIAN",
                 "METHOD:PUBLISH",
-                "X-WR-CALNAME:Xiaomi Formaciones " + year + " - " + targetTrainer,
+                "X-WR-CALNAME:Xiaomi Formaciones " + year + " - " + calLabel,
                 "X-WR-TIMEZONE:Europe/Madrid",
                 events.join("\r\n"),
                 "END:VCALENDAR"
@@ -1508,7 +1537,8 @@ function renderCalendar(container) {
         const apiEndpoint = (typeof API_URL !== 'undefined') ? API_URL : '';
         if (apiEndpoint) {
             try {
-                const feedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(targetTrainer)}&year=${year}`;
+                const feedUser = isAllTrainers ? 'ALL' : targetTrainer;
+                const feedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${year}`;
                 const resp = await fetch(feedUrl);
                 if (resp.ok) {
                     const icsText = await resp.text();
@@ -1524,46 +1554,8 @@ function renderCalendar(container) {
         return null;
     }
 
-    async function smartSyncTrainerICS(trainerId, year) {
-        const targetTrainer = trainerId || currentUser;
-        if (typeof showToast === 'function') {
-            showToast("Preparando calendario", "Compilando tus formaciones con recordatorios...");
-        }
-
-        const icsContent = await getTrainerICSContent(targetTrainer, year);
-        if (!icsContent) {
-            if (typeof showToast === 'function') {
-                showToast("Sin actividades", "No se encontraron actividades registradas en " + year + " para " + targetTrainer + ".");
-            }
-            return;
-        }
-
-        const safeName = String(targetTrainer).replace(/[^a-zA-Z0-9_\u00C0-\u017F]+/g, '_');
-        const fileName = `xiaomi_formaciones_${safeName}_${year}.ics`;
+    function triggerICSFileDownload(icsContent, fileName) {
         const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-
-        // Intento 1: Web Share API con archivo para móviles (permite "Abrir con Calendario / Google Calendar / Apple Calendar")
-        if (typeof File !== 'undefined' && navigator.canShare) {
-            try {
-                const file = new File([blob], fileName, { type: 'text/calendar' });
-                if (navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: `Xiaomi Formaciones ${year}`,
-                        text: `Calendario de formaciones Xiaomi de ${targetTrainer} (${year})`
-                    });
-                    if (typeof showToast === 'function') {
-                        showToast("Calendario enviado", "Elige tu app de Calendario para guardarlo en tu móvil.");
-                    }
-                    return;
-                }
-            } catch (shareErr) {
-                if (shareErr.name === 'AbortError') return; // Cancelado por el usuario
-                console.warn('Error al compartir con Web Share, usando descarga directa:', shareErr);
-            }
-        }
-
-        // Intento 2 / Fallback directo: Descargar archivo .ics
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -1571,11 +1563,62 @@ function renderCalendar(container) {
         document.body.appendChild(link);
         link.click();
         link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        return blob;
+    }
 
+    async function smartSyncTrainerICS(trainerId, year, options = {}) {
+        const targetTrainer = trainerId || currentUser;
         if (typeof showToast === 'function') {
-            showToast("Calendario descargado", "Abre el archivo descargado para agregarlo con avisos a tu aplicación de Calendario.");
+            showToast("Preparando calendario", "Compilando las formaciones con recordatorios...");
         }
+
+        const icsContent = await getTrainerICSContent(targetTrainer, year);
+        if (!icsContent) {
+            if (typeof showToast === 'function') {
+                showToast("Sin actividades", "No se encontraron actividades registradas en " + year + " para exportar.");
+            }
+            return null;
+        }
+
+        const isAll = targetTrainer === 'ALL' || ['Training Manager', 'Training Coordinator', 'Training Creator'].includes(targetTrainer);
+        const safeName = isAll ? 'Equipo_Xiaomi' : String(targetTrainer).replace(/[^a-zA-Z0-9_\u00C0-\u017F]+/g, '_');
+        const fileName = `xiaomi_formaciones_${safeName}_${year}.ics`;
+
+        // Modo Google Calendar: descarga el archivo .ics y abre la pantalla oficial de Importación de Google Calendar
+        if (options.openGoogleCalendarImport) {
+            triggerICSFileDownload(icsContent, fileName);
+            window.open('https://calendar.google.com/calendar/r/settings/export', '_blank', 'noopener,noreferrer');
+            if (typeof showToast === 'function') {
+                showToast("Archivo .ics descargado", "Selecciona el archivo descargado en la pantalla 'Importar' de Google Calendar.");
+            }
+            return fileName;
+        }
+
+        // Si el usuario pulsa compartir explícitamente en móvil
+        if (options.useNativeShare && typeof File !== 'undefined' && navigator.canShare) {
+            try {
+                const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+                const file = new File([blob], fileName, { type: 'text/calendar' });
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `Xiaomi Formaciones ${year}`,
+                        text: `Calendario de formaciones Xiaomi (${year})`
+                    });
+                    return fileName;
+                }
+            } catch (shareErr) {
+                if (shareErr.name === 'AbortError') return null;
+            }
+        }
+
+        // Descarga directa del archivo .ics (en Android/iOS al abrir el archivo descargado se abre Google Calendar / Apple Calendar directamente)
+        triggerICSFileDownload(icsContent, fileName);
+        if (typeof showToast === 'function') {
+            showToast("Calendario descargado", `Abre el archivo '${fileName}' para añadir todas las citas a tu Calendario.`);
+        }
+        return fileName;
     }
 
     const downloadTrainerICS = smartSyncTrainerICS;
@@ -1657,12 +1700,31 @@ function renderCalendar(container) {
         const dialog = document.createElement("dialog");
         dialog.className = "calendar-sync-phone-dialog";
         
-        const targetUser = currentUser;
+        const trainersList = (calendarData?.users || []).filter(u => {
+            const uid = typeof u === 'object' ? u.user : u;
+            return !['Training Manager', 'Training Coordinator', 'Training Creator'].includes(uid);
+        });
+
+        let defaultTarget = currentUser;
+        if (isAdmin || ['Training Manager', 'Training Coordinator', 'Training Creator'].includes(currentUser)) {
+            const filterSelect = container.querySelector("#calendarTrainerFilter");
+            const activeFilters = filterSelect?.tomselect ? filterSelect.tomselect.getValue() : [];
+            if (Array.isArray(activeFilters) && activeFilters.length === 1) {
+                defaultTarget = activeFilters[0];
+            } else {
+                defaultTarget = 'ALL';
+            }
+        }
+
         const apiEndpoint = (typeof API_URL !== 'undefined') ? API_URL : '';
-        const baseFeedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(targetUser)}&year=${selectedYear}`;
-        const webcalUrl = `webcal://${apiEndpoint.replace(/^https?:\/\//, '')}?action=calendarFeed&user=${encodeURIComponent(targetUser)}&year=${selectedYear}`;
-        const gcalSubUrl = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(baseFeedUrl)}`;
-        
+        const getFeedUrls = (userVal) => {
+            const feedUser = (userVal === 'ALL' || ['Training Manager', 'Training Coordinator', 'Training Creator'].includes(userVal)) ? 'ALL' : userVal;
+            const baseFeedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${selectedYear}`;
+            const webcalUrl = `webcal://${apiEndpoint.replace(/^https?:\/\//, '')}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${selectedYear}`;
+            return { baseFeedUrl, webcalUrl };
+        };
+
+        const initialUrls = getFeedUrls(defaultTarget);
         const notifSupported = 'Notification' in window;
         const notifGranted = notifSupported && Notification.permission === 'granted';
         const notifEnabled = notifGranted && localStorage.getItem('xiaomiDailyNotif') === 'true';
@@ -1673,53 +1735,67 @@ function renderCalendar(container) {
                     <div class="calendar-phone-icon"><i data-lucide="smartphone"></i></div>
                     <div>
                         <h3>Móvil y Avisos</h3>
-                        <p>Integra tus formaciones con la app de Calendario de tu móvil y gestiona avisos en pantalla.</p>
+                        <p>Integra las formaciones con Google Calendar o la app de Calendario de tu móvil y gestiona avisos.</p>
                     </div>
                     <button type="button" class="btn-close-dialog" data-close-dialog aria-label="Cerrar"><i data-lucide="x"></i></button>
                 </header>
 
                 <div class="calendar-phone-dialog-body">
-                    <!-- SECCIÓN 1: CALENDARIO DEL MÓVIL (PUNTO 2) -->
+                    <!-- SECCIÓN 1: CALENDARIO DEL MÓVIL / GOOGLE CALENDAR -->
                     <div class="phone-sync-section">
                         <div class="phone-sync-sec-title">
                             <i data-lucide="calendar"></i>
                             <div>
-                                <strong>1. Guardar en tu app de Calendario (Google / iPhone / Samsung)</strong>
-                                <span>Añade las formaciones de ${selectedYear} con alarmas sonoras automáticas 1 hora antes.</span>
+                                <strong>1. Volcar a tu app de Calendario (Google / iPhone / Outlook)</strong>
+                                <span>Añade todas las formaciones de ${selectedYear} con alarmas automáticas 1 hora antes.</span>
                             </div>
                         </div>
 
-                        <div class="phone-sync-notice">
-                            <i data-lucide="info"></i>
-                            <div>
-                                <strong>Importante:</strong> Por privacidad y seguridad del sistema operativo, las webs no pueden inyectar citas en tu agenda sin confirmación. Pulsa el botón de abajo para volcar todos tus eventos con recordatorios a tu app de Calendario:
-                            </div>
+                        ${isAdmin ? `
+                        <div style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px;">
+                            <label for="syncTrainerSelect" style="font-size: 0.82rem; font-weight: 600; color: var(--text-main);">¿Qué calendario deseas volcar?</label>
+                            <select id="syncTrainerSelect" class="form-control" style="padding: 0.55rem 0.75rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-size: 0.88rem; font-weight: 600;">
+                                <option value="ALL" ${defaultTarget === 'ALL' ? 'selected' : ''}>Todos los formadores (Equipo completo)</option>
+                                ${trainersList.map(u => {
+                                    const uid = typeof u === 'object' ? u.user : u;
+                                    const name = typeof u === 'object' ? (u.name || u.user) : u;
+                                    return `<option value="${escapeHTML(uid)}" ${defaultTarget === uid ? 'selected' : ''}>${escapeHTML(name)}</option>`;
+                                }).join('')}
+                            </select>
                         </div>
+                        ` : ''}
 
                         <div class="phone-sync-actions-grid">
                             <div class="phone-action-card">
-                                <button type="button" class="btn-primary" id="btnSmartSync" style="width:100%; justify-content:center; padding:0.75rem 1rem; font-size:0.92rem; font-weight:650;">
-                                    <i data-lucide="calendar-plus"></i><span>Volcar a mi Calendario (${selectedYear})</span>
+                                <div class="phone-action-copy" style="margin-bottom: 6px;">
+                                    <strong>Opción A · Google Calendar (PC y sincronización automática con tu móvil)</strong>
+                                    <small>Descarga el archivo <strong>.ics</strong> y abre la página oficial de importación de Google Calendar (sin errores de URL):</small>
+                                </div>
+                                <button type="button" class="btn-primary" id="btnGCalImport" style="width:100%; justify-content:center; padding:0.75rem 1rem; font-size:0.92rem; font-weight:650;">
+                                    <i data-lucide="calendar-plus"></i><span>Volcar a Google Calendar (${selectedYear})</span>
                                 </button>
-                                <small style="color:var(--text-muted); font-size:0.73rem; margin-top:4px; text-align:center;">
-                                    Abre la importación directa en tu teléfono o descarga el archivo <strong>.ics</strong> con alarmas de 1 hora antes.
-                                </small>
+                                <div id="gcalImportHelper" style="display:none; margin-top:8px; padding:10px 12px; border-radius:10px; background:rgba(255,103,0,0.09); border:1px solid rgba(255,103,0,0.3); font-size:0.78rem; line-height:1.45; color:var(--text-main);">
+                                    <strong style="color:var(--xiaomi-orange); display:block; margin-bottom:4px;">✓ Archivo <code id="gcalHelperFileName">.ics</code> descargado:</strong>
+                                    1. En la pestaña de <strong>Google Calendar</strong> que se ha abierto, pulsa <strong>«Seleccionar el archivo de tu ordenador»</strong>.<br>
+                                    2. Elige el archivo <code>.ics</code> recién descargado y pulsa <strong>«Importar»</strong>.<br>
+                                    3. Al importarse en tu cuenta, aparecerá automáticamente en el Google Calendar de tu móvil.
+                                </div>
                             </div>
 
                             <div class="phone-action-card">
-                                <div class="phone-action-copy">
-                                    <strong>Suscripción online (Actualización en tiempo real)</strong>
-                                    <small>Se sincroniza solo cuando la oficina modifique o asigne nuevas fechas:</small>
+                                <div class="phone-action-copy" style="margin-bottom: 6px;">
+                                    <strong>Opción B · Directo en el Móvil / Apple Calendar / Outlook</strong>
+                                    <small>Descarga el archivo <strong>.ics</strong> para abrirlo directamente con la app de Calendario de tu teléfono o suscribirte por Webcal:</small>
                                 </div>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-                                    <a href="${escapeHTML(gcalSubUrl)}" target="_blank" rel="noopener,noreferrer" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; padding:0.5rem 0.8rem;">
-                                        <i data-lucide="external-link"></i><span>Google Calendar</span>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+                                    <button type="button" class="btn-secondary" id="btnSmartSync" style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:0.55rem 0.9rem; font-weight:600;">
+                                        <i data-lucide="download"></i><span>Descargar archivo .ics</span>
+                                    </button>
+                                    <a href="${escapeHTML(initialUrls.webcalUrl)}" id="linkWebcalSub" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:0.55rem 0.9rem;">
+                                        <i data-lucide="calendar"></i><span>Apple / Webcal</span>
                                     </a>
-                                    <a href="${escapeHTML(webcalUrl)}" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; padding:0.5rem 0.8rem;">
-                                        <i data-lucide="calendar-plus"></i><span>Apple / Webcal</span>
-                                    </a>
-                                    <button type="button" class="btn-outline" id="btnCopyFeedUrl" title="Copiar enlace de suscripción" style="font-size:0.8rem; padding:0.5rem 0.8rem;">
-                                        <i data-lucide="copy"></i><span>Copiar enlace</span>
+                                    <button type="button" class="btn-outline" id="btnCopyFeedUrl" title="Copiar enlace de suscripción" style="font-size:0.82rem; padding:0.55rem 0.9rem;">
+                                        <i data-lucide="copy"></i><span>Copiar enlace iCal</span>
                                     </button>
                                 </div>
                             </div>
@@ -1769,18 +1845,41 @@ function renderCalendar(container) {
         dialog.querySelectorAll("[data-close-dialog]").forEach(btn => btn.addEventListener("click", close));
         dialog.addEventListener("cancel", () => dialog.remove());
 
-        // Botón principal: Volcar a Calendario del móvil
+        const getSelectedTarget = () => {
+            const sel = dialog.querySelector("#syncTrainerSelect");
+            return sel ? sel.value : defaultTarget;
+        };
+
+        dialog.querySelector("#syncTrainerSelect")?.addEventListener("change", (e) => {
+            const urls = getFeedUrls(e.target.value);
+            const webcalLink = dialog.querySelector("#linkWebcalSub");
+            if (webcalLink) webcalLink.href = urls.webcalUrl;
+        });
+
+        // Botón Opción A: Volcar a Google Calendar (Descarga .ics + Abre Importar de Google Calendar)
+        dialog.querySelector("#btnGCalImport")?.addEventListener("click", async () => {
+            const fileName = await smartSyncTrainerICS(getSelectedTarget(), selectedYear, { openGoogleCalendarImport: true });
+            if (fileName) {
+                const helper = dialog.querySelector("#gcalImportHelper");
+                const codeEl = dialog.querySelector("#gcalHelperFileName");
+                if (codeEl) codeEl.textContent = fileName;
+                if (helper) helper.style.display = "block";
+            }
+        });
+
+        // Botón Opción B: Descargar archivo .ics directo (para abrir en móvil / Outlook / Apple)
         dialog.querySelector("#btnSmartSync")?.addEventListener("click", () => {
-            smartSyncTrainerICS(targetUser, selectedYear);
+            smartSyncTrainerICS(getSelectedTarget(), selectedYear);
         });
 
         // Copiar enlace de suscripción
         dialog.querySelector("#btnCopyFeedUrl")?.addEventListener("click", async () => {
+            const urls = getFeedUrls(getSelectedTarget());
             try {
-                await navigator.clipboard.writeText(baseFeedUrl);
+                await navigator.clipboard.writeText(urls.baseFeedUrl);
                 if (typeof showToast === 'function') showToast("Enlace copiado", "Enlace de suscripción iCal copiado al portapapeles.");
             } catch(e) {
-                if (typeof showToast === 'function') showToast("Enlace de suscripción", baseFeedUrl);
+                if (typeof showToast === 'function') showToast("Enlace de suscripción", urls.baseFeedUrl);
             }
         });
 
