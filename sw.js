@@ -1,4 +1,4 @@
-const CACHE_NAME = 'xiaomi-trainer-v52.0';
+const CACHE_NAME = 'xiaomi-trainer-v52.4';
 
 
 const APP_SHELL = [

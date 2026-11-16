@@ -1,6 +1,54 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 52.0
-Fecha: 22/10/2026
+Versión revisada: 52.4
+Fecha: 16/11/2026
+
+VERSIÓN 52.4
+============
+1. Actualización del endpoint de Google Apps Script:
+   - Actualizada la constante `API_URL` en `src/services/api.js` a la nueva implementación web de Apps Script (`https://script.google.com/macros/s/AKfycbwp4M19VGsiCIbWcfrWOpgmWSBTs6eSaUlodjAsv6zU3i-p7pMGHEGl-kaUb1XQ2Jetyw/exec`) con las correcciones de generación de PDF por producto.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v52.4` en `sw.js`, `index.html` y `src/main.js`.
+
+VERSIÓN 52.3
+============
+1. Corrección completa en la exportación de PDF filtrado por Producto / Dispositivo en el Dashboard:
+   - Diagnóstico: Al generar el PDF con un producto seleccionado en el Dashboard, los resultados salían a cero debido a tres discrepancias clave respecto a la visualización en pantalla (`getDashboardStats`):
+     - Dispositivos de Ecosistema omitidos: `generateCustomPDF` solo inspeccionaba la columna de móviles (`DISP_MOVIL`), ignorando por completo la columna de ecosistema (`DISP_ECO`). Al filtrar por wearables, patinetes, tablets, televisores o domótica, ningún registro coincidía.
+     - Coincidencia estricta en array vs búsqueda por texto / inclusiva: Se exigía coincidencia idéntica tras dividir por comas, fallando ante variaciones de nombres de modelos o registros combinados.
+     - Comparación de formador y metodología sensible a mayúsculas/minúsculas: Si el nombre del formador o de la metodología variaba de mayúsculas a minúsculas entre la sesión web y la hoja de cálculo, se descartaban todas las filas.
+   - Solución en `backend/Code.gs`:
+     - En `generateCustomPDF`, ahora se concatenan y procesan conjuntamente las columnas `DISP_MOVIL` y `DISP_ECO` tanto para el filtrado como para la detección del modelo anterior comparativo.
+     - Coincidencia flexible de dispositivo: valida tanto pertenencia a la lista analizada como inclusión de subcadena bidireccional.
+     - Normalización a minúsculas (`toLowerCase`) para `targetUser`/`trainer`, `methodology`, `content`, `month` y `year`, garantizando paridad exacta con los datos mostrados en pantalla.
+   - Solución en `src/views/Dashboard.js`:
+     - Lectura segura del valor seleccionado en el selector de dispositivo (`dashboardDevice`) a través de la instancia activa de TomSelect (`window.tsInstances['dashboardDevice']?.getValue()`), con respaldo en el elemento `<select>`.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v52.3` en `sw.js`, `index.html` y `src/main.js`.
+
+VERSIÓN 52.2
+============
+1. Corrección del error de trigger en Google Apps Script ("Script function not found: generateWeeklyPDFReport"):
+   - Diagnóstico: En el proyecto de Apps Script existe un activador programado por tiempo (time-based trigger) antiguo que se ejecuta los lunes a las 09:30 buscando la función `generateWeeklyPDFReport`. En versiones anteriores esa función fue renombrada a `runWeekly`, provocando el aviso de error por correo electrónico.
+   - Solución en `backend/Code.gs`:
+     - Añadida la función alias `function generateWeeklyPDFReport() { runWeekly(); }` para que cualquier activador programado antiguo se ejecute correctamente sin errores.
+     - Añadida `generateWeeklyPDFReport` a la lista de limpieza de activadores antiguos en `setupAllTriggers()`.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v52.2` en `sw.js`, `index.html` y `src/main.js`.
+
+VERSIÓN 52.1
+============
+1. Rediseño integral del diálogo de sincronización con el calendario y selector por formador:
+   - Clarificación entre suscripción automática y descarga manual:
+     - Método 1 (Suscripción Automática en tiempo real - Recomendado): Te suscribes una sola vez y el calendario se actualiza automáticamente en Google Calendar y en el móvil cada vez que se añadan, muevan o editen actividades en la intranet. No requiere volver a descargar ningún archivo.
+     - Método 2 (Descarga de archivo .ics): Copia estática puntual con las citas de hoy.
+   - Selector de formador destacado y siempre visible: Permite elegir explícitamente entre el calendario personal de cualquier formador individual o el de "Todos los formadores (Equipo completo)". Por defecto selecciona el calendario propio del formador en lugar de descargar a todos.
+   - Botón directo para copiar la URL de suscripción iCal de cualquier formador con guía paso a paso para añadirlo en Google Calendar («Otros calendarios» ➔ «+» ➔ «Desde una URL»).
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v52.1` en `sw.js`, `index.html` y `src/main.js`.
 
 VERSIÓN 52.0
 ============
