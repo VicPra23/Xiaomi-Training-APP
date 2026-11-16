@@ -302,6 +302,12 @@ function renderDashboard(container) {
                                 <option value="Total">Dato Global</option>
                             </select>
                         </div>` : ''}
+                        <div id="histPeriodYear" class="form-group" style="margin:0;">
+                            <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Año</label>
+                            <select id="histFilterYear" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                                <option value="Todos">Todos</option>
+                            </select>
+                        </div>
                         <div id="histPeriodMonth" class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Mes</label>
                             <select id="histFilterMonth" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
@@ -919,10 +925,12 @@ function renderDashboard(container) {
         api.getFilterMetadata().then(res => {
             if (!active()) return;
             if(res.status === 'success') {
+                const hY = document.getElementById('histFilterYear');
                 const hM = document.getElementById('histFilterMonth');
                 const hA = document.getElementById('histFilterAccount');
                 const hD = document.getElementById('histFilterDevice');
                 const hMet = document.getElementById('histFilterMethod');
+                if(hY && Array.isArray(res.data.years)) res.data.years.forEach(y => hY.innerHTML += `<option value="${esc(y)}">${esc(y)}</option>`);
                 if(hM) res.data.months.forEach(m => hM.innerHTML += `<option value="${esc(m)}">${esc(m)}</option>`);
                 if(hA) res.data.accounts.forEach(a => hA.innerHTML += `<option value="${a}">${a}</option>`);
                 if(hD) {
@@ -1120,6 +1128,7 @@ function renderDashboard(container) {
         window.isUpdatingHistoryFilters = true;
         try {
             const selectors = [
+                { id: 'histFilterYear', data: Array.isArray(af.years) ? af.years : [], label: 'Todos' },
                 { id: 'histFilterMonth', data: Array.isArray(af.months) ? af.months : [], label: 'Todos' },
                 { id: 'histFilterWeek', data: (af.weeks && af.weeks.length > 0) ? af.weeks : [...weeksList].sort((a,b)=>b-a), label: 'Todas' },
                 { id: 'histFilterAccount', data: Array.isArray(af.accounts) ? af.accounts : [], label: 'Todas' },
@@ -1218,6 +1227,7 @@ function renderDashboard(container) {
     const fetchHistory = (force, request) => {
         // Al cargar historial, respetamos si el admin seleccionó un trainer específico ABRAZO
         const target = isAdmin ? (document.getElementById('histFilterTrainer')?.value || 'Total') : currentUser;
+        let year = document.getElementById('histFilterYear')?.value || "Todos";
         let week = document.getElementById('histFilterWeek')?.value || "";
         let month = document.getElementById('histFilterMonth')?.value || "Todos";
         const account = document.getElementById('histFilterAccount')?.value || "Todos";
@@ -1229,6 +1239,7 @@ function renderDashboard(container) {
         const useRange = document.getElementById('histRangeStart')?.style.display !== 'none';
 
         if (useRange) {
+            year = "Todos";
             week = "";
             month = "Todos";
         }
@@ -1272,6 +1283,7 @@ function renderDashboard(container) {
         if(loader) loader.style.visibility = 'visible';
 
         const isFiltered = (isAdmin && target !== 'Total') || 
+                           (year !== "Todos") ||
                            (week !== "Todos" && week !== "" && week.toString() !== currentWeek.toString()) || 
                            (month !== "Todos") || 
                            (account !== "Todos") || 
@@ -1282,6 +1294,7 @@ function renderDashboard(container) {
 
         const historyParams = { 
             targetUser: target === 'Total' ? '' : target, 
+            year: year,
             week: (week === "Todos" ? "" : week),
             month: month,
             account: account,
@@ -1677,10 +1690,15 @@ function renderDashboard(container) {
     const btnFilter = document.getElementById('btnFilter');
     if(btnFilter) btnFilter.onclick = () => {
         if (!isAdmin) {
+            const dYear = document.getElementById('dashboardYear');
             const dMonth = document.getElementById('dashboardMonth');
             const dWeek = document.getElementById('dashboardWeek');
+            const hYear = document.getElementById('histFilterYear');
             const hMonth = document.getElementById('histFilterMonth');
             const hWeek = document.getElementById('histFilterWeek');
+            if (dYear && hYear && dYear.value) {
+                hYear.value = dYear.value;
+            }
             if (dMonth && hMonth && dMonth.value) {
                 hMonth.value = dMonth.value;
             }
@@ -1695,7 +1713,7 @@ function renderDashboard(container) {
 
     const btnClearHistory = document.getElementById('btnClearHistory');
     if(btnClearHistory) btnClearHistory.onclick = () => {
-        ['histFilterMonth', 'histFilterAccount', 'histFilterDevice', 'histFilterMethod'].forEach(id => {
+        ['histFilterYear', 'histFilterMonth', 'histFilterAccount', 'histFilterDevice', 'histFilterMethod'].forEach(id => {
             const el = document.getElementById(id);
             if(el) {
                 el.value = 'Todos';

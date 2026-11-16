@@ -239,6 +239,7 @@ function renderCalendar(container) {
                 source: scheduleRes.source,
                 versions: scheduleRes.versions || {},
                 capacities: scheduleRes.capacities || {},
+                feedTokens: scheduleRes.feedTokens || {},
                 offline: Boolean(scheduleRes.offline && !wasConnected)
             };
             if (isAdmin) {
@@ -1125,32 +1126,27 @@ function renderCalendar(container) {
         });
 
         overlay.querySelector("[data-save]").addEventListener("click", async event => {
+            const saveBtn = event.currentTarget;
+            const cancelBtn = overlay.querySelector("[data-cancel]");
+            const prevSaveHtml = saveBtn.innerHTML;
             syncRows();
             const newItems = workingItems
                 .map(item => ({ text: item.text.trim(), category: item.category }))
                 .filter(item => item.text);
 
-            // 1. Guardar copia previa para rollback en caso de fallo
+            let errBanner = overlay.querySelector("[data-editor-error]");
+            if (errBanner) errBanner.remove();
+
+            saveBtn.disabled = true;
+            if (cancelBtn) cancelBtn.disabled = true;
+            saveBtn.innerHTML = '<i data-lucide="loader" class="spin"></i>Guardando…';
+            if (typeof lucide !== "undefined") lucide.createIcons();
+
             if (!calendarData) calendarData = { schedule: {}, versions: {}, capacities: {} };
             if (!calendarData.schedule) calendarData.schedule = {};
             if (!calendarData.schedule[date]) calendarData.schedule[date] = {};
-            const prevItems = deepCopyItems(calendarData.schedule[date][userId] || []);
 
-            // 2. Actualización optimista inmediata en memoria de la app
-            calendarData.schedule[date][userId] = newItems;
-            rememberSuggestions(newItems);
-
-            // 3. Re-renderizar el calendario al instante y cerrar el modal
-            renderYear({ preserveScroll: true });
-            close();
-
-            // 4. Feedback instantáneo al usuario
             announce("Guardando en Google Sheets…");
-            if (typeof showToast === 'function') {
-                showToast("Guardando", "Actualizando tu planificación en Google Sheets…");
-            }
-
-            // 5. Enviar a Google Apps Script en segundo plano
             try {
                 const response = await saveDay({
                     user: userId,
@@ -1161,10 +1157,15 @@ function renderCalendar(container) {
                 });
                 if (response.status !== "success") throw new Error(response.message || "No se pudo guardar.");
 
+                calendarData.schedule[date][userId] = newItems;
+                rememberSuggestions(newItems);
                 if (calendarData.versions) {
                     calendarData.versions[date] = calendarData.versions[date] || {};
                     calendarData.versions[date][userId] = response.version || revision(date, userId) || Date.now();
                 }
+
+                renderYear({ preserveScroll: true });
+                close();
 
                 // Sincronizar en caché offline local
                 try {
@@ -1175,7 +1176,8 @@ function renderCalendar(container) {
                         versions: calendarData.versions,
                         capacities: calendarData.capacities,
                         users: calendarData.users,
-                        blocks: calendarData.blocks
+                        blocks: calendarData.blocks,
+                        feedTokens: calendarData.feedTokens
                     });
                 } catch(eCache) {}
 
@@ -1184,12 +1186,23 @@ function renderCalendar(container) {
                     showToast("¡Guardado!", "Planificación guardada con éxito en Google Sheets.");
                 }
             } catch (error) {
-                // Si falla el guardado en la nube, revertir en pantalla
-                calendarData.schedule[date][userId] = prevItems;
-                renderYear({ preserveScroll: true });
-                announce(`Error al guardar: ${error.message}`, true);
+                saveBtn.disabled = false;
+                if (cancelBtn) cancelBtn.disabled = false;
+                saveBtn.innerHTML = prevSaveHtml;
+                if (typeof lucide !== "undefined") lucide.createIcons();
+
+                const msg = error && error.message ? error.message : "No se pudo guardar en Google Sheets.";
+                errBanner = document.createElement("div");
+                errBanner.setAttribute("data-editor-error", "1");
+                errBanner.setAttribute("role", "alert");
+                errBanner.style.cssText = "margin:0 0 12px; padding:10px 12px; border-radius:8px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); color:#dc2626; font-size:0.82rem; font-weight:600;";
+                errBanner.textContent = `No se ha guardado: ${msg}. Tu texto sigue aquí para que puedas reintentar o copiarlo.`;
+                const body = overlay.querySelector(".calendar-editor-body") || list.parentElement;
+                if (body) body.insertBefore(errBanner, body.firstChild);
+
+                announce(`Error al guardar: ${msg}`, true);
                 if (typeof showToast === 'function') {
-                    showToast("Error de guardado", `No se pudo guardar en la hoja: ${error.message}`);
+                    showToast("Error de guardado", msg);
                 }
             }
         });
@@ -1538,7 +1551,8 @@ function renderCalendar(container) {
         if (apiEndpoint) {
             try {
                 const feedUser = isAllTrainers ? 'ALL' : targetTrainer;
-                const feedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${year}`;
+                const feedKey = (calendarData && calendarData.feedTokens && calendarData.feedTokens[feedUser]) ? calendarData.feedTokens[feedUser] : '';
+                const feedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${year}${feedKey ? `&k=${encodeURIComponent(feedKey)}` : ''}`;
                 const resp = await fetch(feedUrl);
                 if (resp.ok) {
                     const icsText = await resp.text();
@@ -1721,8 +1735,10 @@ function renderCalendar(container) {
         const apiEndpoint = (typeof API_URL !== 'undefined') ? API_URL : '';
         const getFeedUrls = (userVal) => {
             const feedUser = (userVal === 'ALL' || isManagerAccount && userVal === currentUser) ? 'ALL' : userVal;
-            const baseFeedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${selectedYear}`;
-            const webcalUrl = `webcal://${apiEndpoint.replace(/^https?:\/\//, '')}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${selectedYear}`;
+            const feedKey = (calendarData && calendarData.feedTokens && calendarData.feedTokens[feedUser]) ? calendarData.feedTokens[feedUser] : '';
+            const keyQuery = feedKey ? `&k=${encodeURIComponent(feedKey)}` : '';
+            const baseFeedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${selectedYear}${keyQuery}`;
+            const webcalUrl = `webcal://${apiEndpoint.replace(/^https?:\/\//, '')}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${selectedYear}${keyQuery}`;
             return { baseFeedUrl, webcalUrl };
         };
 

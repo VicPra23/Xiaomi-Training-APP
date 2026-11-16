@@ -236,19 +236,33 @@ function renderVacations(container) {
                     let y = parseInt(p[2], 10); if (y < 100) y += 2000;
                     return new Date(y, parseInt(p[1], 10) - 1, parseInt(p[0], 10));
                 };
-                const start = parseLocal(matches[0]);
-                const end = matches.length > 1 ? parseLocal(matches[matches.length - 1]) : start;
-                let cur = new Date(start);
+                const isRangeLabel = /\bal\b/i.test(rangeStr) && !/^D[ií]as:/i.test(rangeStr.trim());
                 let newUniqueInRow = 0;
-                while (cur <= end) {
-                    const iso = cur.getFullYear() + "-" + String(cur.getMonth() + 1).padStart(2, '0') + "-" + String(cur.getDate()).padStart(2, '0');
-                    if (cur.getDay() !== 0 && cur.getDay() !== 6 && !holidaySet.has(iso)) {
-                        if (!seenDates.has(iso)) {
-                            seenDates.add(iso);
-                            newUniqueInRow++;
+                if (isRangeLabel && matches.length > 1) {
+                    const start = parseLocal(matches[0]);
+                    const end = parseLocal(matches[matches.length - 1]);
+                    let cur = new Date(start);
+                    while (cur <= end) {
+                        const iso = cur.getFullYear() + "-" + String(cur.getMonth() + 1).padStart(2, '0') + "-" + String(cur.getDate()).padStart(2, '0');
+                        if (cur.getDay() !== 0 && cur.getDay() !== 6 && !holidaySet.has(iso)) {
+                            if (!seenDates.has(iso)) {
+                                seenDates.add(iso);
+                                newUniqueInRow++;
+                            }
                         }
+                        cur.setDate(cur.getDate() + 1);
                     }
-                    cur.setDate(cur.getDate() + 1);
+                } else {
+                    matches.forEach(mStr => {
+                        const cur = parseLocal(mStr);
+                        const iso = cur.getFullYear() + "-" + String(cur.getMonth() + 1).padStart(2, '0') + "-" + String(cur.getDate()).padStart(2, '0');
+                        if (cur.getDay() !== 0 && cur.getDay() !== 6 && !holidaySet.has(iso)) {
+                            if (!seenDates.has(iso)) {
+                                seenDates.add(iso);
+                                newUniqueInRow++;
+                            }
+                        }
+                    });
                 }
                 // Si storedCount es menor que newUniqueInRow (porque el rango incluye algún festivo de la sede
                 // del usuario ya descontado al crear la solicitud, o días sueltos del mismo mes), respetamos storedCount.
@@ -685,9 +699,13 @@ function renderVacations(container) {
                 return new Date(y, parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
             };
             
-            const start = parseDate(matches[0]);
-            const end = parseDate(matches[matches.length - 1]);
-            return targetTime >= start && targetTime <= end;
+            const isRangeLabel = /\bal\b/i.test(rangeStr) && !/^D[ií]as:/i.test(rangeStr.trim());
+            if (isRangeLabel && matches.length > 1) {
+                const start = parseDate(matches[0]);
+                const end = parseDate(matches[matches.length - 1]);
+                return targetTime >= start && targetTime <= end;
+            }
+            return matches.some(m => parseDate(m) === targetTime);
         } catch(e) { return false; }
     }
 
@@ -764,11 +782,23 @@ function renderVacations(container) {
             cur.setDate(cur.getDate()+1);
         }
         try {
-            await sendPost('requestVacation', { user: currentUser, type: document.querySelector('input[name="vSelector"]:checked').value, dates: laborables });
-            showToast("✅ ¡Enviado!", "Tu solicitud ha sido enviada. Recargando...", "#vacations");
-            selection = {start:null,end:null}; loadData();
-            setTimeout(() => { location.reload(); }, 1200);
-        } catch(e) { console.error(e); btn.disabled = false; btn.innerText = 'Enviar Petición'; }
+            const res = await sendPost('requestVacation', { user: currentUser, type: document.querySelector('input[name="vSelector"]:checked').value, dates: laborables });
+            if (res && res.status === 'success') {
+                showToast("✅ ¡Enviado!", "Tu solicitud ha sido registrada correctamente.", "#vacations");
+                selection = { start: null, end: null };
+                updateSummary();
+                await loadData();
+            } else {
+                showToast("No se pudo enviar", (res && res.message) || "Revisa las fechas e inténtalo de nuevo.");
+                btn.disabled = false;
+                btn.innerText = 'Enviar Petición';
+            }
+        } catch(e) {
+            console.error(e);
+            showToast("Error de conexión", e.message || "No se pudo enviar la solicitud.");
+            btn.disabled = false;
+            btn.innerText = 'Enviar Petición';
+        }
     };
 }
 window.renderVacations = renderVacations;

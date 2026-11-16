@@ -1,6 +1,72 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 52.5
+Versión revisada: 53.0
 Fecha: 16/11/2026
+
+VERSIÓN 53.0
+============
+1. Actualización del endpoint de Google Apps Script:
+   - Actualizada la constante `API_URL` en `src/services/api.js` a `https://script.google.com/macros/s/AKfycbwnD21LnLTlOHDHeU9AzweEYpP6Kp8W4Hb0F6NSPMr6a0NSu9XS_86BWp_JKWLAB6NzaA/exec`.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v53.0` en `sw.js`, `index.html` y `src/main.js`, y `CONFIG.VERSION` a `53.0` / `V53.0`.
+
+VERSIÓN 52.9
+============
+1. Mejoras adoptadas tras la comparativa con la auditoría externa (`backend/Code.gs`):
+   - Coincidencia exacta normalizada de productos (`_reportDeviceMatches`): Unificada la lógica entre `getDashboardStats`, `getReportsHistory` y `generateCustomPDF` (incluyendo `DISP_MOVIL`, `DISP_ECO` y listas JSON) sin mezclar variantes por subcadena (p. ej. `Xiaomi 17` vs `Xiaomi 17 Pro`).
+   - Semanas ISO separadas por año en la gráfica (`_reportISO`): Cuando se consultan múltiples años en el Dashboard, las semanas se agrupan por clave `YYYY-Www` ordenadas cronológicamente sin mezclar años distintos.
+   - Validación de rangos de fechas en `generateCustomPDF` (rechaza fechas incompletas o invertidas) y comparativas en `_buildPDFHTML` sin porcentajes `+100%` artificiales cuando el periodo base es `0` (`— (Sin base)`).
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v52.9` en `sw.js`, `index.html` y `src/main.js`.
+
+VERSIÓN 52.8
+============
+1. Bloque 3 de Auditoría — Calendario móvil/editor, PWA segura e Historial por Año:
+   - Arrastre móvil (`index.html`): Corregido `ReferenceError: mobileDragDrop is not defined` en la inicialización de `MobileDragDrop.polyfill(...)`.
+   - Editor del calendario (`src/views/Calendar.js`): El modal ya no se cierra antes de confirmar el guardado en Google Sheets; si falla la red o hay un conflicto de edición (`CALENDAR_CONFLICT`), muestra un aviso dentro del editor conservando todo el texto escrito para poder reintentar o copiarlo.
+   - Instalación atómica de la PWA (`sw.js`): La fase `install` ya no acepta cachés incompletas; si falla algún recurso esencial de `APP_SHELL`, aborta la instalación y conserva intacta la versión anterior.
+   - Historial por Año (`backend/Code.gs`, `src/views/Dashboard.js`): Añadido selector de Año (`histFilterYear`) en el historial de reportes y soporte `p.year` en `getReportsHistory`.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v52.8` en `sw.js`, `index.html` y `src/main.js`.
+
+VERSIÓN 52.7
+============
+1. Bloque 2 de Auditoría — Vacaciones exactas, Fotos detalladas y Feed iCal privado:
+   - Vacaciones (`backend/Code.gs`, `src/views/Vacations.js`):
+     - Añadida validación de fechas ya ocupadas/solapadas en servidor (`handleRequestVacation` dentro de `LockService`) para impedir solicitudes duplicadas.
+     - Distinción entre tramos continuos (`Del X al Y`) y días sueltos no contiguos (`Días: X, Y`) tanto al guardar como al calcular saldo y pintar el calendario (`getVacationData`, `computeConsumedDays`, `isInHistoryRange`).
+     - Eliminado el `location.reload()` tras solicitar vacaciones; ahora verifica `res.status === 'success'` y recarga datos en vivo con `loadData()`.
+   - Reportes y Fotografías (`backend/Code.gs`, `src/views/ReportForm.js`):
+     - Añadido `_uploadPhotosDetailed` para registrar qué fotografías concretas fallaron y por qué, devolviendo `uploadedPhotos` y `failedPhotos` en `handleSaveReport` y `updateReport`.
+     - `ReportForm.js` muestra ahora un aviso específico con los nombres de las fotos que fallaron al subir sin ocultar el fallo.
+   - Feed iCal privado (`backend/Code.gs`, `src/views/Calendar.js`):
+     - Protegido `calendarFeed` con token HMAC por usuario (`k=...`) derivado de `CALENDAR_FEED_SECRET` en `ScriptProperties` (revocable eliminando o rotando la propiedad). Los usuarios estándar solo reciben su propio token y nunca el de `ALL`.
+     - Ampliada la ventana del feed en noviembre/diciembre para incluir también eventos planificados de enero y febrero del año siguiente.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v52.7` en `sw.js`, `index.html` y `src/main.js`.
+
+VERSIÓN 52.6
+============
+1. Bloque 1 de Auditoría — Seguridad, Integridad de Datos y Errores Críticos:
+   - Calendario (`backend/Code.gs`):
+     - Corregido el bug en `_matrixDay` donde el error `FORBIDDEN` por vacaciones/festivos era capturado por el propio `try/catch` y permitía seguir guardando.
+     - Activada la validación de concurrencia optimista (`expectedVersion !== day.version` -> `CALENDAR_CONFLICT`) en `_matrixDay`.
+     - Eliminado el año fijo `"2026"` en `_matrixInvalidateWeeklyCache()`; ahora invalida dinámicamente el año actual ± 1 y los años de las fechas modificadas.
+   - Reportes y Caché (`backend/Code.gs`, `src/views/ReportForm.js`):
+     - `updateReport` ahora localiza el reporte por su identificador permanente (`id` / timestamp) antes de recurrir a `rowIdx`, y bloquea ediciones por debajo de la fila 2.
+     - Añadida neutralización de inyección de fórmulas (`=`, `+`, `-`, `@`) en textos libres en `_validateReportData`.
+     - Corregida `onManualSheetChange(e)` para usar `_invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME)`.
+     - Corregidos los fallbacks falsy (`!== undefined`) en `generatePDFReport` cuando `SESIONES`, `ALUMNOS` o `HORAS` valen `0`.
+   - Materiales y Mensajes (`src/views/Materials.js`, `src/views/Messages.js`):
+     - `Materials.js` ahora verifica `res.status === 'success'` antes de mostrar "¡Notificado!" y muestra error real si el servidor rechaza o falla la red.
+     - `Messages.js` ya no oculta errores del servidor bajo "Todo al día"; lanza error y muestra la pantalla de reintento.
+   - Versionado unificado: `CONFIG.VERSION` sincronizado a `"52.6"` en `src/services/api.js` y `"V52.6"` en `backend/Code.gs`.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v52.6` en `sw.js`, `index.html` y `src/main.js`.
 
 VERSIÓN 52.5
 ============

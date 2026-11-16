@@ -1,4 +1,4 @@
-const CACHE_NAME = 'xiaomi-trainer-v52.5';
+const CACHE_NAME = 'xiaomi-trainer-v53.0';
 
 
 const APP_SHELL = [
@@ -21,15 +21,15 @@ const APP_SHELL = [
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => Promise.all(APP_SHELL.map(asset =>
-        fetch(asset, { cache: 'reload' })
-          .then(response => {
-            if (response.ok) return cache.put(asset, response);
-            return null;
-          })
-          .catch(() => null)
-      )))
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.all(APP_SHELL.map(async asset => {
+        const response = await fetch(asset, { cache: 'reload' });
+        if (!response.ok) {
+          throw new Error('Failed to cache core asset: ' + asset + ' (' + response.status + ')');
+        }
+        return cache.put(asset, response);
+      }))
+    )
   );
 });
 

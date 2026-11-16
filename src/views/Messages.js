@@ -50,7 +50,9 @@ function renderMessages(container) {
         if (!log) return;
         try {
             const res = await api.getMessages({ targetUser: user });
-            const messages = res.status === 'success' && Array.isArray(res.data) ? res.data : [];
+            if (!res || res.status === 'stale') return;
+            if (res.status !== 'success') throw new Error(res.message || 'Error al obtener mensajes');
+            const messages = Array.isArray(res.data) ? res.data : [];
             container.querySelector('#messageCount').textContent = `${messages.length} ${messages.length === 1 ? 'mensaje' : 'mensajes'}`;
             if (!messages.length) {
                 log.innerHTML = `

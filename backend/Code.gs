@@ -14,7 +14,7 @@ const CONFIG = {
   MENSAJES_SHEET_NAME: "MENSAJES",
   PLANIFICACION_SHEET_NAME: "PLANIFICACION",
   MATERIALES_SHEET_NAME: "MATERIALES",
-  VERSION: "V5.1",
+  VERSION: "V53.0",
   ADMINS: ["Training Manager", "Training Coordinator", "Training Creator"]
 };
 
@@ -628,20 +628,35 @@ function getVacationData(user, forceRefresh = false) {
             if (y < 100) y += 2000;
             return new Date(y, parseInt(parts[1]) - 1, parseInt(parts[0]));
           };
-          const start = parseDate(matches[0]);
-          const end = matches.length > 1 ? parseDate(matches[matches.length - 1]) : start;
-          let cur = new Date(start);
+          const isRangeLabel = /\bal\b/i.test(rangeStr) && !/^D[ií]as:/i.test(rangeStr.trim());
           let newUniqueDays = 0;
-          while (cur <= end) {
-            const dow = cur.getDay();
-            if (dow !== 0 && dow !== 6) {
-              const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
-              if (!festivosSet.has(iso) && !seenSet.has(iso)) {
-                seenSet.add(iso);
-                newUniqueDays++;
+          if (isRangeLabel && matches.length > 1) {
+            const start = parseDate(matches[0]);
+            const end = parseDate(matches[matches.length - 1]);
+            let cur = new Date(start);
+            while (cur <= end) {
+              const dow = cur.getDay();
+              if (dow !== 0 && dow !== 6) {
+                const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
+                if (!festivosSet.has(iso) && !seenSet.has(iso)) {
+                  seenSet.add(iso);
+                  newUniqueDays++;
+                }
               }
+              cur.setDate(cur.getDate() + 1);
             }
-            cur.setDate(cur.getDate() + 1);
+          } else {
+            matches.forEach(mStr => {
+              const cur = parseDate(mStr);
+              const dow = cur.getDay();
+              if (dow !== 0 && dow !== 6) {
+                const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
+                if (!festivosSet.has(iso) && !seenSet.has(iso)) {
+                  seenSet.add(iso);
+                  newUniqueDays++;
+                }
+              }
+            });
           }
           count = storedCount > 0 ? Math.min(storedCount, newUniqueDays) : newUniqueDays;
         }
@@ -650,7 +665,8 @@ function getVacationData(user, forceRefresh = false) {
       history.push({ id: dV[i][7], user: rowUser, date: dV[i][0], fechas: dV[i][2], month: dV[i][3], type: type, status: status, count: count });
     }
   }
-  return { status: "success", stats: { baseTotal: baseTotal, extraTotal: extra, usedBase: uB, usedExtra: uE, sede: userSede }, festivos: festivos, history: history };
+  const occupiedDates = Array.from(new Set([...seenBase, ...seenExtra])).sort();
+  return { status: "success", stats: { baseTotal: baseTotal, extraTotal: extra, usedBase: uB, usedExtra: uE, sede: userSede }, festivos: festivos, occupiedDates: occupiedDates, history: history };
 }
 
 function handleRequestVacation(req) {
@@ -669,11 +685,15 @@ function handleRequestVacation(req) {
     const vacationData = getVacationData(req.user, true);
     if (vacationData.status !== "success") return vacationData;
     const holidays = vacationData.festivos || [];
+    const occupiedSet = new Set(vacationData.occupiedDates || []);
     for (let i = 0; i < uniqueDates.length; i++) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(uniqueDates[i])) return { status: "error", message: "Fecha no válida." };
       const date = parseDateStable(uniqueDates[i]);
       if (!date || date <= today || date.getDay() === 0 || date.getDay() === 6 || holidays.indexOf(uniqueDates[i]) !== -1) {
         return { status: "error", message: "La solicitud contiene días pasados, festivos o fines de semana." };
+      }
+      if (occupiedSet.has(uniqueDates[i])) {
+        return { status: "error", message: "Ya existe una solicitud pendiente o aprobada para el día " + formatDateS(uniqueDates[i]) + "." };
       }
     }
     const available = req.type === "Vacaciones"
@@ -691,9 +711,30 @@ function handleRequestVacation(req) {
       const mLabel = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][d.getMonth()] + " " + d.getFullYear();
       if (!groups[mLabel]) groups[mLabel] = []; groups[mLabel].push(dStr);
     });
+    const holidaySet = new Set(holidays);
+    const isContiguousWorkdays = function(sortedDates) {
+      if (sortedDates.length <= 1) return false;
+      const set = new Set(sortedDates);
+      const cur = parseDateStable(sortedDates[0]);
+      const end = parseDateStable(sortedDates[sortedDates.length - 1]);
+      while (cur <= end) {
+        const dow = cur.getDay();
+        const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
+        if (dow !== 0 && dow !== 6 && !holidaySet.has(iso) && !set.has(iso)) return false;
+        cur.setDate(cur.getDate() + 1);
+      }
+      return true;
+    };
     for (let m in groups) {
       const s = groups[m].sort();
-      const label = s.length>1 ? ("Del "+formatDateS(s[0])+" al "+formatDateS(s[s.length-1])) : ("Día "+formatDateS(s[0]));
+      let label = "";
+      if (s.length === 1) {
+        label = "Día " + formatDateS(s[0]);
+      } else if (isContiguousWorkdays(s)) {
+        label = "Del " + formatDateS(s[0]) + " al " + formatDateS(s[s.length - 1]);
+      } else {
+        label = "Días: " + s.map(formatDateS).join(", ");
+      }
       const uniqueId = "REQ_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
       sV.appendRow([ new Date(), req.user, label, m, req.type, "Pendiente", s.length, uniqueId ]);
       notifyAdmins("Nueva solicitud de " + req.user + " (" + req.type + "): " + label, req.user);
@@ -753,6 +794,37 @@ function attemptLogin(u, p) {
     }
   }
   return { status: "error", message: "Credenciales incorrectas" };
+}
+
+function _reportNormalize(value) {
+  return String(value == null ? '' : value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function _reportDevices(value) {
+  if (Array.isArray(value)) return value.map(function(v) { return _reportNormalize(v && v.modelo ? v.modelo : v); }).filter(Boolean);
+  const text = String(value || '').trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return _reportDevices(parsed);
+  } catch (error) {}
+  return text.split(/[,;\n]+/).map(_reportNormalize).filter(Boolean);
+}
+
+function _reportDeviceMatches(target, fields) {
+  const name = _reportNormalize(target);
+  if (!name || name === 'todos') return true;
+  return fields.some(function(field) {
+    return _reportDevices(field).indexOf(name) !== -1;
+  });
+}
+
+function _reportISO(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const year = d.getUTCFullYear();
+  const week = Math.ceil((((d - new Date(Date.UTC(year, 0, 1))) / 86400000) + 1) / 7);
+  return { year: year, week: week, key: year + '-W' + String(week).padStart(2, '0') };
 }
 
 function getDashboardStats(p, session) {
@@ -819,8 +891,8 @@ function getDashboardStats(p, session) {
   const currentWeekEnd = new Date(currentWeekStart);
   currentWeekEnd.setDate(currentWeekEnd.getDate() + 7);
 
-  // Si se selecciona un único mes y no estamos en rango libre, rellenamos las semanas del mes a 0 para graficar la evolución completa
-  if (selectedMonths.length === 1 && !startD) {
+  // Si se selecciona un único mes y un año concreto (y no estamos en rango libre), rellenamos las semanas del mes a 0
+  if (selectedMonths.length === 1 && targetYear !== "Todos" && !startD) {
     const mIdx = mNames.indexOf(selectedMonths[0]);
     if (mIdx !== -1) {
       const yNum = parseInt(targetYear, 10) || now.getFullYear();
@@ -828,8 +900,8 @@ function getDashboardStats(p, session) {
       const lastDay = new Date(yNum, mIdx + 1, 0, 12, 0, 0).getDate();
       for (let day = 1; day <= lastDay; day++) {
         cursor.setDate(day);
-        const week = getWeekNumber(cursor);
-        if (!monthlyWS[week]) monthlyWS[week] = { sesiones:0, alumnos:0 };
+        const iso = _reportISO(cursor);
+        if (!monthlyWS[iso.key]) monthlyWS[iso.key] = { label: "Sem " + iso.week, sesiones:0, alumnos:0 };
       }
     }
   }
@@ -859,9 +931,9 @@ function getDashboardStats(p, session) {
     }
     
     if (targetDevice !== "todos") {
-        const mobiles = (colMap.DISP_MOVIL !== undefined ? d[i][colMap.DISP_MOVIL] : (d[i][11]||"")).toString().toLowerCase();
-        const eco = (colMap.DISP_ECO !== undefined ? d[i][colMap.DISP_ECO] : (d[i][12]||"")).toString().toLowerCase();
-        if (mobiles.indexOf(targetDevice) === -1 && eco.indexOf(targetDevice) === -1) continue;
+        const mobiles = colMap.DISP_MOVIL !== undefined ? d[i][colMap.DISP_MOVIL] : d[i][11];
+        const eco = colMap.DISP_ECO !== undefined ? d[i][colMap.DISP_ECO] : d[i][12];
+        if (!_reportDeviceMatches(targetDevice, [mobiles, eco])) continue;
     }
     
     if (selectedMethodologies.length > 0 && !selectedMethodologies.includes("todos")) {
@@ -914,23 +986,26 @@ function getDashboardStats(p, session) {
       }
     }
 
-    // Acumular para el gráfico de barras semanal
+    // Acumular para el gráfico de barras semanal (separando por año ISO)
     if (matchesUser) {
         const matchesMonthForChart = (startD && endD) ? true : (selectedMonths.length === 0 || selectedMonths.includes(mNames[rowMonth]));
         if (matchesMonthForChart) {
-            if(!monthlyWS[rowWeek]) monthlyWS[rowWeek] = { sesiones:0, alumnos:0 };
-            monthlyWS[rowWeek].sesiones += ses; monthlyWS[rowWeek].alumnos += alu;
+            const iso = _reportISO(dO);
+            const showYear = targetYear === "Todos" && !(startD && endD && startD.getFullYear() === endD.getFullYear());
+            const lbl = showYear ? ("Sem " + iso.week + " (" + iso.year + ")") : ("Sem " + iso.week);
+            if(!monthlyWS[iso.key]) monthlyWS[iso.key] = { label: lbl, sesiones:0, alumnos:0 };
+            monthlyWS[iso.key].sesiones += ses; monthlyWS[iso.key].alumnos += alu;
         }
     }
   }
   
-  var sW = Object.keys(monthlyWS).sort((a,b)=>a-b);
+  var sW = Object.keys(monthlyWS).sort();
   return { 
     status:"success", totalSesiones:tS, totalAlumnos:tA, totalHoras:tH.toFixed(1), 
     currentWeekData:{count:count, week: selectedWeeks.join(',')}, 
-    chartLabels:sW.length > 0 ? sW.map(w=>"Sem "+w) : ["Sin Datos"], 
-    chartSesiones:sW.length > 0 ? sW.map(w=>monthlyWS[w].sesiones) : [0], 
-    chartAlumnos:sW.length > 0 ? sW.map(w=>monthlyWS[w].alumnos) : [0], 
+    chartLabels:sW.length > 0 ? sW.map(k=>monthlyWS[k].label) : ["Sin Datos"], 
+    chartSesiones:sW.length > 0 ? sW.map(k=>monthlyWS[k].sesiones) : [0], 
+    chartAlumnos:sW.length > 0 ? sW.map(k=>monthlyWS[k].alumnos) : [0], 
     pieLabels:Object.keys(mS), pieData:Object.values(mS),
     adminStats: { byAccount: statsByAccount, byTrainer: statsByTrainer },
     availableWeeks: Array.from(availableWeeks).sort((a,b) => a-b)
@@ -944,6 +1019,7 @@ function getReportsHistory(p) {
     const limit = Math.min(Math.max(parseInt(p.limit, 10) || 100, 1), 500);
     const weekFilter = p.week ? parseInt(p.week) : null;
     const monthFilter = (p.month || "").toString().trim();
+    const yearFilter = (p.year || "").toString().trim();
     const accountFilter = (p.account || "").toString().trim();
     const deviceFilter = (p.device || "").toString().trim().toLowerCase();
     const methodologyFilter = (p.methodology || "").toString().trim();
@@ -966,7 +1042,7 @@ function getReportsHistory(p) {
 
     const result = [];
     const mNames = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-    const availableFilters = { weeks: new Set(), months: new Set(), accounts: new Set(), methods: new Set(), devices: new Set() };
+    const availableFilters = { years: new Set(), weeks: new Set(), months: new Set(), accounts: new Set(), methods: new Set(), devices: new Set() };
 
     const targetLower = target.toLowerCase();
 
@@ -981,8 +1057,10 @@ function getReportsHistory(p) {
         if (matchesUser) {
             const dO = parseDateStable(fVal);
             if (dO) {
+                const rowYear = dO.getFullYear().toString();
                 const rowMonth = mNames[dO.getMonth()];
                 const rowWeek = getWeekNumber(dO);
+                availableFilters.years.add(rowYear);
                 availableFilters.accounts.add((d[j][colMap.CUENTA]||"Otros").toString().trim());
                 availableFilters.methods.add((d[j][colMap.METODOLOGIA]||"Otros").toString().trim());
                 if (monthFilter === "Todos" || rowMonth === monthFilter) availableFilters.weeks.add(rowWeek);
@@ -1011,6 +1089,7 @@ function getReportsHistory(p) {
       
       if (startDate && dO.getTime() < startDate.getTime()) continue;
       if (endDate && dO.getTime() > endDate.getTime()) continue;
+      if (yearFilter && yearFilter.toLowerCase() !== "todos" && dO.getFullYear().toString() !== yearFilter) continue;
       if (weekFilter && weekFilter !== "Todos" && getWeekNumber(dO) != weekFilter) continue;
       if (monthFilter && monthFilter !== "Todos" && mNames[dO.getMonth()] !== monthFilter) continue;
       if (accountFilter && accountFilter !== "Todos" && (d[i][colMap.CUENTA]||"").toString().trim() !== accountFilter) continue;
@@ -1024,9 +1103,9 @@ function getReportsHistory(p) {
       }
       
       if (deviceFilter && deviceFilter !== "todos") {
-        const mobiles = (d[i][colMap.DISP_MOVIL]||"").toString().toLowerCase();
-        const eco = (d[i][colMap.DISP_ECO]||"").toString().toLowerCase();
-        if (mobiles.indexOf(deviceFilter) === -1 && eco.indexOf(deviceFilter) === -1) continue;
+        const mobiles = colMap.DISP_MOVIL !== undefined ? d[i][colMap.DISP_MOVIL] : d[i][11];
+        const eco = colMap.DISP_ECO !== undefined ? d[i][colMap.DISP_ECO] : d[i][12];
+        if (!_reportDeviceMatches(deviceFilter, [mobiles, eco])) continue;
       }
 
       if (query) {
@@ -1076,6 +1155,7 @@ function getReportsHistory(p) {
     return { 
       status: "success", data: result,
       availableFilters: {
+          years: Array.from(availableFilters.years).sort().reverse(),
           weeks: Array.from(availableFilters.weeks).sort((a,b) => b-a),
           months: Array.from(availableFilters.months).sort((a,b) => mNames.indexOf(a) - mNames.indexOf(b)),
           accounts: Array.from(availableFilters.accounts).sort(),
@@ -1093,13 +1173,45 @@ function updateReport(p, session) {
     let data = p.data;
     if (typeof data === 'string') data = JSON.parse(data);
     data = _validateReportData(data);
-    const rowIdx = parseInt(p.rowIdx);
-    if (!rowIdx || rowIdx < 1) {
-        return { status: "error", message: "Error: No se ha recibido un índice de fila válido para actualizar (rowIdx=" + p.rowIdx + ")" };
-    }
     const ss = SpreadsheetApp.openById(CONFIG.REPORTES_SS_ID);
     const s = ss.getSheetByName(CONFIG.REPORTES_SHEET_NAME);
     const colMap = _getColMap(s);
+
+    let rowIdx = -1;
+    const reqId = (p.id || "").toString().trim();
+    if (reqId) {
+      const allData = s.getDataRange().getValues();
+      const idParts = reqId.match(/^RID_(\d+)_(\d+)$/);
+      const expectedTs = idParts ? Number(idParts[1]) : 0;
+      let tsMatches = [];
+      for (let i = allData.length - 1; i >= 1; i--) {
+        const dVal = allData[i][0];
+        let rowTs = 0;
+        if (dVal) {
+          const parsed = (dVal instanceof Date) ? dVal : new Date(dVal);
+          rowTs = isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+        }
+        if ("RID_" + rowTs + "_" + i === reqId) {
+          rowIdx = i + 1;
+          break;
+        }
+        if (expectedTs > 0 && rowTs === expectedTs) {
+          tsMatches.push(i + 1);
+        }
+      }
+      if (rowIdx === -1 && tsMatches.length === 1) {
+        rowIdx = tsMatches[0];
+      }
+    }
+    if (rowIdx === -1) {
+      const parsedRowIdx = parseInt(p.rowIdx, 10);
+      if (parsedRowIdx >= 2 && parsedRowIdx <= s.getLastRow()) {
+        rowIdx = parsedRowIdx;
+      }
+    }
+    if (rowIdx < 2) {
+      return { status: "error", message: "Error: No se ha encontrado un identificador o fila válida para actualizar el reporte." };
+    }
     
     const currentRow = s.getRange(rowIdx, 1, 1, s.getLastColumn()).getValues()[0];
     const existingTrainer = (currentRow[colMap.TRAINER] || currentRow[1] || "").toString().trim().toLowerCase();
@@ -1115,7 +1227,8 @@ function updateReport(p, session) {
       incomingTrainer = existingTrainer;
     }
 
-    var newPhotoUrls = _uploadPhotos(p.photos, data);
+    var photoUpload = _uploadPhotosDetailed(p.photos, data);
+    var newPhotoUrls = photoUpload.urls;
     // IMPORTANTE: Respetar la selección de fotos del frontend (permite borrar fotos antiguas)
     const keptPhotos = (data.existingPhotos || "").toString().trim();
     
@@ -1155,7 +1268,7 @@ function updateReport(p, session) {
     if (isAdmin && existingTrainer !== incomingTrainer) notifyUser(currentRow[1], "Se ha actualizado un reporte. Revísalo en tu historial", "Admin");
     
     _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
-    return { status: "success", message: "Reporte editado correctamente" };
+    return { status: "success", message: "Reporte editado correctamente", uploadedPhotos: newPhotoUrls.length, failedPhotos: photoUpload.failed };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
@@ -1254,8 +1367,9 @@ function getFilterMetadata() {
   };
 }
 
-function _uploadPhotos(photos, data) {
+function _uploadPhotosDetailed(photos, data) {
   var photoUrls = [];
+  var failed = [];
   if (photos && photos.length > 0) {
     try {
       var folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
@@ -1273,6 +1387,7 @@ function _uploadPhotos(photos, data) {
       
       for (var i=0; i<Math.min(photos.length, 20); i++) {
           var p = photos[i];
+          var photoLabel = (p && p.name) ? String(p.name) : ("Foto " + (i + 1));
           if (p && p.base64Data) {
               try {
                 var raw = p.base64Data;
@@ -1285,7 +1400,14 @@ function _uploadPhotos(photos, data) {
                   raw = splitted[1];
                 }
                 var cleanBase64 = raw.replace(/\s/g, '');
-                if (cleanBase64.length === 0 || cleanBase64.length > 8000000) continue;
+                if (cleanBase64.length === 0) {
+                  failed.push({ name: photoLabel, reason: "Archivo vacío" });
+                  continue;
+                }
+                if (cleanBase64.length > 8000000) {
+                  failed.push({ name: photoLabel, reason: "Supera el límite de tamaño" });
+                  continue;
+                }
                 
                 var ext = "jpg";
                 if (mimeType.indexOf("/") !== -1) {
@@ -1299,21 +1421,39 @@ function _uploadPhotos(photos, data) {
                   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
                 } catch(shareErr) {}
                 photoUrls.push(file.getUrl());
-              } catch(err) { console.error("Error individual photo [" + i + "]:", err); }
+              } catch(err) {
+                console.error("Error individual photo [" + i + "]:", err);
+                failed.push({ name: photoLabel, reason: err && err.message ? err.message : String(err) });
+              }
           }
       }
-    } catch(e) { console.error("Error uploading photos:", e); }
+    } catch(e) {
+      console.error("Error uploading photos:", e);
+      for (var j = 0; j < Math.min(photos.length, 20); j++) {
+        var pj = photos[j];
+        if (pj && pj.base64Data) {
+          failed.push({ name: pj.name || ("Foto " + (j + 1)), reason: "No se pudo acceder a la carpeta de Drive" });
+        }
+      }
+    }
   }
-  return photoUrls;
+  return { urls: photoUrls, failed: failed };
+}
+
+function _uploadPhotos(photos, data) {
+  return _uploadPhotosDetailed(photos, data).urls;
 }
 
 function _validateReportData(input) {
   const data = input || {};
-  const text = function(value, max) {
-    return String(value == null ? "" : value)
+  const text = function(value, max, allowFormulaPrefix) {
+    let clean = String(value == null ? "" : value)
       .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
-      .trim()
-      .slice(0, max);
+      .trim();
+    if (!allowFormulaPrefix && /^[=+\-@]/.test(clean)) {
+      clean = "'" + clean;
+    }
+    return clean.slice(0, max);
   };
   const number = function(value, max) {
     const parsed = parseFloat(String(value == null ? "" : value).replace(",", ".").replace(/[^0-9.]/g, "")) || 0;
@@ -1322,7 +1462,7 @@ function _validateReportData(input) {
   const allowedMethods = ["Backoffice", "Classroom", "Evento", "Hospitality", "Live", "POS", "Reunión Interna", "Training Material", "Viaje", "Webinar"];
   const result = {
     trainer: text(data.trainer, 100),
-    fecha: text(data.fecha, 10),
+    fecha: text(data.fecha, 10, true),
     cuenta: text(data.cuenta, 120),
     distribuidor: text(data.distribuidor, 180),
     metodologia: text(data.metodologia, 50),
@@ -1337,7 +1477,7 @@ function _validateReportData(input) {
     dispositivos: text(data.dispositivos, 1000),
     dispositivos_no_movil: text(data.dispositivos_no_movil, 1000),
     comentarios: text(data.comentarios, 5000),
-    existingPhotos: text(data.existingPhotos, 10000)
+    existingPhotos: text(data.existingPhotos, 10000, true)
   };
   if (!result.trainer || !result.cuenta || !/^\d{4}-\d{2}-\d{2}$/.test(result.fecha) || allowedMethods.indexOf(result.metodologia) === -1) {
     const error = new Error("El reporte contiene campos obligatorios o valores no válidos.");
@@ -1362,8 +1502,8 @@ function handleSaveReport(data, photos) {
         return parseFloat(s) || 0;
     };
 
-    var photoUrls = _uploadPhotos(photos, data);
-    var urlsString = photoUrls.join("\n");
+    var photoUpload = _uploadPhotosDetailed(photos, data);
+    var urlsString = photoUpload.urls.join("\n");
     
     // Obtenemos el número real de columnas de la hoja
     const totalCols = Math.max(s.getLastColumn(), 20); // Asegura al menos 20 huecos de memoria
@@ -1392,7 +1532,7 @@ function handleSaveReport(data, photos) {
     
     s.appendRow(rowData);
     _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
-    return { status:"success" };
+    return { status:"success", uploadedPhotos: photoUpload.urls.length, failedPhotos: photoUpload.failed };
   } catch(e) { return { status: "error", message: e.toString() }; } finally { lock.releaseLock(); }
 }
 
@@ -1766,7 +1906,7 @@ function parseDateStable(val) {
 // --- AUTO-LIMPIEZA AL EDITAR EL EXCEL MANUALMENTE ---
 function onManualSheetChange(e) {
   // Limpia la caché de los reportes automáticamente si alguien borra o edita una fila a mano
-  CacheService.getScriptCache().remove(CONFIG.REPORTES_SS_ID + "_" + CONFIG.REPORTES_SHEET_NAME);
+  _invalidateCache(CONFIG.REPORTES_SS_ID, CONFIG.REPORTES_SHEET_NAME);
 }
 
 // --- AUTOMATED PDF REPORTS ---
@@ -1832,8 +1972,17 @@ function generateCustomPDF(p) {
 
     let startD = startDateStr ? parseDateStable(startDateStr) : null;
     let endD = endDateStr ? parseDateStable(endDateStr) : null;
-    if(startD) { startD.setHours(0,0,0,0); }
-    if(endD) { endD.setHours(23,59,59,999); }
+    if (Boolean(startDateStr) !== Boolean(endDateStr)) {
+        return { status: "error", message: "Selecciona tanto la fecha Desde como la fecha Hasta." };
+    }
+    if ((startDateStr && !startD) || (endDateStr && !endD)) {
+        return { status: "error", message: "Alguna de las fechas seleccionadas no es válida." };
+    }
+    if (startD) { startD.setHours(0,0,0,0); }
+    if (endD) { endD.setHours(23,59,59,999); }
+    if (startD && endD && startD.getTime() > endD.getTime()) {
+        return { status: "error", message: "La fecha Desde debe ser anterior o igual a Hasta." };
+    }
     let isTimeFiltered = startD || endD || (targetMonth.toLowerCase() !== "todos" && targetMonth !== "") || (targetWeeksStr && targetWeeksStr.toLowerCase() !== "todos" && targetWeeksStr !== "") || (targetYear.toLowerCase() !== "todos" && targetYear !== "");
 
     let selectedWeeks = [];
@@ -1955,37 +2104,13 @@ function generateCustomPDF(p) {
         }
         if (!contentMatch) continue;
 
-        // Dispositivos (Móvil y Ecosistema)
-        const devMovilStr = (colMap.DISP_MOVIL !== undefined ? d[i][colMap.DISP_MOVIL] : (d[i][11]||"")).toString().toLowerCase();
-        const devEcoStr = (colMap.DISP_ECO !== undefined ? d[i][colMap.DISP_ECO] : (d[i][12]||"")).toString().toLowerCase();
-        const rowDevsCombined = devMovilStr + (devEcoStr ? ", " + devEcoStr : "");
-        const rowDevices = parseDeviceList(rowDevsCombined);
-
-        let devMatch = false;
-        let pastDevMatch = false;
-        if (targetDevice === "todos" || targetDevice === "") {
-            devMatch = true;
-        } else if (
-            devMovilStr.indexOf(targetDevice) !== -1 ||
-            devEcoStr.indexOf(targetDevice) !== -1 ||
-            rowDevices.indexOf(targetDevice) !== -1 ||
-            rowDevices.some(function(d) { return d.indexOf(targetDevice) !== -1 || targetDevice.indexOf(d) !== -1; })
-        ) {
-            devMatch = true;
-        }
-        
-        if (isModelComparison && previousDevice) {
-            if (
-                devMovilStr.indexOf(previousDevice) !== -1 ||
-                devEcoStr.indexOf(previousDevice) !== -1 ||
-                rowDevices.indexOf(previousDevice) !== -1 ||
-                rowDevices.some(function(d) { return d.indexOf(previousDevice) !== -1 || previousDevice.indexOf(d) !== -1; })
-            ) {
-                pastDevMatch = true;
-            }
-        } else {
-            pastDevMatch = devMatch;
-        }
+        // Dispositivos (Móvil y Ecosistema) con coincidencia exacta normalizada
+        const devMovilRaw = colMap.DISP_MOVIL !== undefined ? d[i][colMap.DISP_MOVIL] : d[i][11];
+        const devEcoRaw = colMap.DISP_ECO !== undefined ? d[i][colMap.DISP_ECO] : d[i][12];
+        const devMatch = _reportDeviceMatches(targetDevice, [devMovilRaw, devEcoRaw]);
+        const pastDevMatch = (isModelComparison && previousDevice)
+            ? _reportDeviceMatches(previousDevice, [devMovilRaw, devEcoRaw])
+            : devMatch;
 
         let matchesTime = true;
         let matchesPastTime = false;
@@ -2235,12 +2360,12 @@ function generatePDFReport(periodType) {
     if (!dO) continue;
     
     const dTime = dO.getTime();
-    const ses = parseFloat(data[i][colMap.SESIONES] || data[i][6]) || 0;
-    const alu = parseFloat(data[i][colMap.ALUMNOS] || data[i][8]) || 0;
-    const hor = _parseDur(data[i][colMap.HORAS] || data[i][9]);
+    const ses = parseFloat(colMap.SESIONES !== undefined ? data[i][colMap.SESIONES] : data[i][6]) || 0;
+    const alu = parseFloat(colMap.ALUMNOS !== undefined ? data[i][colMap.ALUMNOS] : data[i][8]) || 0;
+    const hor = _parseDur(colMap.HORAS !== undefined ? data[i][colMap.HORAS] : data[i][9]);
     const trainer = tVal.toString().trim();
-    const account = (data[i][colMap.CUENTA] || "Otros").toString().trim() || "Otros";
-    const method = (data[i][colMap.METODOLOGIA] || "Otros").toString().trim() || "Otros";
+    const account = (colMap.CUENTA !== undefined ? data[i][colMap.CUENTA] : (data[i][5] || "Otros")).toString().trim() || "Otros";
+    const method = (colMap.METODOLOGIA !== undefined ? data[i][colMap.METODOLOGIA] : (data[i][3] || "Otros")).toString().trim() || "Otros";
 
     // YTD
     if (dTime >= ytdStart.getTime() && dTime <= currentEnd.getTime()) {
@@ -2352,7 +2477,7 @@ function _buildPDFHTML(reportTitle, periodString, currentLabel, pastLabel, cw, p
   const td = (val) => `<td style="padding: 10px; border: 1px solid #e0e0e0; text-align: center; color: #555;">${val}</td>`;
   const th = (val) => `<th style="padding: 12px; border: 1px solid #ff6700; background-color: #ff6700; color: white; text-align: center; font-weight: bold;">${val}</th>`;
   const getTrend = (current, past) => {
-      if (past === 0) return current > 0 ? "<span style='color: #4CAF50;'>📈 +100%</span>" : "<span style='color: #888;'>➖ 0%</span>";
+      if (past === 0) return current > 0 ? "<span style='color: #64748b;'>— (Sin base)</span>" : "<span style='color: #888;'>➖ 0%</span>";
       const diff = ((current - past) / past) * 100;
       if (diff > 0) return "<span style='color: #4CAF50;'>📈 +" + diff.toFixed(1) + "%</span>";
       if (diff < 0) return "<span style='color: #F44336;'>📉 " + diff.toFixed(1) + "%</span>";
@@ -2646,9 +2771,19 @@ function _matrixVersion(day) {
 function _matrixCacheKey(start, end) {
   return "MATRIX_WEEKLY_" + _digest(start + "|" + end);
 }
-function _matrixInvalidateWeeklyCache() {
+function _matrixInvalidateWeeklyCache(dates) {
   const cache = CacheService.getScriptCache();
-  _removeCachedChunks(cache, _matrixCacheKey("2026-01-01", "2026-12-31"));
+  const currentYear = (new Date()).getFullYear();
+  const years = new Set([currentYear - 1, currentYear, currentYear + 1]);
+  if (Array.isArray(dates)) {
+    dates.forEach(function(d) {
+      const m = String(d || '').match(/^(\d{4})-/);
+      if (m) years.add(parseInt(m[1], 10));
+    });
+  }
+  years.forEach(function(y) {
+    _removeCachedChunks(cache, _matrixCacheKey(y + "-01-01", y + "-12-31"));
+  });
 }
 function _matrixRead(start, end) {
   _matrixISO(start); _matrixISO(end);
@@ -2822,13 +2957,37 @@ function _matrixIndex(sheets, accounts, start, end) {
   });
   return { days: days, users: Object.values(accounts) };
 }
+function _getCalendarSecret() {
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty("CALENDAR_FEED_SECRET");
+  if (!secret) {
+    secret = Utilities.getUuid() + Utilities.getUuid();
+    props.setProperty("CALENDAR_FEED_SECRET", secret);
+  }
+  return secret;
+}
+function _calendarFeedToken(user) {
+  return _digest(_getCalendarSecret() + "|" + String(user || '').trim().toLowerCase()).slice(0, 32);
+}
+function _attachFeedTokens(res, session) {
+  if (!res || !session || !session.user) return res;
+  const tokens = {};
+  tokens[session.user] = _calendarFeedToken(session.user);
+  if (session.role === "Admin") {
+    tokens["ALL"] = _calendarFeedToken("ALL");
+    (res.users || []).forEach(u => {
+      if (u && u.user) tokens[u.user] = _calendarFeedToken(u.user);
+    });
+  }
+  return Object.assign({}, res, { feedTokens: tokens });
+}
 function _matrixGetWeekly(p, session) {
   const forceRefresh = p.refresh === 'true' || p.refresh === true;
   const cacheKey = _matrixCacheKey(p.start || '', p.end || '');
   const cache = CacheService.getScriptCache();
   if (!forceRefresh) {
     const cached = _readCachedSheet(cache, cacheKey);
-    if (cached) return cached;
+    if (cached) return _attachFeedTokens(cached, session);
   }
   const index = _matrixRead(p.start, p.end);
   const schedule = {}, versions = {}, capacities = {};
@@ -2862,7 +3021,7 @@ function _matrixGetWeekly(p, session) {
   });
   const res = { status: 'success', source: 'matrix-v1', schedule: schedule, versions: versions, capacities: capacities, users: index.users, blocks: blocks, syncedAt: new Date().toISOString() };
   _writeCachedSheet(cache, cacheKey, res);
-  return res;
+  return _attachFeedTokens(res, session);
 }
 function _matrixDay(index,date,user,expected,session) {
   _matrixISO(date);
@@ -2890,26 +3049,36 @@ function _matrixDay(index,date,user,expected,session) {
     }
   }
   if (!day) _matrixError('CALENDAR_NOT_FOUND','La fecha o el formador (' + user + ') no tiene un bloque en la hoja.');
+  if (expected && day.version && String(expected) !== String(day.version)) {
+    _matrixError('CALENDAR_CONFLICT', 'Este día ha sido modificado por otro usuario. Recarga el calendario para ver los cambios.');
+  }
   if (session.role !== 'Admin') {
     const weekday = new Date(date+'T12:00:00Z').getUTCDay();
     if (weekday === 0 || weekday === 6) _matrixError('FORBIDDEN','No puedes editar fines de semana.');
   }
-  try {
-    const absence = getWeeklySchedule({start:date,end:date});
-    if (absence && absence.status === 'success') {
-      const b = absence.blocks?.[user] || absence.blocks?.[String(user).toLowerCase()] || {};
-      const dayTime = new Date(date+'T12:00:00Z').getTime();
-      const leave = (b.vacationInfo || []).some(v => {
-        const matches = String(v.fechas || '').match(/\d{1,2}\/\d{1,2}\/\d{2,4}/g) || [];
-        const parse = s => {const p=s.split('/').map(Number);return Date.UTC(p[2]<100?p[2]+2000:p[2],p[1]-1,p[0],12);};
-        return matches.length && dayTime >= parse(matches[0]) && dayTime <= parse(matches[matches.length-1]);
-      });
-      if (leave || day.items.some(i=>/^VACACIONES\b/i.test(i.text.trim())) || (session.role !== 'Admin' && (b[date] === 'FESTIVO' || day.items.some(i=>/^FESTIVO\b/i.test(i.text.trim()))))) {
-        _matrixError('FORBIDDEN','El día está bloqueado por ausencia o festivo.');
+  let isAbsenceBlocked = day.items.some(i => /^VACACIONES\b/i.test(i.text.trim())) ||
+    (session.role !== 'Admin' && day.items.some(i => /^FESTIVO\b/i.test(i.text.trim())));
+  if (!isAbsenceBlocked) {
+    try {
+      const absence = getWeeklySchedule({start:date,end:date});
+      if (absence && absence.status === 'success') {
+        const b = absence.blocks?.[user] || absence.blocks?.[String(user).toLowerCase()] || {};
+        const dayTime = new Date(date+'T12:00:00Z').getTime();
+        const leave = (b.vacationInfo || []).some(v => {
+          const matches = String(v.fechas || '').match(/\d{1,2}\/\d{1,2}\/\d{2,4}/g) || [];
+          const parse = s => {const p=s.split('/').map(Number);return Date.UTC(p[2]<100?p[2]+2000:p[2],p[1]-1,p[0],12);};
+          return matches.length && dayTime >= parse(matches[0]) && dayTime <= parse(matches[matches.length-1]);
+        });
+        if (leave || (session.role !== 'Admin' && b[date] === 'FESTIVO')) {
+          isAbsenceBlocked = true;
+        }
       }
+    } catch(errAbs) {
+      console.warn("Could not check absence block, proceeding:", errAbs);
     }
-  } catch(errAbs) {
-    console.warn("Could not check absence block, proceeding:", errAbs);
+  }
+  if (isAbsenceBlocked) {
+    _matrixError('FORBIDDEN','El día está bloqueado por ausencia o festivo.');
   }
   return day;
 }
@@ -2956,7 +3125,7 @@ function _matrixSaveAssignment(req,session) {
     const items = _matrixValidateItems(req.items,day);
     const requests = _matrixRequests(day,items);
     if (requests.length) _matrixExecuteRequests(requests);
-    _matrixInvalidateWeeklyCache();
+    _matrixInvalidateWeeklyCache([req.date]);
     return {status:'success',source:'matrix-v1'};
   } finally {lock.releaseLock();}
 }
@@ -2977,7 +3146,7 @@ function _matrixTransfer(req,session) {
     const requests = _matrixRequests(target,destination).concat(req.mode === 'move' ? _matrixRequests(source,remainder) : []);
     // One atomic Sheets batch: no independent deletion of the source.
     if (requests.length) _matrixExecuteRequests(requests);
-    _matrixInvalidateWeeklyCache();
+    _matrixInvalidateWeeklyCache([req.sourceDate, req.targetDate]);
     return {status:'success',source:'matrix-v1'};
   } finally {lock.releaseLock();}
 }
@@ -3028,6 +3197,10 @@ function _generateCalendarFeed(p) {
   if (!user) {
     return ContentService.createTextOutput("Error: Usuario no especificado").setMimeType(ContentService.MimeType.TEXT);
   }
+  const feedKey = String(p.k || p.key || '').trim();
+  if (!feedKey || feedKey !== _calendarFeedToken(user)) {
+    return ContentService.createTextOutput("Acceso denegado: enlace de calendario no válido o revocado.").setMimeType(ContentService.MimeType.TEXT);
+  }
   const year = parseInt(p.year || '', 10) || (new Date()).getFullYear();
   const start = year + "-01-01";
   const end = year + "-12-31";
@@ -3052,12 +3225,24 @@ function _generateCalendarFeed(p) {
   } catch(e) {}
 
   const weekly = _matrixGetWeekly({ start: start, end: end });
-  const schedule = (weekly && weekly.schedule) ? weekly.schedule : {};
+  const schedule = Object.assign({}, (weekly && weekly.schedule) ? weekly.schedule : {});
+  if ((new Date()).getMonth() >= 10) {
+    try {
+      const nextWeekly = _matrixGetWeekly({ start: (year + 1) + "-01-01", end: (year + 1) + "-12-31" });
+      if (nextWeekly && nextWeekly.schedule) {
+        Object.keys(nextWeekly.schedule).forEach(d => {
+          if (d.indexOf((year + 1) + "-01") === 0 || d.indexOf((year + 1) + "-02") === 0) {
+            schedule[d] = nextWeekly.schedule[d];
+          }
+        });
+      }
+    } catch (nextErr) {}
+  }
   const events = [];
   const nowStr = Utilities.formatDate(new Date(), "UTC", "yyyyMMdd'T'HHmmss'Z'");
 
   Object.keys(schedule).sort().forEach(date => {
-    if (date.indexOf(String(year)) !== 0) return;
+    if (date.indexOf(String(year)) !== 0 && date.indexOf(String(year + 1)) !== 0) return;
     const daySchedule = schedule[date] || {};
     const parts = date.split('-');
     const dStart = parts[0] + parts[1] + parts[2];

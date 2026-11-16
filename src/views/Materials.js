@@ -180,11 +180,23 @@ function renderMaterials(container) {
                 btnNotify.disabled = true;
                 const oldHtml = btnNotify.innerHTML;
                 btnNotify.innerText = "Enviando...";
-                await sendPost('adminProcessSelection', { opAction: 'notify_materials' });
-                btnNotify.innerText = "¡Notificado!";
+                try {
+                    const res = await sendPost('adminProcessSelection', { opAction: 'notify_materials' });
+                    if (res && res.status === 'success') {
+                        btnNotify.innerText = "¡Notificado!";
+                        if (window.showToast) window.showToast("Aviso enviado", "Se ha notificado al equipo los nuevos materiales.");
+                    } else {
+                        btnNotify.innerText = "Error al enviar";
+                        if (window.showToast) window.showToast("Error", (res && res.message) || "No se pudo enviar la notificación.");
+                    }
+                } catch (err) {
+                    btnNotify.innerText = "Error de red";
+                    if (window.showToast) window.showToast("Error", err.message || "Error de conexión al notificar.");
+                }
                 setTimeout(() => { 
                     btnNotify.disabled = false; 
                     btnNotify.innerHTML = oldHtml; 
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
                 }, 3000);
             };
         }

@@ -898,14 +898,19 @@ function renderReport(container, editData = null) {
 
         try {
             const res = editData && editData.mode === 'edit'
-                ? await api.updateReport({ data: data, rowIdx: editData.rowIdx, photos: formattedPhotos })
+                ? await api.updateReport({ data: data, id: editData.id, rowIdx: editData.rowIdx, photos: formattedPhotos })
                 : await api.saveReport(data, formattedPhotos);
 
             if(res.status === 'success') {
                 reportDirty = false;
                 localStorage.removeItem(draftKey);
                 window.removeEventListener('beforeunload', window._reportBeforeUnload);
-                showToast("¡Éxito!", (editData && editData.mode === 'edit') ? "Reporte actualizado." : "Reporte enviado correctamente.");
+                if (Array.isArray(res.failedPhotos) && res.failedPhotos.length > 0) {
+                    const failedNames = res.failedPhotos.map(f => f.name || 'Foto').join(', ');
+                    showToast("⚠️ Guardado con avisos", `Reporte guardado, pero falló la subida de ${res.failedPhotos.length} foto(s): ${failedNames}. Edita el reporte para reintentarlas.`);
+                } else {
+                    showToast("¡Éxito!", (editData && editData.mode === 'edit') ? "Reporte actualizado." : "Reporte enviado correctamente.");
+                }
                 navigate('#dashboard');
             } else {
                 showToast("No se pudo guardar", res.message || "Revisa los datos e inténtalo de nuevo.");
