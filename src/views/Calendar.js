@@ -1705,20 +1705,22 @@ function renderCalendar(container) {
             return !['Training Manager', 'Training Coordinator', 'Training Creator'].includes(uid);
         });
 
+        // Determinar formador predeterminado: si el usuario es un formador, preseleccionarlo; si es manager, usar el filtro o el primer formador
         let defaultTarget = currentUser;
-        if (isAdmin || ['Training Manager', 'Training Coordinator', 'Training Creator'].includes(currentUser)) {
+        const isManagerAccount = ['Training Manager', 'Training Coordinator', 'Training Creator'].includes(currentUser);
+        if (isManagerAccount) {
             const filterSelect = container.querySelector("#calendarTrainerFilter");
             const activeFilters = filterSelect?.tomselect ? filterSelect.tomselect.getValue() : [];
             if (Array.isArray(activeFilters) && activeFilters.length === 1) {
                 defaultTarget = activeFilters[0];
             } else {
-                defaultTarget = 'ALL';
+                defaultTarget = trainersList[0] ? (typeof trainersList[0] === 'object' ? trainersList[0].user : trainersList[0]) : 'ALL';
             }
         }
 
         const apiEndpoint = (typeof API_URL !== 'undefined') ? API_URL : '';
         const getFeedUrls = (userVal) => {
-            const feedUser = (userVal === 'ALL' || ['Training Manager', 'Training Coordinator', 'Training Creator'].includes(userVal)) ? 'ALL' : userVal;
+            const feedUser = (userVal === 'ALL' || isManagerAccount && userVal === currentUser) ? 'ALL' : userVal;
             const baseFeedUrl = `${apiEndpoint}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${selectedYear}`;
             const webcalUrl = `webcal://${apiEndpoint.replace(/^https?:\/\//, '')}?action=calendarFeed&user=${encodeURIComponent(feedUser)}&year=${selectedYear}`;
             return { baseFeedUrl, webcalUrl };
@@ -1729,85 +1731,103 @@ function renderCalendar(container) {
         const notifGranted = notifSupported && Notification.permission === 'granted';
         const notifEnabled = notifGranted && localStorage.getItem('xiaomiDailyNotif') === 'true';
 
+        const getTrainerName = (uid) => {
+            if (uid === 'ALL') return 'Equipo completo';
+            const found = trainersList.find(u => (typeof u === 'object' ? u.user : u) === uid);
+            return found ? (typeof found === 'object' ? (found.name || found.user) : found) : uid;
+        };
+
         dialog.innerHTML = `
             <div class="calendar-phone-dialog-card">
                 <header class="calendar-phone-dialog-header">
                     <div class="calendar-phone-icon"><i data-lucide="smartphone"></i></div>
                     <div>
-                        <h3>Móvil y Avisos</h3>
-                        <p>Integra las formaciones con Google Calendar o la app de Calendario de tu móvil y gestiona avisos.</p>
+                        <h3>Móvil y Sincronización</h3>
+                        <p>Integra tus formaciones con Google Calendar o tu móvil con actualización automática o descarga puntual.</p>
                     </div>
                     <button type="button" class="btn-close-dialog" data-close-dialog aria-label="Cerrar"><i data-lucide="x"></i></button>
                 </header>
 
                 <div class="calendar-phone-dialog-body">
-                    <!-- SECCIÓN 1: CALENDARIO DEL MÓVIL / GOOGLE CALENDAR -->
-                    <div class="phone-sync-section">
+                    <!-- SELECTOR DE CALENDARIO / FORMADOR (SIEMPRE VISIBLE) -->
+                    <div style="background: var(--bg-hover, rgba(0,0,0,0.03)); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;">
+                        <label for="syncTrainerSelect" style="display: block; font-size: 0.84rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">
+                            <i data-lucide="user-check" style="width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px; color: var(--xiaomi-orange);"></i>
+                            ¿Qué formador o calendario deseas sincronizar?
+                        </label>
+                        <select id="syncTrainerSelect" class="form-control" style="width: 100%; padding: 0.6rem 0.8rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-size: 0.92rem; font-weight: 600;">
+                            ${trainersList.map(u => {
+                                const uid = typeof u === 'object' ? u.user : u;
+                                const name = typeof u === 'object' ? (u.name || u.user) : u;
+                                const isSelf = uid === currentUser;
+                                return `<option value="${escapeHTML(uid)}" ${defaultTarget === uid ? 'selected' : ''}>${escapeHTML(name)}${isSelf ? ' (Mi calendario)' : ''}</option>`;
+                            }).join('')}
+                            <option value="ALL" ${defaultTarget === 'ALL' ? 'selected' : ''}>Todos los formadores (Equipo completo)</option>
+                        </select>
+                        <small style="display:block; color:var(--text-muted); font-size:0.75rem; margin-top:4px;">
+                            Selecciona tu nombre para sincronizar únicamente tus eventos, o elige "Equipo completo" para ver todas las formaciones.
+                        </small>
+                    </div>
+
+                    <!-- MÉTODO 1: SUSCRIPCIÓN EN TIEMPO REAL (AUTOMÁTICA) -->
+                    <div class="phone-sync-section" style="border-left: 3px solid #2196f3; padding-left: 12px;">
                         <div class="phone-sync-sec-title">
-                            <i data-lucide="calendar"></i>
+                            <i data-lucide="refresh-cw" style="color: #2196f3;"></i>
                             <div>
-                                <strong>1. Volcar a tu app de Calendario (Google / iPhone / Outlook)</strong>
-                                <span>Añade todas las formaciones de ${selectedYear} con alarmas automáticas 1 hora antes.</span>
+                                <strong style="color: #2196f3;">Método 1 · Suscripción Automática en Tiempo Real (Recomendado)</strong>
+                                <span style="font-size:0.78rem;">¡Se actualiza solo! Te suscribes una única vez y tu calendario se sincroniza automáticamente cada vez que se añadan o editen actividades en la intranet.</span>
                             </div>
                         </div>
 
-                        ${isAdmin ? `
-                        <div style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px;">
-                            <label for="syncTrainerSelect" style="font-size: 0.82rem; font-weight: 600; color: var(--text-main);">¿Qué calendario deseas volcar?</label>
-                            <select id="syncTrainerSelect" class="form-control" style="padding: 0.55rem 0.75rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-size: 0.88rem; font-weight: 600;">
-                                <option value="ALL" ${defaultTarget === 'ALL' ? 'selected' : ''}>Todos los formadores (Equipo completo)</option>
-                                ${trainersList.map(u => {
-                                    const uid = typeof u === 'object' ? u.user : u;
-                                    const name = typeof u === 'object' ? (u.name || u.user) : u;
-                                    return `<option value="${escapeHTML(uid)}" ${defaultTarget === uid ? 'selected' : ''}>${escapeHTML(name)}</option>`;
-                                }).join('')}
-                            </select>
+                        <div style="background: rgba(33,150,243,0.06); border: 1px solid rgba(33,150,243,0.2); border-radius: 10px; padding: 10px 12px; margin-top: 8px; font-size: 0.78rem; line-height: 1.45; color: var(--text-main);">
+                            <strong>¿Cómo activarlo en Google Calendar?</strong><br>
+                            1. Pulsa el botón <strong>«Copiar enlace iCal»</strong> de abajo.<br>
+                            2. En Google Calendar (<a href="https://calendar.google.com" target="_blank" rel="noopener,noreferrer" style="color:#2196f3; text-decoration:underline;">calendar.google.com</a>), en la barra izquierda junto a <strong>«Otros calendarios»</strong>, pulsa <strong>«+»</strong> ➔ <strong>«Desde una URL»</strong>.<br>
+                            3. Pega el enlace y pulsa <strong>«Añadir calendario»</strong>. ¡Listo! Se actualizará solo en tu PC y en la app de tu móvil.
                         </div>
-                        ` : ''}
 
-                        <div class="phone-sync-actions-grid">
-                            <div class="phone-action-card">
-                                <div class="phone-action-copy" style="margin-bottom: 6px;">
-                                    <strong>Opción A · Google Calendar (PC y sincronización automática con tu móvil)</strong>
-                                    <small>Descarga el archivo <strong>.ics</strong> y abre la página oficial de importación de Google Calendar (sin errores de URL):</small>
-                                </div>
-                                <button type="button" class="btn-primary" id="btnGCalImport" style="width:100%; justify-content:center; padding:0.75rem 1rem; font-size:0.92rem; font-weight:650;">
-                                    <i data-lucide="calendar-plus"></i><span>Volcar a Google Calendar (${selectedYear})</span>
-                                </button>
-                                <div id="gcalImportHelper" style="display:none; margin-top:8px; padding:10px 12px; border-radius:10px; background:rgba(255,103,0,0.09); border:1px solid rgba(255,103,0,0.3); font-size:0.78rem; line-height:1.45; color:var(--text-main);">
-                                    <strong style="color:var(--xiaomi-orange); display:block; margin-bottom:4px;">✓ Archivo <code id="gcalHelperFileName">.ics</code> descargado:</strong>
-                                    1. En la pestaña de <strong>Google Calendar</strong> que se ha abierto, pulsa <strong>«Seleccionar el archivo de tu ordenador»</strong>.<br>
-                                    2. Elige el archivo <code>.ics</code> recién descargado y pulsa <strong>«Importar»</strong>.<br>
-                                    3. Al importarse en tu cuenta, aparecerá automáticamente en el Google Calendar de tu móvil.
-                                </div>
-                            </div>
-
-                            <div class="phone-action-card">
-                                <div class="phone-action-copy" style="margin-bottom: 6px;">
-                                    <strong>Opción B · Directo en el Móvil / Apple Calendar / Outlook</strong>
-                                    <small>Descarga el archivo <strong>.ics</strong> para abrirlo directamente con la app de Calendario de tu teléfono o suscribirte por Webcal:</small>
-                                </div>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
-                                    <button type="button" class="btn-secondary" id="btnSmartSync" style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:0.55rem 0.9rem; font-weight:600;">
-                                        <i data-lucide="download"></i><span>Descargar archivo .ics</span>
-                                    </button>
-                                    <a href="${escapeHTML(initialUrls.webcalUrl)}" id="linkWebcalSub" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:0.55rem 0.9rem;">
-                                        <i data-lucide="calendar"></i><span>Apple / Webcal</span>
-                                    </a>
-                                    <button type="button" class="btn-outline" id="btnCopyFeedUrl" title="Copiar enlace de suscripción" style="font-size:0.82rem; padding:0.55rem 0.9rem;">
-                                        <i data-lucide="copy"></i><span>Copiar enlace iCal</span>
-                                    </button>
-                                </div>
-                            </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                            <button type="button" class="btn-primary" id="btnCopyFeedUrl" style="background:#2196f3; border-color:#2196f3; font-size:0.82rem; padding:0.55rem 0.95rem; font-weight:600;">
+                                <i data-lucide="copy"></i><span>Copiar enlace iCal de <strong id="lblSyncCopyName">${escapeHTML(getTrainerName(defaultTarget))}</strong></span>
+                            </button>
+                            <a href="${escapeHTML(initialUrls.webcalUrl)}" id="linkWebcalSub" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:0.55rem 0.9rem;">
+                                <i data-lucide="calendar"></i><span>Apple Calendar / Webcal</span>
+                            </a>
                         </div>
                     </div>
 
-                    <!-- SECCIÓN 2: AVISOS DIARIOS EN PANTALLA (PUNTO 3) -->
-                    <div class="phone-sync-section">
+                    <!-- MÉTODO 2: DESCARGA DE ARCHIVO .ICS (COPIA ESTÁTICA PUNTUAL) -->
+                    <div class="phone-sync-section" style="border-left: 3px solid var(--xiaomi-orange); padding-left: 12px; margin-top: 14px;">
+                        <div class="phone-sync-sec-title">
+                            <i data-lucide="download" style="color: var(--xiaomi-orange);"></i>
+                            <div>
+                                <strong>Método 2 · Descarga de archivo .ics (Copia estática puntual)</strong>
+                                <span style="font-size:0.78rem;">Descarga una copia fija con las citas actuales del año ${selectedYear}. Si se añaden nuevas actividades más adelante, no se sincronizan solas; tendrías que volver a descargarlo.</span>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                            <button type="button" class="btn-secondary" id="btnSmartSync" style="display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; padding:0.55rem 0.9rem; font-weight:600;">
+                                <i data-lucide="download"></i><span>Descargar archivo .ics (<strong id="lblDownloadName">${escapeHTML(getTrainerName(defaultTarget))}</strong>)</span>
+                            </button>
+                            <button type="button" class="btn-outline" id="btnGCalImport" style="font-size:0.82rem; padding:0.55rem 0.9rem;">
+                                <i data-lucide="external-link"></i><span>Subir .ics a Google Calendar</span>
+                            </button>
+                        </div>
+
+                        <div id="gcalImportHelper" style="display:none; margin-top:8px; padding:10px 12px; border-radius:10px; background:rgba(255,103,0,0.09); border:1px solid rgba(255,103,0,0.3); font-size:0.78rem; line-height:1.45; color:var(--text-main);">
+                            <strong style="color:var(--xiaomi-orange); display:block; margin-bottom:4px;">✓ Archivo <code id="gcalHelperFileName">.ics</code> descargado:</strong>
+                            1. En la pestaña de <strong>Google Calendar</strong> que se ha abierto, pulsa <strong>«Seleccionar el archivo de tu ordenador»</strong>.<br>
+                            2. Elige el archivo <code>.ics</code> descargado y pulsa <strong>«Importar»</strong>.
+                        </div>
+                    </div>
+
+                    <!-- SECCIÓN 3: AVISOS DIARIOS EN PANTALLA -->
+                    <div class="phone-sync-section" style="margin-top: 14px;">
                         <div class="phone-sync-sec-title">
                             <i data-lucide="bell"></i>
                             <div>
-                                <strong>2. Avisos diarios en pantalla (Notificaciones Web)</strong>
+                                <strong>3. Avisos diarios en pantalla (Notificaciones Web)</strong>
                                 <span>Aviso emergente matinal discreto solo los días que tengas actividades programadas.</span>
                             </div>
                         </div>
@@ -1850,13 +1870,22 @@ function renderCalendar(container) {
             return sel ? sel.value : defaultTarget;
         };
 
-        dialog.querySelector("#syncTrainerSelect")?.addEventListener("change", (e) => {
-            const urls = getFeedUrls(e.target.value);
+        const updateDialogLabels = (targetVal) => {
+            const name = getTrainerName(targetVal);
+            const lblCopy = dialog.querySelector("#lblSyncCopyName");
+            if (lblCopy) lblCopy.textContent = name;
+            const lblDl = dialog.querySelector("#lblDownloadName");
+            if (lblDl) lblDl.textContent = name;
+            const urls = getFeedUrls(targetVal);
             const webcalLink = dialog.querySelector("#linkWebcalSub");
             if (webcalLink) webcalLink.href = urls.webcalUrl;
+        };
+
+        dialog.querySelector("#syncTrainerSelect")?.addEventListener("change", (e) => {
+            updateDialogLabels(e.target.value);
         });
 
-        // Botón Opción A: Volcar a Google Calendar (Descarga .ics + Abre Importar de Google Calendar)
+        // Botón Opción A: Subir .ics a Google Calendar (Descarga .ics + Abre Importar de Google Calendar)
         dialog.querySelector("#btnGCalImport")?.addEventListener("click", async () => {
             const fileName = await smartSyncTrainerICS(getSelectedTarget(), selectedYear, { openGoogleCalendarImport: true });
             if (fileName) {
@@ -1872,12 +1901,12 @@ function renderCalendar(container) {
             smartSyncTrainerICS(getSelectedTarget(), selectedYear);
         });
 
-        // Copiar enlace de suscripción
+        // Copiar enlace de suscripción en tiempo real
         dialog.querySelector("#btnCopyFeedUrl")?.addEventListener("click", async () => {
             const urls = getFeedUrls(getSelectedTarget());
             try {
                 await navigator.clipboard.writeText(urls.baseFeedUrl);
-                if (typeof showToast === 'function') showToast("Enlace copiado", "Enlace de suscripción iCal copiado al portapapeles.");
+                if (typeof showToast === 'function') showToast("Enlace copiado", `Enlace de suscripción en tiempo real para ${getTrainerName(getSelectedTarget())} copiado.`);
             } catch(e) {
                 if (typeof showToast === 'function') showToast("Enlace de suscripción", urls.baseFeedUrl);
             }

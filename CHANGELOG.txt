@@ -1,6 +1,15 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 52.4
+Versión revisada: 52.5
 Fecha: 16/11/2026
+
+VERSIÓN 52.5
+============
+1. Actualización del endpoint de Google Apps Script y optimización de exportación PDF:
+   - Actualizada la constante `API_URL` en `src/services/api.js` a `https://script.google.com/macros/s/AKfycbzBZ-hFzizrODg5VIvf-XlupDBSwyLI1-SmAzlGej0zXC3mXI7nGftJAwbwl-TbmMbEMQ/exec`.
+   - En `backend/Code.gs`: reforzada la restricción de usuario en `doPost` (`exportCustomPDF`) y limitada la búsqueda de generaciones anteriores a 5 iteraciones (`Math.max(1, num - 5)`) para modelos con años en el nombre.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v52.5` en `sw.js`, `index.html` y `src/main.js`.
 
 VERSIÓN 52.4
 ============

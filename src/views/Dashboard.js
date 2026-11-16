@@ -971,7 +971,9 @@ function renderDashboard(container) {
         const dEnd = document.getElementById('dashboardDateEnd');
 
         const target = isAdmin ? (dTarget ? dTarget.value : "Total") : currentUser;
-        const device = dDevice ? dDevice.value : "Todos";
+        const device = (window.tsInstances && window.tsInstances['dashboardDevice']) 
+            ? (window.tsInstances['dashboardDevice'].getValue() || "Todos") 
+            : (dDevice ? dDevice.value : "Todos");
         let methodology = "Todos";
         if (window.tsInstances && window.tsInstances['dashboardMethodology']) {
             const vals = window.tsInstances['dashboardMethodology'].getValue();
@@ -1408,7 +1410,9 @@ function renderDashboard(container) {
         const currentUser = getSessionData().user;
 
         const target = isAdmin ? (dTarget ? dTarget.value : "Total") : currentUser;
-        const device = dDevice ? dDevice.value : "Todos";
+        const device = (window.tsInstances && window.tsInstances['dashboardDevice']) 
+            ? (window.tsInstances['dashboardDevice'].getValue() || "Todos") 
+            : (dDevice ? dDevice.value : "Todos");
         let methodology = "Todos";
         if (window.tsInstances && window.tsInstances['dashboardMethodology']) {
             const vals = window.tsInstances['dashboardMethodology'].getValue();

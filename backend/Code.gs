@@ -319,7 +319,10 @@ function doPost(e) {
     }
     if (req.action === "transferAssignment") res = _matrixTransfer(req, session);
     if (req.action === "adminProcessSelection") res = adminProcessSelection(req);
-    if (req.action === "exportCustomPDF") res = generateCustomPDF(req);
+    if (req.action === "exportCustomPDF") {
+      if (session.role !== "Admin") req.targetUser = session.user;
+      res = generateCustomPDF(req);
+    }
     return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
   } catch(err) { return ContentService.createTextOutput(JSON.stringify(_errorResponse(err))).setMimeType(ContentService.MimeType.JSON); }
 }
@@ -1769,7 +1772,7 @@ function onManualSheetChange(e) {
 // --- AUTOMATED PDF REPORTS ---
 function setupAllTriggers() {
   const triggers = ScriptApp.getProjectTriggers();
-  ["runWeekly", "runMonthly", "runQuarterly", "runAnnual"].forEach(fn => {
+  ["runWeekly", "runMonthly", "runQuarterly", "runAnnual", "generateWeeklyPDFReport"].forEach(fn => {
     triggers.forEach(t => { if (t.getHandlerFunction() === fn) ScriptApp.deleteTrigger(t); });
   });
 
@@ -1798,6 +1801,7 @@ function setupAllTriggers() {
 }
 
 function runWeekly() { generatePDFReport("WEEKLY"); }
+function generateWeeklyPDFReport() { runWeekly(); }
 function runMonthly() { generatePDFReport("MONTHLY"); }
 function runQuarterly() { 
   const m = new Date().getMonth();
@@ -1830,21 +1834,25 @@ function generateCustomPDF(p) {
     let endD = endDateStr ? parseDateStable(endDateStr) : null;
     if(startD) { startD.setHours(0,0,0,0); }
     if(endD) { endD.setHours(23,59,59,999); }
-    let isTimeFiltered = startD || endD || targetMonth !== "Todos" || targetWeeksStr || targetYear !== "Todos";
+    let isTimeFiltered = startD || endD || (targetMonth.toLowerCase() !== "todos" && targetMonth !== "") || (targetWeeksStr && targetWeeksStr.toLowerCase() !== "todos" && targetWeeksStr !== "") || (targetYear.toLowerCase() !== "todos" && targetYear !== "");
 
     let selectedWeeks = [];
-    if (targetWeeksStr) {
+    if (targetWeeksStr && targetWeeksStr.toLowerCase() !== "todos") {
       const matches = targetWeeksStr.match(/\d+/g);
       if (matches) selectedWeeks = matches.map(Number);
     }
     let selectedMonths = [];
-    if (targetMonth !== "Todos") {
-        selectedMonths = targetMonth.split(',').map(m => m.trim());
+    if (targetMonth.toLowerCase() !== "todos" && targetMonth !== "") {
+        selectedMonths = targetMonth.split(',').map(m => m.trim().toLowerCase());
     }
     let selectedMethodologies = [];
-    if (targetMethodology !== "todos" && targetMethodology !== "") selectedMethodologies = targetMethodology.split(',').map(m => m.trim());
+    if (targetMethodology !== "todos" && targetMethodology !== "") {
+        selectedMethodologies = targetMethodology.split(',').map(m => m.trim().toLowerCase());
+    }
     let selectedContents = [];
-    if (targetContent !== "todos" && targetContent !== "") selectedContents = targetContent.split(',').map(m => m.trim());
+    if (targetContent !== "todos" && targetContent !== "") {
+        selectedContents = targetContent.split(',').map(m => m.trim().toLowerCase());
+    }
     const parseDeviceList = function(value) {
         const raw = String(value || "").trim().toLowerCase();
         if (!raw) return [];
@@ -1865,7 +1873,9 @@ function generateCustomPDF(p) {
     if (targetDevice !== "todos" && targetDevice !== "") {
         const allDevices = new Set();
         for (let i = 1; i < d.length; i++) {
-            parseDeviceList(d[i][colMap.DISP_MOVIL] || d[i][11]).forEach(function(device) { allDevices.add(device); });
+            const mStr = (colMap.DISP_MOVIL !== undefined ? d[i][colMap.DISP_MOVIL] : (d[i][11]||"")).toString();
+            const eStr = (colMap.DISP_ECO !== undefined ? d[i][colMap.DISP_ECO] : (d[i][12]||"")).toString();
+            parseDeviceList(mStr + ", " + eStr).forEach(function(device) { allDevices.add(device); });
         }
         
         let match = targetDevice.match(/(\d+)/);
@@ -1873,11 +1883,11 @@ function generateCustomPDF(p) {
             let num = parseInt(match[1]);
             let baseNameBefore = targetDevice.substring(0, match.index);
             let baseNameAfter = targetDevice.substring(match.index + match[1].length);
-            for (let i = num - 1; i > 0; i--) {
+            for (let i = num - 1; i >= Math.max(1, num - 5); i--) {
                 let candidate = baseNameBefore + i + baseNameAfter;
                 let found = false;
                 for (let dev of allDevices) {
-                    if (dev === candidate) {
+                    if (dev === candidate || dev.indexOf(candidate) !== -1 || candidate.indexOf(dev) !== -1) {
                         previousDevice = dev;
                         found = true;
                         break;
@@ -1906,36 +1916,73 @@ function generateCustomPDF(p) {
         var rowWeek = getWeekNumber(dO);
         const dTime = dO.getTime();
 
-        const ses = parseFloat(d[i][colMap.SESIONES] || d[i][6]) || 0;
-        const alu = parseFloat(d[i][colMap.ALUMNOS] || d[i][8]) || 0;
-        const hor = _parseDur(d[i][colMap.HORAS] || d[i][9]);
-        const trainer = tVal.toString().trim();
-        const account = (d[i][colMap.CUENTA] || "Otros").toString().trim() || "Otros";
-        const method = (d[i][colMap.METODOLOGIA] || "Otros").toString().trim() || "Otros";
-        const rowDevices = parseDeviceList(d[i][colMap.DISP_MOVIL] || d[i][11]);
+        const ses = parseFloat(colMap.SESIONES !== undefined ? d[i][colMap.SESIONES] : d[i][6]) || 0;
+        const alu = parseFloat(colMap.ALUMNOS !== undefined ? d[i][colMap.ALUMNOS] : d[i][8]) || 0;
+        const hor = _parseDur(colMap.HORAS !== undefined ? d[i][colMap.HORAS] : d[i][9]);
+        const trainer = (colMap.TRAINER !== undefined ? d[i][colMap.TRAINER] : (d[i][1]||"Desconocido")).toString().trim();
+        const account = (colMap.CUENTA !== undefined ? d[i][colMap.CUENTA] : (d[i][5]||"Otros")).toString().trim() || "Otros";
+        const method = (colMap.METODOLOGIA !== undefined ? d[i][colMap.METODOLOGIA] : (d[i][3]||"Otros")).toString().trim() || "Otros";
 
-        if (target !== "Total" && trainer !== target) continue;
+        const rowTrainer = trainer.toLowerCase();
+        const targetLower = target.toLowerCase();
+        if (targetLower !== "total" && rowTrainer !== targetLower) continue;
         
         let methodMatch = true;
-        if (selectedMethodologies.length > 0) {
-            methodMatch = selectedMethodologies.includes(method);
+        if (selectedMethodologies.length > 0 && !selectedMethodologies.includes("todos")) {
+            const rowMethodology = method.toLowerCase();
+            let mFound = false;
+            for (let j = 0; j < selectedMethodologies.length; j++) {
+                if (rowMethodology === selectedMethodologies[j] || (selectedMethodologies[j] === "reunión interna" && rowMethodology.indexOf("reuni") !== -1)) {
+                    mFound = true;
+                    break;
+                }
+            }
+            if (!mFound) methodMatch = false;
         }
         if (!methodMatch) continue;
 
         let contentMatch = true;
-        const rowContent = (d[i][colMap.CONTENIDOS] || "Otros").toString().trim().toLowerCase();
-        if (selectedContents.length > 0) {
-            contentMatch = selectedContents.includes(rowContent);
+        if (selectedContents.length > 0 && !selectedContents.includes("todos")) {
+            const rowContent = (colMap.CONTENIDOS !== undefined ? d[i][colMap.CONTENIDOS] : (d[i][4]||"Otros")).toString().trim().toLowerCase();
+            let cFound = false;
+            for (let j = 0; j < selectedContents.length; j++) {
+                if (rowContent === selectedContents[j]) {
+                    cFound = true;
+                    break;
+                }
+            }
+            if (!cFound) contentMatch = false;
         }
         if (!contentMatch) continue;
 
+        // Dispositivos (Móvil y Ecosistema)
+        const devMovilStr = (colMap.DISP_MOVIL !== undefined ? d[i][colMap.DISP_MOVIL] : (d[i][11]||"")).toString().toLowerCase();
+        const devEcoStr = (colMap.DISP_ECO !== undefined ? d[i][colMap.DISP_ECO] : (d[i][12]||"")).toString().toLowerCase();
+        const rowDevsCombined = devMovilStr + (devEcoStr ? ", " + devEcoStr : "");
+        const rowDevices = parseDeviceList(rowDevsCombined);
+
         let devMatch = false;
         let pastDevMatch = false;
-        if (targetDevice === "todos" || targetDevice === "") devMatch = true;
-        else if (rowDevices.indexOf(targetDevice) !== -1) devMatch = true;
+        if (targetDevice === "todos" || targetDevice === "") {
+            devMatch = true;
+        } else if (
+            devMovilStr.indexOf(targetDevice) !== -1 ||
+            devEcoStr.indexOf(targetDevice) !== -1 ||
+            rowDevices.indexOf(targetDevice) !== -1 ||
+            rowDevices.some(function(d) { return d.indexOf(targetDevice) !== -1 || targetDevice.indexOf(d) !== -1; })
+        ) {
+            devMatch = true;
+        }
         
-        if (isModelComparison) {
-            if (rowDevices.indexOf(previousDevice) !== -1) pastDevMatch = true;
+        if (isModelComparison && previousDevice) {
+            if (
+                devMovilStr.indexOf(previousDevice) !== -1 ||
+                devEcoStr.indexOf(previousDevice) !== -1 ||
+                rowDevices.indexOf(previousDevice) !== -1 ||
+                rowDevices.some(function(d) { return d.indexOf(previousDevice) !== -1 || previousDevice.indexOf(d) !== -1; })
+            ) {
+                pastDevMatch = true;
+            }
         } else {
             pastDevMatch = devMatch;
         }
@@ -1964,27 +2011,32 @@ function generateCustomPDF(p) {
             let ytS = new Date(ytdEnd.getFullYear(), 0, 1);
             matchesYTTime = dTime >= ytS.getTime() && dTime <= ytdEnd.getTime();
         } else {
-            if (targetYear !== "Todos" && rowYear.toString() !== targetYear) matchesTime = false;
-            if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesTime = false;
+            if (targetYear.toLowerCase() !== "todos" && targetYear !== "" && rowYear.toString() !== targetYear) matchesTime = false;
+            if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth].toLowerCase())) matchesTime = false;
             if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesTime = false;
             
             if (selectedMonths.length === 1 && selectedWeeks.length === 0) {
-                let mIdx = mNames.indexOf(selectedMonths[0]);
-                let pIdx = mIdx === 0 ? 11 : mIdx - 1;
-                let pYear = mIdx === 0 ? (targetYear !== "Todos" ? parseInt(targetYear)-1 : rowYear) : (targetYear !== "Todos" ? parseInt(targetYear) : rowYear);
-                matchesPastTime = (rowMonth === pIdx) && (rowYear === pYear);
+                let mIdx = -1;
+                for (let k = 0; k < mNames.length; k++) {
+                    if (mNames[k].toLowerCase() === selectedMonths[0]) { mIdx = k; break; }
+                }
+                if (mIdx !== -1) {
+                    let pIdx = mIdx === 0 ? 11 : mIdx - 1;
+                    let pYear = mIdx === 0 ? (targetYear.toLowerCase() !== "todos" && targetYear !== "" ? parseInt(targetYear)-1 : rowYear) : (targetYear.toLowerCase() !== "todos" && targetYear !== "" ? parseInt(targetYear) : rowYear);
+                    matchesPastTime = (rowMonth === pIdx) && (rowYear === pYear);
+                }
             } else if (selectedWeeks.length === 1) {
-                matchesPastTime = (rowWeek === selectedWeeks[0] - 1) && (rowYear === (targetYear !== "Todos" ? parseInt(targetYear) : rowYear));
-            } else if (targetYear !== "Todos" && selectedMonths.length === 0 && selectedWeeks.length === 0) {
+                matchesPastTime = (rowWeek === selectedWeeks[0] - 1) && (rowYear === (targetYear.toLowerCase() !== "todos" && targetYear !== "" ? parseInt(targetYear) : rowYear));
+            } else if (targetYear.toLowerCase() !== "todos" && targetYear !== "" && selectedMonths.length === 0 && selectedWeeks.length === 0) {
                 matchesPastTime = rowYear === parseInt(targetYear) - 1;
             }
     
-            if (targetYear !== "Todos") {
+            if (targetYear.toLowerCase() !== "todos" && targetYear !== "") {
                 matchesLYTime = (rowYear === parseInt(targetYear) - 1);
-                if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth])) matchesLYTime = false;
+                if (selectedMonths.length > 0 && !selectedMonths.includes(mNames[rowMonth].toLowerCase())) matchesLYTime = false;
                 if (selectedWeeks.length > 0 && !selectedWeeks.includes(rowWeek)) matchesLYTime = false;
             }
-            if (targetYear !== "Todos") {
+            if (targetYear.toLowerCase() !== "todos" && targetYear !== "") {
                 matchesYTTime = (rowYear === parseInt(targetYear));
             } else {
                 matchesYTTime = (rowYear === now.getFullYear());
