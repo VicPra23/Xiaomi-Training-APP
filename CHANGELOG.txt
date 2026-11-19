@@ -1,6 +1,40 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 53.0
-Fecha: 16/11/2026
+Versión revisada: 53.3
+Fecha: 19/11/2026
+
+VERSIÓN 53.3
+============
+1. Actualización del endpoint de Google Apps Script:
+   - Actualizada la constante `API_URL` en `src/services/api.js` a `https://script.google.com/macros/s/AKfycbxLtkb_TqJKJcEFKvtxToGm8u-eCgQUz2qo2Cxrhbil8VejC8gB6VuJJa79UspVoWMdzw/exec`.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v53.3` en `sw.js`, `index.html` y `src/main.js`, y `CONFIG.VERSION` a `53.3` / `V53.3`.
+
+VERSIÓN 53.2
+============
+1. Estabilización del Dashboard y gráficas (`src/views/Dashboard.js`, `style.css`, `tests/dashboard.test.cjs`):
+   - Actualización incremental de gráficas sin destruir ni recrear los canvas (`updateDashboardChart`), restaurando el estado previo si falla el dibujado.
+   - Normalización de multiselección (`normalizeDashboardSelection`, evitando mezclar `Todos` con filtros activos) y de series numéricas (`normalizeDashboardCharts`).
+   - Indicador de estado (`#dashboardDataStatus`) y botón Reintentar (`#dashboardRetry`) conservando las cifras previas durante la carga o ante error de red, más estado vacío explícito (`showDashboardEmptyState`).
+   - Disparo automático con debounce al cambiar filtros (`scheduleStats`) y suite de 10 pruebas automatizadas en `tests/dashboard.test.cjs`.
+
+2. Retirada del calendario integrado (`src/views/Calendar.js`, `index.html`, `src/main.js`, `sw.js`, `src/views/Messages.js`):
+   - Eliminada la vista `Calendar.js`, el enlace de navegación `#calendar` y las referencias en caché/mensajes; las rutas antiguas redirigen al Resumen (`#dashboard`).
+
+3. Vacaciones (`src/views/Vacations.js`):
+   - Restaurada la vista clásica de 12 meses de Febrero 2026 a Enero 2027 (`new Date(2026, 1, 1)`), manteniendo todas las correcciones de días sueltos, rechazo de duplicados y refresco sin recarga.
+
+4. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v53.2` en `sw.js`, `index.html`, `src/main.js`, `src/services/api.js` y `backend/Code.gs`.
+
+VERSIÓN 53.1
+============
+1. Selector de año en el calendario de Vacaciones (`src/views/Vacations.js`):
+   - Eliminado el inicio fijo en febrero de 2026 (`new Date(2026, 1, 1)`).
+   - Añadidas pestañas dinámicas de año (`2026` | `2027 (Adelanto)`) sobre la cuadrícula de vacaciones para consultar y solicitar días de todo el año siguiente (incluido febrero de 2027 en adelante).
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v53.1` en `sw.js`, `index.html` y `src/main.js`.
 
 VERSIÓN 53.0
 ============

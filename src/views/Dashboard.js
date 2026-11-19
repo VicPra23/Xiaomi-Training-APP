@@ -2,6 +2,8 @@ function renderDashboard(container) {
     window.disposeDashboard?.();
     let disposed = false, statsRequest = 0, historyRequest = 0;
     let statsTimer, historyTimer;
+    window._lastDashData = null;
+    let dashboardFiltersReady = false;
     const active = () => !disposed && container.isConnected && window.location.hash === '#dashboard';
     window.disposeDashboard = () => {
         disposed = true;
@@ -9,6 +11,7 @@ function renderDashboard(container) {
         window.destroyDashboardCharts?.();
     };
     try {
+        const scheduleStats = () => { if (dashboardFiltersReady && active()) loadStats(); };
         const esc = value => window.escapeHTML ? window.escapeHTML(value) : String(value ?? '');
         let session = getSessionData();
         const role = session ? session.role : 'User';
@@ -239,6 +242,10 @@ function renderDashboard(container) {
                 </div>
             </section>
 
+            <div class="dashboard-data-status" role="status" aria-live="polite">
+                <span id="dashboardDataStatus">Cargando datos…</span>
+                <button type="button" id="dashboardRetry" class="btn-secondary" hidden>Reintentar</button>
+            </div>
             <div id="mainChartsContainer" class="charts-container">
                 <section class="workspace-panel workspace-panel-primary">
                     <div class="workspace-panel-heading"><div><span class="page-eyebrow">Evolución</span><h3>Tendencia semanal</h3></div><i data-lucide="bar-chart-3"></i></div>
@@ -450,63 +457,24 @@ function renderDashboard(container) {
                     title: 'Eliminar'
                 }
             };
-            config.onChange = function(values) {
-                if (window.isUpdatingHistoryFilters) return;
-                
-                const valStr = Array.isArray(values) ? values.join(',') : values;
-                if (this._lastValue === valStr) return;
-                this._lastValue = valStr;
-
-                if (Array.isArray(values)) {
-                    if (values.length === 0) {
-                        setTimeout(() => {
-                            this.setValue(['Todos'], true);
-                            if (selectId.includes('histFilter')) window.dashboardLoadHistory();
-                        }, 0);
-                        return;
-                    } else if (values.length > 1) {
-                        if (values[0] === 'Todos') {
-                            setTimeout(() => {
-                                const newVal = values.filter(v => v !== 'Todos');
-                                this.setValue(newVal, true);
-                                if (selectId.includes('histFilter')) window.dashboardLoadHistory();
-                            }, 0);
-                            return;
-                        } else if (values.includes('Todos')) {
-                            setTimeout(() => {
-                                this.setValue(['Todos'], true);
-                                if (selectId.includes('histFilter')) window.dashboardLoadHistory();
-                            }, 0);
-                            return;
-                        }
-                    }
-                }
-                
-                // For history filters, we want to auto-load on change
-                if (selectId.includes('histFilter')) {
-                    window.dashboardLoadHistory();
-                }
-            };
-        } else {
-            config.onChange = function(values) {
-                if (window.isUpdatingHistoryFilters) return;
-                
-                const valStr = Array.isArray(values) ? values.join(',') : values;
-                if (this._lastValue === valStr) return;
-                this._lastValue = valStr;
-
-                if (selectId.startsWith('dashboard')) {
-                    if (typeof loadStats === 'function') loadStats(false);
-                } else {
-                    if (typeof window.dashboardLoadHistory === 'function') window.dashboardLoadHistory();
-                }
-            };
         }
-        
+        config.onChange = function(values) {
+            const isDashboardFilter = selectId.startsWith('dashboard');
+            if (!isDashboardFilter && window.isUpdatingHistoryFilters) return;
+            const normalized = normalizeDashboardSelection(values, isMultiple);
+            const signature = JSON.stringify(normalized);
+            if (this._lastValue === signature) return;
+            this._lastValue = signature;
+            // "Todos" es exclusivo; no dejar un instante con valores intermedios.
+            if (JSON.stringify(values) !== signature) this.setValue(normalized, true);
+            if (isDashboardFilter) scheduleStats();
+            else window.dashboardLoadHistory?.();
+        };
+
         window.tsInstances[selectId] = new TomSelect("#" + selectId, config);
     };
 
-    const weeksList = Array.from({length: 52}, (_, i) => i + 1);
+    const weeksList = Array.from({length: 53}, (_, i) => i + 1);
     const sW = document.getElementById('dashboardWeek');
     const hW = document.getElementById('histFilterWeek');
     const mWeekCont = document.getElementById('multiWeekContainer');
@@ -586,9 +554,7 @@ function renderDashboard(container) {
             });
         }
 
-        if(monthStr !== "Todos" && monthStr.trim() !== "") {
-            selectedWeeksSet = new Set(monthWeeks);
-        }
+        selectedWeeksSet = new Set(monthStr !== "Todos" && monthStr.trim() !== "" ? monthWeeks : weeksList);
         updateMultiWeekUI();
 
         // Soporte para usuario estándar (select simple sin multiselección)
@@ -623,21 +589,17 @@ function renderDashboard(container) {
             updateMultiWeekUI();
         } else {
             window.syncWeeksByMonth();
-            if (typeof loadStats === 'function') loadStats();
         }
+        scheduleStats();
     };
 
     window.onDashboardMonthChange = () => {
         window.syncWeeksByMonth();
-        if (!isAdmin && typeof loadStats === 'function') {
-            loadStats();
-        }
+        scheduleStats();
     };
 
     window.onDashboardWeekChange = () => {
-        if (!isAdmin && typeof loadStats === 'function') {
-            loadStats();
-        }
+        scheduleStats();
     };
 
     if (!isAdmin) {
@@ -678,6 +640,7 @@ function renderDashboard(container) {
                 picker.remove();
                 selectedWeeksSet = new Set(weeksList);
                 window.syncWeeksByMonth();
+                scheduleStats();
             };
             picker.appendChild(hdr);
 
@@ -696,6 +659,7 @@ function renderDashboard(container) {
                     btn.style.borderColor = selectedMonthsSet.has(m) ? '' : '#f1f5f9';
                     btn.style.color = selectedMonthsSet.has(m) ? '' : '#64748b';
                     window.syncWeeksByMonth();
+                    scheduleStats();
                 };
                 picker.appendChild(btn);
             });
@@ -756,6 +720,7 @@ function renderDashboard(container) {
                     currentActiveWeeks.forEach(w => selectedWeeksSet.add(w));
                 }
                 updateMultiWeekUI();
+                scheduleStats();
                 picker.remove();
             };
             picker.appendChild(tBtn);
@@ -771,6 +736,7 @@ function renderDashboard(container) {
                     if(selectedWeeksSet.has(w)) selectedWeeksSet.delete(w);
                     else selectedWeeksSet.add(w);
                     updateMultiWeekUI();
+                    scheduleStats();
                     btn.className = selectedWeeksSet.has(w) ? 'btn-primary' : 'btn-outline';
                     btn.style.borderColor = selectedWeeksSet.has(w) ? '' : '#f1f5f9';
                     btn.style.color = selectedWeeksSet.has(w) ? '' : '#64748b';
@@ -810,6 +776,7 @@ function renderDashboard(container) {
                 btnToggle.title = "Cambiar a Rango de Fechas";
             }
             if (typeof lucide !== 'undefined') lucide.createIcons();
+            scheduleStats();
         };
     }
 
@@ -915,7 +882,7 @@ function renderDashboard(container) {
                         <hr>
                         ${res.data.map(u => `<option value="${esc(u.user || u)}">${esc(u.name || u)}</option>`).join('')}
                     `;
-                    if (s) s.innerHTML = optionsHtml;
+                    if (s) { const value = s.value; s.innerHTML = optionsHtml; s.value = value; }
                     if (ht) ht.innerHTML = optionsHtml;
                 }
             });
@@ -965,9 +932,14 @@ function renderDashboard(container) {
     const updateWeekSelect = () => {};
 
     const loadStats = (force = false) => {
-        ++statsRequest;
+        const request = ++statsRequest;
         clearTimeout(statsTimer);
-        statsTimer = setTimeout(() => { if (active()) fetchStats(force, statsRequest); }, force ? 0 : 400);
+        document.getElementById('mainChartsContainer')?.setAttribute('aria-busy', 'true');
+        const status = document.getElementById('dashboardDataStatus');
+        if (status) status.textContent = window._lastDashData ? 'Actualizando filtros…' : 'Cargando datos…';
+        const retry = document.getElementById('dashboardRetry');
+        if (retry) retry.hidden = true;
+        statsTimer = setTimeout(() => { if (active()) fetchStats(force, request); }, force ? 0 : 400);
     };
     const fetchStats = (force, request) => {
         const dTarget = document.getElementById('dashboardTarget');
@@ -1000,8 +972,7 @@ function renderDashboard(container) {
             content = Array.from(cEl.selectedOptions).map(o => o.value).join(',');
         }
 
-        const statsLoading = document.getElementById('stat_count');
-        if (statsLoading) statsLoading.innerText = "...";
+        // Conservar los indicadores y gráficos anteriores mientras llega la nueva lectura.
 
         let params = { targetUser: target, device: device, methodology: methodology, content: content, refresh: force };
         
@@ -1014,9 +985,12 @@ function renderDashboard(container) {
             params.year = dYear ? dYear.value : "Todos";
         }
         
-        return api.getDashboardStats(params).then(res => {
+        return api.getDashboardStats(params).then(async res => {
             if (!active() || request !== statsRequest) return;
             if (res.status === 'success') {
+                const rendered = await renderCharts(res, () => active() && request === statsRequest);
+                if (!active() || request !== statsRequest) return;
+                if (!rendered) throw new Error('No se pudieron actualizar los gráficos.');
                 try {
                     const sCount = document.getElementById('stat_count'); if(sCount) sCount.innerText = (res.currentWeekData && res.currentWeekData.count !== undefined) ? res.currentWeekData.count : (res.count || 0);
                     const sSesi = document.getElementById('stat_sesiones'); if(sSesi) sSesi.innerText = res.totalSesiones !== undefined ? res.totalSesiones : (res.sesiones || 0);
@@ -1032,13 +1006,11 @@ function renderDashboard(container) {
 
                     updateWeekSelect(res.availableWeeks, isAdmin);
                     
-                    // Delay render to let mobile layout and fonts stabilize
-                    setTimeout(() => {
-                        if (!active() || request !== statsRequest) return;
-                        window._lastDashData = res;
-                        renderCharts(res, () => active() && request === statsRequest);
-                        if (isAdmin && res.adminStats) renderAdminStats(res.adminStats);
-                    }, 250);
+                    window._lastDashData = res;
+                    if (isAdmin && res.adminStats) renderAdminStats(res.adminStats);
+                    const status = document.getElementById('dashboardDataStatus');
+                    if (status) status.textContent = res.offline ? 'Datos guardados · sin conexión' : 'Datos actualizados para los filtros seleccionados';
+                    document.getElementById('mainChartsContainer')?.setAttribute('aria-busy', 'false');
                 } catch(e) { console.error("Shielding error in stats rendering:", e); }
             } else {
                 throw new Error(res.message || 'No se pudo cargar el resumen.');
@@ -1051,7 +1023,13 @@ function renderDashboard(container) {
                 const element = document.getElementById(id);
                 if (element && element.innerText === '...') element.innerText = '—';
             });
-            window.showToast?.('No se pudo cargar el dashboard. Revisa la conexión.', 'error');
+            document.getElementById('mainChartsContainer')?.setAttribute('aria-busy', 'false');
+            const status = document.getElementById('dashboardDataStatus');
+            if (status) status.textContent = window._lastDashData
+                ? 'No se han actualizado los filtros. Se mantienen los últimos datos cargados.'
+                : 'No se pudieron cargar los datos. Reintenta la consulta.';
+            const retry = document.getElementById('dashboardRetry');
+            if (retry) retry.hidden = false;
         });
     };
 
@@ -1741,7 +1719,12 @@ function renderDashboard(container) {
     const historySearch = document.getElementById('historySearch');
     if(historySearch) historySearch.onkeyup = (e) => { if(e.key === 'Enter') loadHistory(); };
     
-        // CARGA INICIAL DIFERIDA (Performance V1.1)
+        // Los cambios de todos los filtros del dashboard usan la misma lectura con debounce.
+        ['dashboardTarget', 'dashboardDateStart', 'dashboardDateEnd'].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', scheduleStats);
+        });
+        document.getElementById('dashboardRetry')?.addEventListener('click', () => loadStats(true));
+        dashboardFiltersReady = true;
         loadStats();
         loadHistory();
     } catch(e) {
@@ -1796,16 +1779,17 @@ function registerInlineDataLabels() {
 
 async function renderCharts(data, isCurrent = () => window.location.hash === '#dashboard') {
     const originalCanvas = document.getElementById('chartWeekly');
-    if (!data || !isCurrent() || !originalCanvas) return;
+    if (!data || !isCurrent() || !originalCanvas) return false;
+    const normalized = normalizeDashboardCharts(data);
     if (typeof Chart === 'undefined') {
         try {
             await window.loadScriptOnce('https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js', 'Chart');
         } catch (error) {
             console.error('No se pudo cargar Chart.js.', error);
-            return;
+            return false;
         }
     }
-    if (!isCurrent() || originalCanvas !== document.getElementById('chartWeekly')) return;
+    if (!isCurrent() || originalCanvas !== document.getElementById('chartWeekly')) return false;
     registerInlineDataLabels();
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const isMobile = window.innerWidth < 768;
@@ -1841,19 +1825,19 @@ async function renderCharts(data, isCurrent = () => window.location.hash === '#d
         const canvasW = document.getElementById('chartWeekly');
         if (!canvasW) return;
         const ctxW = canvasW.getContext('2d');
-        (Chart.getChart?.(canvasW) || weeklyChart)?.destroy();
+
         
         const gradOrange = createGrad(ctxW, primaryColor, primaryGradientEnd);
         const gradGray = createGrad(ctxW, secondaryColor, secondaryGradientEnd);
 
-        weeklyChart = new Chart(ctxW, {
+        weeklyChart = updateDashboardChart(canvasW, weeklyChart, {
             type: 'bar',
             data: { 
-                labels: data.chartLabels || data.labels || ["Sin Datos"], 
+                labels: normalized.weekly.labels, 
                 datasets: [
                     { 
                         label: 'Sesiones', 
-                        data: data.chartSesiones || data.sesiones || [0], 
+                        data: normalized.weekly.sessions, 
                         backgroundColor: gradOrange, 
                         borderRadius: 12,
                         hoverBackgroundColor: primaryColor,
@@ -1861,7 +1845,7 @@ async function renderCharts(data, isCurrent = () => window.location.hash === '#d
                     },
                     { 
                         label: 'Alumnos', 
-                        data: data.chartAlumnos || data.alumnos || [0], 
+                        data: normalized.weekly.students, 
                         backgroundColor: gradGray, 
                         borderRadius: 12,
                         hoverBackgroundColor: secondaryColor,
@@ -1912,12 +1896,12 @@ async function renderCharts(data, isCurrent = () => window.location.hash === '#d
         const canvasM = document.getElementById('chartMethods');
         if (!canvasM) return;
         const ctxM = canvasM.getContext('2d');
-        (Chart.getChart?.(canvasM) || methodsChart)?.destroy();
-        const methodValues = data.pieData || data.methodData || [];
-        methodsChart = new Chart(ctxM, {
+
+        const methodValues = normalized.methods.values;
+        methodsChart = updateDashboardChart(canvasM, methodsChart, {
             type: 'bar',
             data: { 
-                labels: data.pieLabels || data.methodLabels || [], 
+                labels: normalized.methods.labels, 
                 datasets: [{ 
                     label: 'Horas',
                     data: methodValues,
@@ -1966,14 +1950,14 @@ async function renderCharts(data, isCurrent = () => window.location.hash === '#d
         // --- Trainers Chart (Admin) ---
         if(data.adminStats && document.getElementById('chartTrainers')) {
             const ctxT = document.getElementById('chartTrainers').getContext('2d');
-            (Chart.getChart?.(document.getElementById('chartTrainers')) || trainersChart)?.destroy();
+
             const trainerStats = data.adminStats.byTrainer || {};
             const names = Object.keys(trainerStats);
             
             const gradT_Orange = createGrad(ctxT, primaryColor, primaryGradientEnd);
             const gradT_Gray = createGrad(ctxT, secondaryColor, secondaryGradientEnd);
 
-            trainersChart = new Chart(ctxT, {
+            trainersChart = updateDashboardChart(document.getElementById('chartTrainers'), trainersChart, {
                 type: 'bar',
                 data: {
                     labels: names,
@@ -2005,7 +1989,10 @@ async function renderCharts(data, isCurrent = () => window.location.hash === '#d
                 }
             });
         }
-    } catch(e) { console.error("Error renderCharts:", e); }
+        showDashboardEmptyState(canvasW, normalized.weekly.sessions.every(n => n === 0) && normalized.weekly.students.every(n => n === 0), 'Sin actividad para los filtros seleccionados.');
+        showDashboardEmptyState(canvasM, !normalized.methods.values.some(n => n !== 0), 'Sin horas registradas para estos filtros.');
+        return true;
+    } catch(e) { console.error("Error renderCharts:", e); return false; }
 }
 window.destroyDashboardCharts = () => {
     const charts = new Set([weeklyChart, methodsChart, trainersChart]);
@@ -2021,3 +2008,61 @@ window.destroyDashboardCharts = () => {
     trainersChart = null;
 };
 window.renderDashboard = renderDashboard;
+
+
+function normalizeDashboardSelection(value, multiple) {
+    if (!multiple) return Array.isArray(value) ? value[0] || 'Todos' : value || 'Todos';
+    const values = (Array.isArray(value) ? value : String(value || '').split(','))
+        .map(item => String(item).trim()).filter(Boolean);
+    if (!values.length) return ['Todos'];
+    if (values[values.length - 1] === 'Todos') return ['Todos'];
+    return Array.from(new Set(values.filter(item => item !== 'Todos')));
+}
+
+function normalizeDashboardCharts(data) {
+    const list = (...values) => values.find(Array.isArray) || [];
+    const labels = list(data.chartLabels, data.labels).map(String);
+    const sessions = list(data.chartSesiones, data.sesiones);
+    const students = list(data.chartAlumnos, data.alumnos);
+    const methodLabels = list(data.pieLabels, data.methodLabels).map(String);
+    const methodValues = list(data.pieData, data.methodData);
+    const number = n => Number.isFinite(Number(n)) ? Number(n) : 0;
+    return {
+        weekly: {
+            labels: labels.length ? labels : ['Sin datos'],
+            sessions: labels.length ? labels.map((_, i) => number(sessions[i])) : [0],
+            students: labels.length ? labels.map((_, i) => number(students[i])) : [0]
+        },
+        methods: { labels: methodLabels, values: methodLabels.map((_, i) => number(methodValues[i])) }
+    };
+}
+
+function updateDashboardChart(canvas, previous, config) {
+    const chart = Chart.getChart?.(canvas) || previous;
+    if (chart && chart.canvas === canvas) {
+        const oldData = chart.data, oldOptions = chart.config.options;
+        try {
+            chart.data = config.data;
+            chart.options = config.options;
+            chart.update('none');
+            return chart;
+        } catch (error) {
+            chart.data = oldData;
+            chart.options = oldOptions;
+            try { chart.update('none'); } catch (_) { /* La lectura anterior permanece disponible. */ }
+            throw error;
+        }
+    }
+    return new Chart(canvas.getContext('2d'), config);
+}
+
+function showDashboardEmptyState(canvas, empty, message) {
+    let status = canvas.parentElement.querySelector('.dashboard-chart-empty');
+    if (!status) {
+        status = document.createElement('p');
+        status.className = 'dashboard-chart-empty';
+        canvas.parentElement.appendChild(status);
+    }
+    status.textContent = message;
+    status.hidden = !empty;
+}

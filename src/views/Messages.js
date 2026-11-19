@@ -118,7 +118,7 @@ function renderMessages(container) {
     function inferTarget(text, extUrl) {
         const normalized = text.toLowerCase();
         if (normalized.includes('vacacio') || normalized.includes('extra')) return '#vacations';
-        if (normalized.includes('calendario') || normalized.includes('planifica')) return '#calendar';
+        if (normalized.includes('calendario') || normalized.includes('planifica')) return '';
         if (normalized.includes('material')) return '#materials';
         if (!extUrl && (normalized.includes('reporte') || normalized.includes('historial'))) return '#dashboard';
         return '';

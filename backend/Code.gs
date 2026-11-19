@@ -14,7 +14,7 @@ const CONFIG = {
   MENSAJES_SHEET_NAME: "MENSAJES",
   PLANIFICACION_SHEET_NAME: "PLANIFICACION",
   MATERIALES_SHEET_NAME: "MATERIALES",
-  VERSION: "V53.0",
+  VERSION: "V53.3",
   ADMINS: ["Training Manager", "Training Coordinator", "Training Creator"]
 };
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'xiaomi-trainer-v53.0';
+const CACHE_NAME = 'xiaomi-trainer-v53.3';
 
 
 const APP_SHELL = [
@@ -12,7 +12,6 @@ const APP_SHELL = [
   './src/views/Login.js',
   './src/views/Dashboard.js',
   './src/views/ReportForm.js',
-  './src/views/Calendar.js',
   './src/views/Vacations.js',
   './src/views/Materials.js',
   './src/views/Messages.js',
@@ -99,7 +98,7 @@ self.addEventListener('message', event => {
         icon: './Xiaomi_logo_(2021-).svg.png',
         badge: './Xiaomi_logo_(2021-).svg.png',
         tag: payload.tag || 'xiaomi-daily',
-        data: { url: payload.url || './#calendar' }
+        data: { url: payload.url || './#dashboard' }
       })
     );
   }
@@ -107,12 +106,12 @@ self.addEventListener('message', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || './#calendar';
+  const targetUrl = event.notification.data?.url || './#dashboard';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
       for (const client of windowClients) {
         if ('focus' in client) {
-          if (client.url && !client.url.includes('#calendar')) {
+          if (client.url && client.url !== new URL(targetUrl, self.location.href).href) {
             client.navigate(targetUrl);
           }
           return client.focus();

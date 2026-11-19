@@ -5439,3 +5439,10 @@ p,
     color: var(--text-main);
 }
 
+
+/* Estado de lectura del dashboard sin ocultar ni desmontar la tendencia. */
+.dashboard-data-status { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; min-height: 28px; margin: 12px 0; font-size: .8rem; color: var(--text-muted); }
+.dashboard-data-status button { font-size: .8rem; padding: 6px 10px; }
+.dashboard-data-status [hidden], .dashboard-chart-empty[hidden] { display: none; }
+.chart-wrapper { position: relative; }
+.dashboard-chart-empty { position: absolute; inset: 30% 12% auto; text-align: center; padding: 12px; margin: 0; background: var(--bg-main); color: var(--text-muted); border: 1px solid var(--border-main); border-radius: 8px; font-size: .85rem; pointer-events: none; }
