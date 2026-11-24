@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbwEP2XYib4f0nZEUhvbX95g22KSsDwsMkK0m8M7mBSWcaC7mn5_nQ3ybOH8mp0euYIWFw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxjyOXWjU5W2MvCMuD8htdKOapwiBwM6aOiPAOQSQDLFb-41EVDdpWH0DyJqBi0X9W2Wg/exec";
 
 
 // Sistema de Caché de Metadatos para Optimización (V1.1)
@@ -190,7 +190,7 @@ function handleAuthFailure(result) {
 }
 
 const CONFIG = {
-    VERSION: "53.7"
+    VERSION: "53.8"
 };
 
 const api = {

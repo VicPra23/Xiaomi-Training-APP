@@ -435,7 +435,9 @@ function renderVacations(container) {
     function buildCalendar(colorMap) {
         const grid = document.getElementById('yearGrid'); if (!grid) return;
         grid.innerHTML = "";
-        let start = new Date(2026, 1, 1);
+        const now = new Date();
+        const periodStartYear = now.getMonth() >= 1 ? now.getFullYear() : now.getFullYear() - 1;
+        let start = new Date(periodStartYear, 1, 1);
         for(let i=0; i<12; i++) {
             const mDate = new Date(start.getFullYear(), start.getMonth() + i, 1);
             grid.appendChild(createMonthCard(mDate.getFullYear(), mDate.getMonth(), colorMap));

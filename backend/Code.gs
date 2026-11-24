@@ -14,7 +14,7 @@ const CONFIG = {
   MENSAJES_SHEET_NAME: "MENSAJES",
   PLANIFICACION_SHEET_NAME: "PLANIFICACION",
   MATERIALES_SHEET_NAME: "MATERIALES",
-  VERSION: "V53.7",
+  VERSION: "V53.8",
   ADMINS: ["Training Manager", "Training Coordinator", "Training Creator"]
 };
 
@@ -388,6 +388,10 @@ function getMaterialsCatalog() {
 // --- ADMIN FEATURES ---
 function getAdminData(forceRefresh = false) {
   try {
+    try { _ensureVacationPeriodRollover(); } catch (rollErr) {}
+    const activePeriodYear = _getCurrentVacationPeriodStartYear(new Date());
+    const activeStartIso = activePeriodYear + "-02-01";
+    const nextStartIso = (activePeriodYear + 1) + "-02-01";
     const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME, forceRefresh);
     const dE = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME, forceRefresh);
     const dF = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.FESTIVOS_SHEET_NAME, forceRefresh);
@@ -431,30 +435,17 @@ function getAdminData(forceRefresh = false) {
             const userSeen = isBase ? seenDatesMap[u].base : seenDatesMap[u].extra;
             const userFestivos = festivosSetByUser[u] || new Set();
             
-            const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
-            if (matches) {
-                const parseDate = (s) => {
-                    const parts = s.split("/");
-                    let y = parseInt(parts[2]);
-                    if (y < 100) y += 2000;
-                    return new Date(y, parseInt(parts[1]) - 1, parseInt(parts[0]));
-                };
-                const start = parseDate(matches[0]);
-                const end = matches.length > 1 ? parseDate(matches[matches.length - 1]) : start;
-                let cur = new Date(start);
+            const parsedDates = _parseVacationRangeDates(rangeStr);
+            if (parsedDates.length > 0) {
                 let newUniqueDays = 0;
-                while (cur <= end) {
-                    const dow = cur.getDay();
-                    if (dow !== 0 && dow !== 6) {
-                        const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
-                        if (!userFestivos.has(iso) && !userSeen.has(iso)) {
-                            userSeen.add(iso);
-                            newUniqueDays++;
-                        }
+                parsedDates.forEach(item => {
+                    if (item.iso < activeStartIso || item.iso >= nextStartIso) return;
+                    if (item.dow !== 0 && item.dow !== 6 && !userFestivos.has(item.iso) && !userSeen.has(item.iso)) {
+                        userSeen.add(item.iso);
+                        newUniqueDays++;
                     }
-                    cur.setDate(cur.getDate() + 1);
-                }
-                count = storedCount > 0 ? Math.min(storedCount, newUniqueDays) : newUniqueDays;
+                });
+                count = (storedCount > 0 && newUniqueDays > 0) ? Math.min(storedCount, newUniqueDays) : newUniqueDays;
             }
             
             if(isBase) consumedMap[u].base += count;
@@ -556,9 +547,11 @@ function modifyExtraDays(user, delta) {
     const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
     let s = ss.getSheetByName(CONFIG.DIAS_EXTRAS_SHEET_NAME);
     if (!s) s = ss.insertSheet(CONFIG.DIAS_EXTRAS_SHEET_NAME);
+    if (s.getLastRow() === 0) s.appendRow(["Usuario", "Días Extras"]);
     const d = s.getDataRange().getValues();
-    for (let i = 1; i < d.length; i++) {
-      if (d[i][0].toString().toLowerCase() === user.toLowerCase()) {
+    const startIdx = _getExtraDaysStartIndex(d);
+    for (let i = startIdx; i < d.length; i++) {
+      if (d[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) {
         const current = (parseFloat(d[i][1]) || 0);
         const newVal = Math.max(0, current + delta);
         s.getRange(i + 1, 2).setValue(newVal);
@@ -573,9 +566,334 @@ function modifyExtraDays(user, delta) {
   } catch(e) { return { status: "error", message: e.toString() }; } finally { SpreadsheetApp.flush(); lock.releaseLock(); }
 }
 
+// --- VACATION PERIOD ROLLOVER (FEB 1 -> JAN 31) ---
+function _getCurrentVacationPeriodStartYear(refDate) {
+  const d = refDate ? new Date(refDate) : new Date();
+  return d.getMonth() >= 1 ? d.getFullYear() : d.getFullYear() - 1;
+}
+
+function _getExtraDaysStartIndex(dE) {
+  if (!dE || dE.length === 0 || !dE[0]) return 1;
+  const colA = String(dE[0][0] || "").trim().toLowerCase();
+  const colB = String(dE[0][1] || "").trim();
+  if (!colA || colA === "usuario" || colA === "user" || colA === "nombre" || colB === "" || isNaN(Number(colB))) {
+    return 1;
+  }
+  return 0;
+}
+
+function _parseVacationRangeDates(rangeStr) {
+  const dates = [];
+  if (!rangeStr) return dates;
+  const str = rangeStr.toString();
+  const matches = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
+  if (!matches) return dates;
+  const parseDate = function(s) {
+    const parts = s.split("/");
+    let y = parseInt(parts[2], 10);
+    if (y < 100) y += 2000;
+    return new Date(y, parseInt(parts[1], 10) - 1, parseInt(parts[0], 10), 12, 0, 0, 0);
+  };
+  const isRangeLabel = /\bal\b/i.test(str) && !/^D[ií]as:/i.test(str.trim());
+  const seen = new Set();
+  if (isRangeLabel && matches.length > 1) {
+    const start = parseDate(matches[0]);
+    const end = parseDate(matches[matches.length - 1]);
+    const cur = new Date(start);
+    let guard = 0;
+    while (cur <= end && guard++ < 400) {
+      const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
+      if (!seen.has(iso)) {
+        seen.add(iso);
+        dates.push({ iso: iso, dow: cur.getDay() });
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+  } else {
+    matches.forEach(function(mStr) {
+      const cur = parseDate(mStr);
+      const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
+      if (!seen.has(iso)) {
+        seen.add(iso);
+        dates.push({ iso: iso, dow: cur.getDay() });
+      }
+    });
+  }
+  return dates;
+}
+
+function _formatIsoListAsVacationLabel(isoList) {
+  const parts = isoList.map(function(iso) {
+    const seg = iso.split("-");
+    return seg[2] + "/" + seg[1] + "/" + seg[0];
+  });
+  return "Días: " + parts.join(", ");
+}
+
+function _buildFestivosMapByUser(dF) {
+  const festivosByUser = {};
+  if (!dF) return festivosByUser;
+  for (let i = 1; i < dF.length; i++) {
+    const uRaw = dF[i][0] ? dF[i][0].toString().trim().toLowerCase() : "";
+    if (!uRaw) continue;
+    const set = new Set();
+    for (let col = 3; col < dF[i].length; col++) {
+      const dO = parseDateStable(dF[i][col]);
+      if (dO) {
+        const dStr = dO.getFullYear() + "-" + ("0" + (dO.getMonth() + 1)).slice(-2) + "-" + ("0" + dO.getDate()).slice(-2);
+        set.add(dStr);
+      }
+    }
+    festivosByUser[uRaw] = set;
+  }
+  return festivosByUser;
+}
+
+function _initVacationRolloverStateIfNeeded() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty("VACATION_LAST_ROLLOVER_YEAR") === null) {
+    const currentYear = _getCurrentVacationPeriodStartYear(new Date());
+    props.setProperty("VACATION_LAST_ROLLOVER_YEAR", String(currentYear));
+    return currentYear;
+  }
+  return parseInt(props.getProperty("VACATION_LAST_ROLLOVER_YEAR"), 10);
+}
+
+function _ensureVacationPeriodRollover(skipLock = false) {
+  const currentPeriodYear = _getCurrentVacationPeriodStartYear(new Date());
+  const props = PropertiesService.getScriptProperties();
+  const rawLast = props.getProperty("VACATION_LAST_ROLLOVER_YEAR");
+  const parsedLast = parseInt(rawLast, 10);
+  if (rawLast !== null && !isNaN(parsedLast) && parsedLast >= currentPeriodYear) {
+    return { status: "ok", periodYear: currentPeriodYear, rolledOver: false };
+  }
+
+  let lock = null;
+  if (!skipLock) {
+    lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+  }
+  try {
+    const freshRaw = props.getProperty("VACATION_LAST_ROLLOVER_YEAR");
+    if (freshRaw === null || freshRaw === "") {
+      props.setProperty("VACATION_LAST_ROLLOVER_YEAR", String(currentPeriodYear));
+      return { status: "initialized", periodYear: currentPeriodYear, rolledOver: false };
+    }
+    const freshLast = parseInt(freshRaw, 10);
+    if (isNaN(freshLast)) {
+      props.setProperty("VACATION_LAST_ROLLOVER_YEAR", String(currentPeriodYear));
+      return { status: "initialized", periodYear: currentPeriodYear, rolledOver: false };
+    }
+    if (freshLast >= currentPeriodYear) {
+      return { status: "ok", periodYear: currentPeriodYear, rolledOver: false };
+    }
+    let lastResult = null;
+    for (let y = freshLast + 1; y <= currentPeriodYear; y++) {
+      lastResult = runVacationPeriodRollover(y, false, true);
+    }
+    return { status: "ok", periodYear: currentPeriodYear, rolledOver: true, detail: lastResult };
+  } finally {
+    if (lock) lock.releaseLock();
+  }
+}
+
+function runVacationPeriodRollover(targetPeriodStartYear, force = false, skipLock = false) {
+  const targetYear = parseInt(targetPeriodStartYear, 10) || _getCurrentVacationPeriodStartYear(new Date());
+  const prevYear = targetYear - 1;
+  const cutoffIso = targetYear + "-02-01";
+  const notifications = [];
+  let lock = null;
+  if (!skipLock) {
+    lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+  }
+  let result = null;
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const lastYear = parseInt(props.getProperty("VACATION_LAST_ROLLOVER_YEAR"), 10);
+    if (!force && !isNaN(lastYear) && lastYear >= targetYear) {
+      return { status: "skipped", reason: "already_rolled_over", lastYear: lastYear };
+    }
+
+    const ss = SpreadsheetApp.openById(CONFIG.USUARIOS_SS_ID);
+    const sU = ss.getSheetByName(CONFIG.USUARIOS_SHEET_NAME);
+    let sE = ss.getSheetByName(CONFIG.DIAS_EXTRAS_SHEET_NAME);
+    const sF = ss.getSheetByName(CONFIG.FESTIVOS_SHEET_NAME);
+    let sV = ss.getSheetByName(CONFIG.VACACIONES_SHEET_NAME);
+
+    const dU = sU ? sU.getDataRange().getValues() : [];
+    const dE = sE ? sE.getDataRange().getValues() : [];
+    const dF = sF ? sF.getDataRange().getValues() : [];
+    const dV = sV ? sV.getDataRange().getValues() : [];
+
+    const usersList = [];
+    for (let i = 1; i < dU.length; i++) {
+      const uName = dU[i][0] ? dU[i][0].toString().trim() : "";
+      if (!uName) continue;
+      usersList.push({
+        key: uName.toLowerCase(),
+        user: uName,
+        baseTotal: parseFloat(dU[i][6]) || 23
+      });
+    }
+
+    const extraMap = {};
+    const extraStart = _getExtraDaysStartIndex(dE);
+    for (let i = extraStart; i < dE.length; i++) {
+      const uKey = dE[i][0] ? dE[i][0].toString().trim().toLowerCase() : "";
+      if (!uKey || extraMap[uKey] !== undefined) continue;
+      extraMap[uKey] = parseFloat(dE[i][1]) || 0;
+    }
+
+    const festivosByUser = _buildFestivosMapByUser(dF);
+    const usedBase = {};
+    const usedExtra = {};
+    const seenBaseByUser = {};
+    const seenExtraByUser = {};
+    const vDefaultHeader = ["Fecha Solicitud", "Usuario", "Fechas", "Mes", "Tipo", "Estado", "Días", "ID"];
+    const vHeader = (dV.length > 0 && dV[0] && dV[0].length >= 8) ? dV[0].slice(0, 8) : vDefaultHeader;
+    const archiveRows = [];
+    const keptRows = [];
+
+    for (let i = 1; i < dV.length; i++) {
+      const row = dV[i];
+      if (!row || row.every(function(c) { return c === "" || c === null || c === undefined; })) continue;
+      const paddedRow = vHeader.map(function(_, idx) { return row[idx] !== undefined ? row[idx] : ""; });
+      const uRaw = paddedRow[1] ? paddedRow[1].toString().trim() : "";
+      const uKey = uRaw.toLowerCase();
+      const rangeStr = paddedRow[2] ? paddedRow[2].toString() : "";
+      const type = paddedRow[4];
+      const status = paddedRow[5];
+      const storedCount = parseFloat(paddedRow[6]) || 0;
+      const parsedDates = _parseVacationRangeDates(rangeStr);
+      const beforeDates = parsedDates.filter(function(item) { return item.iso < cutoffIso; });
+      const afterDates = parsedDates.filter(function(item) { return item.iso >= cutoffIso; });
+      const userFestivos = festivosByUser[uKey] || new Set();
+
+      if (uKey && status !== "Rechazado" && beforeDates.length > 0) {
+        const isBase = type === "Vacaciones";
+        const seenMap = isBase ? seenBaseByUser : seenExtraByUser;
+        if (!seenMap[uKey]) seenMap[uKey] = new Set();
+        let newUniqueBefore = 0;
+        beforeDates.forEach(function(item) {
+          if (item.dow !== 0 && item.dow !== 6 && !userFestivos.has(item.iso) && !seenMap[uKey].has(item.iso)) {
+            seenMap[uKey].add(item.iso);
+            newUniqueBefore++;
+          }
+        });
+        const oldCount = afterDates.length === 0
+          ? ((storedCount > 0 && newUniqueBefore > 0) ? Math.min(storedCount, newUniqueBefore) : newUniqueBefore)
+          : newUniqueBefore;
+        if (isBase) usedBase[uKey] = (usedBase[uKey] || 0) + oldCount;
+        else usedExtra[uKey] = (usedExtra[uKey] || 0) + oldCount;
+      }
+
+      if (parsedDates.length > 0 && afterDates.length === 0) {
+        archiveRows.push(paddedRow);
+      } else if (parsedDates.length > 0 && beforeDates.length === 0) {
+        keptRows.push(paddedRow);
+      } else if (beforeDates.length > 0 && afterDates.length > 0) {
+        const beforeWorkdays = beforeDates.filter(function(item) {
+          return item.dow !== 0 && item.dow !== 6 && !userFestivos.has(item.iso);
+        }).map(function(item) { return item.iso; });
+        const afterWorkdays = afterDates.filter(function(item) {
+          return item.dow !== 0 && item.dow !== 6 && !userFestivos.has(item.iso);
+        }).map(function(item) { return item.iso; });
+        const oldIsos = beforeWorkdays.length > 0 ? beforeWorkdays : beforeDates.map(function(item) { return item.iso; });
+        const newIsos = afterWorkdays.length > 0 ? afterWorkdays : afterDates.map(function(item) { return item.iso; });
+        const archRow = paddedRow.slice();
+        archRow[2] = _formatIsoListAsVacationLabel(oldIsos);
+        archRow[6] = beforeWorkdays.length;
+        archiveRows.push(archRow);
+        const keepRow = paddedRow.slice();
+        keepRow[2] = _formatIsoListAsVacationLabel(newIsos);
+        keepRow[6] = afterWorkdays.length;
+        keptRows.push(keepRow);
+      } else {
+        const ts = parseDateStable(paddedRow[0]);
+        if (ts) {
+          const tsIso = ts.getFullYear() + "-" + ("0" + (ts.getMonth() + 1)).slice(-2) + "-" + ("0" + ts.getDate()).slice(-2);
+          if (tsIso < cutoffIso) archiveRows.push(paddedRow);
+          else keptRows.push(paddedRow);
+        } else {
+          keptRows.push(paddedRow);
+        }
+      }
+    }
+
+    const newExtraRows = [];
+    const userSummary = [];
+    usersList.forEach(function(u) {
+      const baseAvail = Math.max(0, u.baseTotal - (usedBase[u.key] || 0));
+      const extraAvail = Math.max(0, (extraMap[u.key] || 0) - (usedExtra[u.key] || 0));
+      const newExtraTotal = Math.max(0, Math.round((baseAvail + extraAvail) * 100) / 100);
+      newExtraRows.push([u.user, newExtraTotal]);
+      userSummary.push({ user: u.user, availBase: baseAvail, availExtra: extraAvail, newExtra: newExtraTotal });
+      if (newExtraTotal > 0) {
+        notifications.push({
+          user: u.user,
+          text: "Cierre del período " + prevYear + "-" + targetYear + ": tus días pendientes (" + baseAvail + " de vacaciones + " + extraAvail + " extras) pasan a ser " + newExtraTotal + " Días Extras para el período " + targetYear + "-" + (targetYear + 1) + "."
+        });
+      }
+    });
+
+    if (archiveRows.length > 0) {
+      const archiveSheetName = CONFIG.VACACIONES_SHEET_NAME + "_" + prevYear + "_" + targetYear;
+      let sArch = ss.getSheetByName(archiveSheetName);
+      if (!sArch) sArch = ss.insertSheet(archiveSheetName);
+      if (sArch.getLastRow() === 0) sArch.appendRow(vHeader);
+      const archStart = sArch.getLastRow() + 1;
+      sArch.getRange(archStart, 1, archiveRows.length, vHeader.length).setValues(archiveRows);
+    }
+
+    if (sV) {
+      sV.clearContents();
+      const vAll = [vHeader].concat(keptRows);
+      sV.getRange(1, 1, vAll.length, vHeader.length).setValues(vAll);
+    }
+
+    if (!sE) sE = ss.insertSheet(CONFIG.DIAS_EXTRAS_SHEET_NAME);
+    sE.clearContents();
+    const eAll = [["Usuario", "Días Extras"]].concat(newExtraRows);
+    sE.getRange(1, 1, eAll.length, 2).setValues(eAll);
+
+    SpreadsheetApp.flush();
+    props.setProperty("VACATION_LAST_ROLLOVER_YEAR", String(targetYear));
+
+    _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME);
+    _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.VACACIONES_SHEET_NAME);
+    _invalidateCache(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME);
+
+    result = {
+      status: "success",
+      rolledPeriod: prevYear + "-" + targetYear,
+      newPeriod: targetYear + "-" + (targetYear + 1),
+      archivedCount: archiveRows.length,
+      keptCount: keptRows.length,
+      users: userSummary
+    };
+  } finally {
+    if (lock) lock.releaseLock();
+  }
+
+  try {
+    notifications.forEach(function(item) { notifyUser(item.user, item.text); });
+    if (result && result.status === "success") {
+      const carriedUsers = result.users.filter(function(u) { return u.newExtra > 0; }).length;
+      notifyAdmins("Cierre automático de vacaciones " + result.rolledPeriod + " completado. " + carriedUsers + " usuarios con días traspasados a Días Extras y " + result.archivedCount + " solicitudes archivadas.");
+    }
+  } catch (notifErr) {}
+
+  return result;
+}
+
 // --- CORE VACATION LOGIC ---
-function getVacationData(user, forceRefresh = false) {
+function getVacationData(user, forceRefresh = false, skipLock = false) {
   if (!user) return { status: "error" };
+  try { _ensureVacationPeriodRollover(skipLock); } catch (rollErr) {}
+  const activePeriodYear = _getCurrentVacationPeriodStartYear(new Date());
+  const activeStartIso = activePeriodYear + "-02-01";
+  const nextStartIso = (activePeriodYear + 1) + "-02-01";
   let festivos = [], userSede = "Genérica", baseTotal = 23;
   
   const dU = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.USUARIOS_SHEET_NAME, forceRefresh);
@@ -603,7 +921,13 @@ function getVacationData(user, forceRefresh = false) {
 
   let extra = 0;
   const dE = _getValuesCached(CONFIG.USUARIOS_SS_ID, CONFIG.DIAS_EXTRAS_SHEET_NAME, forceRefresh);
-  for (let i=1; i<dE.length; i++) if (dE[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) { extra = parseFloat(dE[i][1]) || 0; break; }
+  const extraStart = _getExtraDaysStartIndex(dE);
+  for (let i = extraStart; i < dE.length; i++) {
+    if (dE[i][0].toString().trim().toLowerCase() === user.trim().toLowerCase()) {
+      extra = parseFloat(dE[i][1]) || 0;
+      break;
+    }
+  }
 
   let uB = 0, uE = 0, history = [];
   const festivosSet = new Set(festivos);
@@ -617,48 +941,23 @@ function getVacationData(user, forceRefresh = false) {
       const status = dV[i][5], storedCount = parseFloat(dV[i][6]) || 0, type = dV[i][4];
       let count = storedCount;
       const rangeStr = dV[i][2] ? dV[i][2].toString() : "";
+      const parsedDates = _parseVacationRangeDates(rangeStr);
+      const periodDates = parsedDates.filter(function(item) {
+        return item.iso >= activeStartIso && item.iso < nextStartIso;
+      });
+      if (parsedDates.length > 0 && periodDates.length === 0) continue;
       if (status !== "Rechazado") {
         const isBase = type === "Vacaciones";
         const seenSet = isBase ? seenBase : seenExtra;
-        const matches = rangeStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
-        if (matches) {
-          const parseDate = (s) => {
-            const parts = s.split("/");
-            let y = parseInt(parts[2]);
-            if (y < 100) y += 2000;
-            return new Date(y, parseInt(parts[1]) - 1, parseInt(parts[0]));
-          };
-          const isRangeLabel = /\bal\b/i.test(rangeStr) && !/^D[ií]as:/i.test(rangeStr.trim());
+        if (periodDates.length > 0) {
           let newUniqueDays = 0;
-          if (isRangeLabel && matches.length > 1) {
-            const start = parseDate(matches[0]);
-            const end = parseDate(matches[matches.length - 1]);
-            let cur = new Date(start);
-            while (cur <= end) {
-              const dow = cur.getDay();
-              if (dow !== 0 && dow !== 6) {
-                const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
-                if (!festivosSet.has(iso) && !seenSet.has(iso)) {
-                  seenSet.add(iso);
-                  newUniqueDays++;
-                }
-              }
-              cur.setDate(cur.getDate() + 1);
+          periodDates.forEach(function(item) {
+            if (item.dow !== 0 && item.dow !== 6 && !festivosSet.has(item.iso) && !seenSet.has(item.iso)) {
+              seenSet.add(item.iso);
+              newUniqueDays++;
             }
-          } else {
-            matches.forEach(mStr => {
-              const cur = parseDate(mStr);
-              const dow = cur.getDay();
-              if (dow !== 0 && dow !== 6) {
-                const iso = cur.getFullYear() + "-" + ("0" + (cur.getMonth() + 1)).slice(-2) + "-" + ("0" + cur.getDate()).slice(-2);
-                if (!festivosSet.has(iso) && !seenSet.has(iso)) {
-                  seenSet.add(iso);
-                  newUniqueDays++;
-                }
-              }
-            });
-          }
-          count = storedCount > 0 ? Math.min(storedCount, newUniqueDays) : newUniqueDays;
+          });
+          count = (storedCount > 0 && newUniqueDays > 0) ? Math.min(storedCount, newUniqueDays) : newUniqueDays;
         }
         if (isBase) uB += count; else uE += count;
       }
@@ -682,7 +981,7 @@ function handleRequestVacation(req) {
     const uniqueDates = Array.from(new Set(req.dates.map(function(value) { return String(value || "").trim(); }))).sort();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const vacationData = getVacationData(req.user, true);
+    const vacationData = getVacationData(req.user, true, true);
     if (vacationData.status !== "success") return vacationData;
     const holidays = vacationData.festivos || [];
     const occupiedSet = new Set(vacationData.occupiedDates || []);
@@ -1912,7 +2211,7 @@ function onManualSheetChange(e) {
 // --- AUTOMATED PDF REPORTS ---
 function setupAllTriggers() {
   const triggers = ScriptApp.getProjectTriggers();
-  ["runWeekly", "runMonthly", "runQuarterly", "runAnnual", "generateWeeklyPDFReport"].forEach(fn => {
+  ["runWeekly", "runMonthly", "runQuarterly", "runAnnual", "generateWeeklyPDFReport", "runAnnualVacationRollover"].forEach(fn => {
     triggers.forEach(t => { if (t.getHandlerFunction() === fn) ScriptApp.deleteTrigger(t); });
   });
 
@@ -1938,6 +2237,21 @@ function setupAllTriggers() {
     .timeBased()
     .onMonthDay(1)
     .atHour(9).nearMinute(30).create();
+
+  // Vacation period rollover: 1st of every month at 07:00 (executes on Feb 1st)
+  ScriptApp.newTrigger("runAnnualVacationRollover")
+    .timeBased()
+    .onMonthDay(1)
+    .atHour(7).nearMinute(0).create();
+
+  _initVacationRolloverStateIfNeeded();
+}
+
+function runAnnualVacationRollover() {
+  if (new Date().getMonth() === 1) {
+    return _ensureVacationPeriodRollover(false);
+  }
+  return { status: "skipped", reason: "not_february" };
 }
 
 function runWeekly() { generatePDFReport("WEEKLY"); }

@@ -1,6 +1,12 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 53.7
+Versión revisada: 53.8
 Fecha: 24/11/2026
+
+VERSIÓN 53.8
+- Cierre y traspaso automático anual de período vacacional (Febrero -> Enero): al finalizar el período activo cada 1 de Febrero (vía trigger programado `runAnnualVacationRollover` o automáticamente al consultar Vacaciones/Admin), los días pendientes sin disfrutar de `Vacaciones` base + `Días Extras` se convierten automáticamente en `Días Extras` para el nuevo período.
+- Archivo histórico automático por período en hoja `VACACIONES_<añoAnterior>_<añoNuevo>` (ej. `VACACIONES_2026_2027`), conservando en `VACACIONES` únicamente las solicitudes del nuevo período y reescribiendo `DIAS EXTRAS` con cabecera `Usuario` / `Días Extras` sin duplicados.
+- `getAdminData` y `getVacationData` unificados con `_parseVacationRangeDates` (soporte correcto para rangos continuos `Del ... al ...` y días sueltos `Días: ...`) y aislamiento por período activo.
+- `src/views/Vacations.js`: cálculo dinámico del año de inicio del período (`Febrero` a `Enero` del año siguiente) sin pestañas de cambio de año.
 
 VERSIÓN 53.7
 ============
