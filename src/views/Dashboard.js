@@ -137,9 +137,13 @@ function renderDashboard(container) {
                 <div style="display:flex; gap:8px; align-self: flex-end;">
                     <button id="btnToggleRange" class="btn-secondary" aria-label="Cambiar entre periodo y rango de fechas" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Cambiar entre periodo y rango"><i data-lucide="calendar" style="width:18px;"></i></button>
                     <button id="btnExportTop" class="btn-secondary" aria-label="Exportar PDF" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Exportar Reporte PDF" onclick="window.exportDashboardToPDF()"><i data-lucide="file-text" style="width:18px;"></i></button>
-                    <button id="btnFilter" class="btn-primary" aria-label="Aplicar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Aplicar filtros"><i data-lucide="search" style="width:18px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" aria-label="Limpiar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Limpiar filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
                 </div>
+            </div>
+            <div id="dashboardStatusBar" class="dashboard-data-status dashboard-filter-status" data-state="loading" role="status" aria-live="polite">
+                <span class="dashboard-status-indicator" aria-hidden="true"></span>
+                <span id="dashboardDataStatus">Cargando datos…</span>
+                <button type="button" id="dashboardRetry" class="btn-secondary" hidden>Reintentar</button>
             </div>
         </div>` : `
         <div class="dashboard-filter-card dashboard-filter-card-standard">
@@ -175,9 +179,13 @@ function renderDashboard(container) {
                 </div>
 
                 <div style="display:flex; gap:8px; align-self: flex-end;">
-                    <button id="btnFilter" class="btn-primary" aria-label="Aplicar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Aplicar filtros"><i data-lucide="search" style="width:18px;"></i></button>
                     <button id="btnClearFilters" class="btn-secondary" aria-label="Limpiar filtros" style="height:42px; width: 42px; padding:0; display:flex; align-items:center; justify-content:center;" title="Limpiar filtros"><i data-lucide="refresh-ccw" style="width:16px;"></i></button>
                 </div>
+            </div>
+            <div id="dashboardStatusBar" class="dashboard-data-status dashboard-filter-status" data-state="loading" role="status" aria-live="polite">
+                <span class="dashboard-status-indicator" aria-hidden="true"></span>
+                <span id="dashboardDataStatus">Cargando datos…</span>
+                <button type="button" id="dashboardRetry" class="btn-secondary" hidden>Reintentar</button>
             </div>
         </div>`;
 
@@ -242,10 +250,6 @@ function renderDashboard(container) {
                 </div>
             </section>
 
-            <div class="dashboard-data-status" role="status" aria-live="polite">
-                <span id="dashboardDataStatus">Cargando datos…</span>
-                <button type="button" id="dashboardRetry" class="btn-secondary" hidden>Reintentar</button>
-            </div>
             <div id="mainChartsContainer" class="charts-container">
                 <section class="workspace-panel workspace-panel-primary">
                     <div class="workspace-panel-heading"><div><span class="page-eyebrow">Evolución</span><h3>Tendencia semanal</h3></div><i data-lucide="bar-chart-3"></i></div>
@@ -935,8 +939,9 @@ function renderDashboard(container) {
         const request = ++statsRequest;
         clearTimeout(statsTimer);
         document.getElementById('mainChartsContainer')?.setAttribute('aria-busy', 'true');
+        document.getElementById('dashboardStatusBar')?.setAttribute('data-state', 'loading');
         const status = document.getElementById('dashboardDataStatus');
-        if (status) status.textContent = window._lastDashData ? 'Actualizando filtros…' : 'Cargando datos…';
+        if (status) status.textContent = window._lastDashData ? 'Actualizando datos…' : 'Cargando datos…';
         const retry = document.getElementById('dashboardRetry');
         if (retry) retry.hidden = true;
         statsTimer = setTimeout(() => { if (active()) fetchStats(force, request); }, force ? 0 : 400);
@@ -1010,8 +1015,10 @@ function renderDashboard(container) {
                 if (!active() || request !== statsRequest) return;
                 if (!rendered) throw new Error('No se pudieron actualizar los gráficos.');
 
+                const statusBar = document.getElementById('dashboardStatusBar');
+                if (statusBar) statusBar.setAttribute('data-state', res.offline ? 'offline' : 'success');
                 const status = document.getElementById('dashboardDataStatus');
-                if (status) status.textContent = res.offline ? 'Datos guardados · sin conexión' : 'Datos actualizados para los filtros seleccionados';
+                if (status) status.textContent = res.offline ? 'Datos guardados · sin conexión' : 'Datos actualizados';
                 document.getElementById('mainChartsContainer')?.setAttribute('aria-busy', 'false');
             } else {
                 throw new Error(res.message || 'No se pudo cargar el resumen.');
@@ -1025,10 +1032,12 @@ function renderDashboard(container) {
                 if (element && element.innerText === '...') element.innerText = '—';
             });
             document.getElementById('mainChartsContainer')?.setAttribute('aria-busy', 'false');
+            const statusBar = document.getElementById('dashboardStatusBar');
+            if (statusBar) statusBar.setAttribute('data-state', 'error');
             const status = document.getElementById('dashboardDataStatus');
             if (status) status.textContent = window._lastDashData
-                ? 'No se han actualizado los filtros. Se mantienen los últimos datos cargados.'
-                : 'No se pudieron cargar los datos. Reintenta la consulta.';
+                ? 'Error de actualización · se mantienen los últimos datos.'
+                : 'Error de actualización. Reintenta la consulta.';
             const retry = document.getElementById('dashboardRetry');
             if (retry) retry.hidden = false;
         });

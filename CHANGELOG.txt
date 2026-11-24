@@ -1,6 +1,23 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 53.5
+Versión revisada: 53.7
 Fecha: 24/11/2026
+
+VERSIÓN 53.7
+============
+1. Actualización del endpoint de Google Apps Script:
+   - Actualizada la constante `API_URL` en `src/services/api.js` a `https://script.google.com/macros/s/AKfycbwEP2XYib4f0nZEUhvbX95g22KSsDwsMkK0m8M7mBSWcaC7mn5_nQ3ybOH8mp0euYIWFw/exec`.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v53.7` en `sw.js`, `index.html` y `src/main.js`, y `CONFIG.VERSION` a `53.7` / `V53.7`.
+
+VERSIÓN 53.6
+============
+1. Mejora visual en el panel de filtros del Dashboard (`src/views/Dashboard.js`, `style.css`):
+   - Eliminado el botón de lupa (`#btnFilter`) de los filtros principales al ejecutarse el filtrado automático al seleccionar opciones.
+   - Reubicado el indicador de estado de carga (`#dashboardStatusBar` + `#dashboardDataStatus`) dentro del propio panel de filtros con feedback visual de estado: circulito giratorio mientras filtra, marca verde ("Datos actualizados"), rojo ("Error de actualización") o ámbar en modo offline.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v53.6` en `sw.js`, `index.html`, `src/main.js`, `src/services/api.js` y `backend/Code.gs`.
 
 VERSIÓN 53.5
 ============

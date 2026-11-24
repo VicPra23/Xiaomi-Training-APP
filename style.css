@@ -5440,8 +5440,21 @@ p,
 }
 
 
-/* Estado de lectura del dashboard sin ocultar ni desmontar la tendencia. */
-.dashboard-data-status { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; min-height: 28px; margin: 12px 0; font-size: .8rem; color: var(--text-muted); }
+/* Estado de lectura del dashboard integrado en el panel de filtros. */
+.dashboard-data-status { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-height: 24px; margin: 12px 0; font-size: .8rem; color: var(--text-muted); font-weight: 600; }
+.dashboard-filter-status { margin: 10px 0 0; padding: 10px 0.55rem 2px; border-top: 1px solid var(--workspace-rule); }
+.dashboard-status-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--text-muted); }
+.dashboard-data-status[data-state="loading"] .dashboard-status-indicator { width: 14px; height: 14px; background: transparent; border: 2px solid var(--border-main); border-top-color: var(--xiaomi-orange); animation: dashSpin 0.8s linear infinite; }
+.dashboard-data-status[data-state="success"] { color: #15803d; }
+.dashboard-data-status[data-state="success"] .dashboard-status-indicator { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18); }
+.dashboard-data-status[data-state="error"] { color: #dc2626; }
+.dashboard-data-status[data-state="error"] .dashboard-status-indicator { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18); }
+.dashboard-data-status[data-state="offline"] { color: #b45309; }
+.dashboard-data-status[data-state="offline"] .dashboard-status-indicator { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18); }
+[data-theme="dark"] .dashboard-data-status[data-state="success"] { color: #4ade80; }
+[data-theme="dark"] .dashboard-data-status[data-state="error"] { color: #f87171; }
+[data-theme="dark"] .dashboard-data-status[data-state="offline"] { color: #fbbf24; }
+@keyframes dashSpin { to { transform: rotate(360deg); } }
 .dashboard-data-status button { font-size: .8rem; padding: 6px 10px; }
 .dashboard-data-status [hidden], .dashboard-chart-empty[hidden] { display: none; }
 .chart-wrapper { position: relative; }
