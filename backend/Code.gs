@@ -14,7 +14,7 @@ const CONFIG = {
   MENSAJES_SHEET_NAME: "MENSAJES",
   PLANIFICACION_SHEET_NAME: "PLANIFICACION",
   MATERIALES_SHEET_NAME: "MATERIALES",
-  VERSION: "V53.3",
+  VERSION: "V53.5",
   ADMINS: ["Training Manager", "Training Coordinator", "Training Creator"]
 };
 
@@ -866,7 +866,7 @@ function getDashboardStats(p, session) {
 
   // 2️⃣ NUEVO: Soporte para Múltiples Meses (Ej: "Mayo,Junio")
   let selectedMonths = [];
-  if (targetMonth !== "Todos" && targetMonth !== "") {
+  if (targetMonth.toLowerCase() !== "todos" && targetMonth !== "") {
       selectedMonths = targetMonth.split(',').map(m => m.trim());
   }
 

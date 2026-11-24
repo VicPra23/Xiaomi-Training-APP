@@ -1,6 +1,24 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 53.3
-Fecha: 19/11/2026
+Versión revisada: 53.5
+Fecha: 24/11/2026
+
+VERSIÓN 53.5
+============
+1. Actualización del endpoint de Google Apps Script:
+   - Actualizada la constante `API_URL` en `src/services/api.js` a `https://script.google.com/macros/s/AKfycbxJYa4dJz3luYNERvO_uD9ekwO4nvMm98CX6EYXS99xgKwvSXJY1Z9bOd0aFIKvEBhiEA/exec`.
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v53.5` en `sw.js`, `index.html` y `src/main.js`, y `CONFIG.VERSION` a `53.5` / `V53.5`.
+
+VERSIÓN 53.4
+============
+1. Corrección de bloqueo en estadísticas del Dashboard al filtrar (`src/views/Dashboard.js`, `backend/Code.gs`):
+   - Desacoplada la actualización de las tarjetas KPI (`stat_count`, `stat_sesiones`, `stat_alumnos`, `stat_horas`) y `renderAdminStats` del renderizado de Chart.js: ahora se actualizan en cuanto responde el servidor, evitando que cualquier fallo de gráfico deje las estadísticas atascadas o en blanco.
+   - Añadido `applyChart` en `renderCharts` con recuperación automática (destruir y recrear el canvas) si `updateDashboardChart` falla en Chart.js v4, más guarda en `registerInlineDataLabels` cuando `chartArea` o `bar.x` aún no están calculados.
+   - Normalizada la comparación de `targetMonth` (`toLowerCase() !== "todos"`) en `getDashboardStats` (`backend/Code.gs`).
+
+2. Invalidación de caché y despliegue:
+   - Elevada la versión de caché a `xiaomi-trainer-v53.4` en `sw.js`, `index.html`, `src/main.js`, `src/services/api.js` y `backend/Code.gs`.
 
 VERSIÓN 53.3
 ============

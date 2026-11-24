@@ -988,9 +988,6 @@ function renderDashboard(container) {
         return api.getDashboardStats(params).then(async res => {
             if (!active() || request !== statsRequest) return;
             if (res.status === 'success') {
-                const rendered = await renderCharts(res, () => active() && request === statsRequest);
-                if (!active() || request !== statsRequest) return;
-                if (!rendered) throw new Error('No se pudieron actualizar los gráficos.');
                 try {
                     const sCount = document.getElementById('stat_count'); if(sCount) sCount.innerText = (res.currentWeekData && res.currentWeekData.count !== undefined) ? res.currentWeekData.count : (res.count || 0);
                     const sSesi = document.getElementById('stat_sesiones'); if(sSesi) sSesi.innerText = res.totalSesiones !== undefined ? res.totalSesiones : (res.sesiones || 0);
@@ -1005,13 +1002,17 @@ function renderDashboard(container) {
                     }
 
                     updateWeekSelect(res.availableWeeks, isAdmin);
-                    
                     window._lastDashData = res;
                     if (isAdmin && res.adminStats) renderAdminStats(res.adminStats);
-                    const status = document.getElementById('dashboardDataStatus');
-                    if (status) status.textContent = res.offline ? 'Datos guardados · sin conexión' : 'Datos actualizados para los filtros seleccionados';
-                    document.getElementById('mainChartsContainer')?.setAttribute('aria-busy', 'false');
                 } catch(e) { console.error("Shielding error in stats rendering:", e); }
+
+                const rendered = await renderCharts(res, () => active() && request === statsRequest);
+                if (!active() || request !== statsRequest) return;
+                if (!rendered) throw new Error('No se pudieron actualizar los gráficos.');
+
+                const status = document.getElementById('dashboardDataStatus');
+                if (status) status.textContent = res.offline ? 'Datos guardados · sin conexión' : 'Datos actualizados para los filtros seleccionados';
+                document.getElementById('mainChartsContainer')?.setAttribute('aria-busy', 'false');
             } else {
                 throw new Error(res.message || 'No se pudo cargar el resumen.');
             }
@@ -1746,6 +1747,7 @@ function registerInlineDataLabels() {
                     const meta = chart.getDatasetMeta(i);
                     if(meta.hidden) return;
                     meta.data.forEach((bar, index) => {
+                        if (!chart.chartArea || !Number.isFinite(bar.x) || !Number.isFinite(bar.y)) return;
                         const data = dataset.data[index];
                         if(data !== 0 && data !== undefined) {
                             ctx.fillStyle = (document.documentElement.getAttribute('data-theme') === 'dark' || document.documentElement.classList.contains('dark')) ? '#ffffff' : '#4b5563';
@@ -1821,16 +1823,26 @@ async function renderCharts(data, isCurrent = () => window.location.hash === '#d
             } catch(e) { return start; }
         };
 
+        const applyChart = (canvas, previous, config) => {
+            try {
+                return updateDashboardChart(canvas, previous, config);
+            } catch (err) {
+                const existing = Chart.getChart?.(canvas) || previous;
+                try { existing?.destroy?.(); } catch (_) {}
+                return new Chart(canvas.getContext('2d'), config);
+            }
+        };
+
         // --- Weekly Chart ---
         const canvasW = document.getElementById('chartWeekly');
-        if (!canvasW) return;
+        if (!canvasW) return false;
         const ctxW = canvasW.getContext('2d');
 
         
         const gradOrange = createGrad(ctxW, primaryColor, primaryGradientEnd);
         const gradGray = createGrad(ctxW, secondaryColor, secondaryGradientEnd);
 
-        weeklyChart = updateDashboardChart(canvasW, weeklyChart, {
+        weeklyChart = applyChart(canvasW, weeklyChart, {
             type: 'bar',
             data: { 
                 labels: normalized.weekly.labels, 
@@ -1894,11 +1906,11 @@ async function renderCharts(data, isCurrent = () => window.location.hash === '#d
 
         // --- Methods Chart ---
         const canvasM = document.getElementById('chartMethods');
-        if (!canvasM) return;
+        if (!canvasM) return false;
         const ctxM = canvasM.getContext('2d');
 
         const methodValues = normalized.methods.values;
-        methodsChart = updateDashboardChart(canvasM, methodsChart, {
+        methodsChart = applyChart(canvasM, methodsChart, {
             type: 'bar',
             data: { 
                 labels: normalized.methods.labels, 
@@ -1957,7 +1969,7 @@ async function renderCharts(data, isCurrent = () => window.location.hash === '#d
             const gradT_Orange = createGrad(ctxT, primaryColor, primaryGradientEnd);
             const gradT_Gray = createGrad(ctxT, secondaryColor, secondaryGradientEnd);
 
-            trainersChart = updateDashboardChart(document.getElementById('chartTrainers'), trainersChart, {
+            trainersChart = applyChart(document.getElementById('chartTrainers'), trainersChart, {
                 type: 'bar',
                 data: {
                     labels: names,
