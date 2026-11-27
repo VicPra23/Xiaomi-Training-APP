@@ -17,6 +17,19 @@ function reader(){
  vm.runInContext(source.slice(a,b)+'\nthis.loadStats=loadStats;',ctx);
  return {ctx,el,calls,waiting,run(){const jobs=[...timers.values()];timers.clear();jobs.forEach(fn=>fn())},settle:()=>new Promise(r=>setImmediate(r))};
 }
+function historyReader(){
+ const nodes=new Map();const el=id=>{if(!nodes.has(id))nodes.set(id,{value:'Todos',innerHTML:'<tr><td>Previo</td></tr>',textContent:'',hidden:true,selectedOptions:[{value:'Todos'}],style:{display:'none'},setAttribute(k,v){this[k]=v}});return nodes.get(id)};
+ el('historyBody').innerHTML='<tr><td>Previo</td></tr>';
+ const timers=new Map();let timerId=0;let calls=[];let waiting=[];
+ const ctx={console,Date,Array,Set,String,Number,Boolean,Error,parseFloat,window:{dashboardHistoryData:[{id:'old-1'}],tsInstances:{},isHistoryRangeMode:false},document:{getElementById:el},isAdmin:true,currentUser:'demo',currentWeek:44,active:()=>true,historyRequest:0,historyTimer:null,
+ setTimeout:fn=>{timers.set(++timerId,fn);return timerId},clearTimeout:id=>timers.delete(id),
+ api:{getReportsHistory:params=>{calls.push(params);return new Promise((resolve,reject)=>waiting.push({resolve,reject}))}},
+ updateHistoryFilters(){},formatDateSafe:v=>String(v||''),esc:v=>String(v??'')};
+ vm.createContext(ctx);
+ const a=source.indexOf('    const loadHistory = (force = false)');const b=source.indexOf('    const renderAdminStats = (stats)',a);
+ vm.runInContext(source.slice(a,b)+'\nthis.loadHistory=loadHistory;',ctx);
+ return {ctx,el,calls,waiting,run(){const jobs=[...timers.values()];timers.clear();jobs.forEach(fn=>fn())},settle:()=>new Promise(r=>setImmediate(r))};
+}
 test('multi-select keeps Todos exclusive and normalizes empty selection',()=>{
  const c=helpers();const normalize=x=>JSON.stringify(c.normalizeDashboardSelection(x,true));
  assert.equal(normalize(['Todos','Online']),JSON.stringify(['Online']));assert.equal(normalize(['Online','Todos']),JSON.stringify(['Todos']));assert.equal(normalize([]),JSON.stringify(['Todos']));assert.equal(normalize(['Online','Online']),JSON.stringify(['Online']));
@@ -58,4 +71,26 @@ test('removed calendar is absent from navigation, view registry and app shell',(
  assert.equal(fs.existsSync(path.join(root,'src/views/Calendar.js')),false);
  assert.ok(!fs.readFileSync(path.join(root,'index.html'),'utf8').includes('href="#calendar"'));
  for(const file of ['src/main.js','sw.js'])assert.ok(!fs.readFileSync(path.join(root,file),'utf8').includes('src/views/Calendar.js'));
+});
+test('activity history filter template removes magnifying glass and embeds status bar',()=>{
+ assert.ok(!source.includes('window.dashboardLoadHistory()'));
+ assert.ok(!source.includes('data-lucide="search"'));
+ for(const id of ['historyStatusBar','historyDataStatus','historyRetry','historyTableContainer'])assert.ok(source.includes(`id="${id}"`),`Missing #${id}`);
+});
+test('rapid history filter changes debounce and transition status to updated',async()=>{
+ const h=historyReader();h.el('histFilterDevice').value='Device A';h.ctx.loadHistory();h.el('histFilterDevice').value='Device B';h.ctx.loadHistory();
+ assert.equal(h.el('historyStatusBar')['data-state'],'loading');assert.match(h.el('historyDataStatus').textContent,/Actualizando/);
+ h.run();assert.equal(h.calls.length,1);assert.equal(h.calls[0].device,'Device B');
+ h.waiting[0].resolve({status:'success',data:[{fecha:'2026-11-20',trainer:'TM',cuenta:'MM',metodologia:'Online',alumnos:12,duracion:2}]});
+ await h.settle();assert.equal(h.el('historyStatusBar')['data-state'],'success');assert.equal(h.el('historyDataStatus').textContent,'Datos actualizados');assert.equal(h.el('historyRetry').hidden,true);assert.match(h.el('historyBody').innerHTML,/MM/);
+});
+test('out-of-order history responses cannot replace latest filter results',async()=>{
+ const h=historyReader();h.ctx.loadHistory();h.run();h.el('histFilterAccount').value='Cuenta Nueva';h.ctx.loadHistory();h.run();
+ h.waiting[1].resolve({status:'success',data:[{fecha:'2026-11-22',trainer:'TM',cuenta:'Cuenta Nueva',metodologia:'Classroom',alumnos:8,duracion:1}]});await h.settle();
+ h.waiting[0].resolve({status:'success',data:[{fecha:'2026-11-10',trainer:'TM',cuenta:'Cuenta Vieja',metodologia:'Online',alumnos:3,duracion:1}]});await h.settle();
+ assert.equal(h.ctx.window.dashboardHistoryData[0].cuenta,'Cuenta Nueva');assert.match(h.el('historyBody').innerHTML,/Cuenta Nueva/);assert.ok(!h.el('historyBody').innerHTML.includes('Cuenta Vieja'));
+});
+test('failed history request keeps previous rows and shows retry button',async()=>{
+ const h=historyReader();h.ctx.loadHistory();assert.match(h.el('historyBody').innerHTML,/Previo/);h.run();h.waiting[0].reject(Error('mock offline'));await h.settle();
+ assert.match(h.el('historyBody').innerHTML,/Previo/);assert.equal(h.ctx.window.dashboardHistoryData[0].id,'old-1');assert.equal(h.el('historyStatusBar')['data-state'],'error');assert.equal(h.el('historyRetry').hidden,false);assert.match(h.el('historyDataStatus').textContent,/Error de actualización/);
 });

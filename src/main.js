@@ -68,11 +68,11 @@ window.loadStyleOnce = href => {
 };
 
 const routeViews = {
-    '#dashboard': { src: 'src/views/Dashboard.js?v=53.8', global: 'renderDashboard', needsTomSelect: true },
-    '#report': { src: 'src/views/ReportForm.js?v=53.8', global: 'renderReport', needsTomSelect: true },
-    '#vacations': { src: 'src/views/Vacations.js?v=53.8', global: 'renderVacations' },
-    '#materials': { src: 'src/views/Materials.js?v=53.8', global: 'renderMaterials' },
-    '#mensajes': { src: 'src/views/Messages.js?v=53.8', global: 'renderMessages' }
+    '#dashboard': { src: 'src/views/Dashboard.js?v=53.9', global: 'renderDashboard', needsTomSelect: true },
+    '#report': { src: 'src/views/ReportForm.js?v=53.9', global: 'renderReport', needsTomSelect: true },
+    '#vacations': { src: 'src/views/Vacations.js?v=53.9', global: 'renderVacations' },
+    '#materials': { src: 'src/views/Materials.js?v=53.9', global: 'renderMaterials' },
+    '#mensajes': { src: 'src/views/Messages.js?v=53.9', global: 'renderMessages' }
 };
 
 async function ensureRouteView(hash) {

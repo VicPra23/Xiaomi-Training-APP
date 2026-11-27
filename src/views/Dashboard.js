@@ -3,6 +3,7 @@ function renderDashboard(container) {
     let disposed = false, statsRequest = 0, historyRequest = 0;
     let statsTimer, historyTimer;
     window._lastDashData = null;
+    window.dashboardHistoryData = null;
     let dashboardFiltersReady = false;
     const active = () => !disposed && container.isConnected && window.location.hash === '#dashboard';
     window.disposeDashboard = () => {
@@ -12,6 +13,7 @@ function renderDashboard(container) {
     };
     try {
         const scheduleStats = () => { if (dashboardFiltersReady && active()) loadStats(); };
+        const scheduleHistory = () => { if (dashboardFiltersReady && active() && !window.isUpdatingHistoryFilters) loadHistory(); };
         const esc = value => window.escapeHTML ? window.escapeHTML(value) : String(value ?? '');
         let session = getSessionData();
         const role = session ? session.role : 'User';
@@ -285,81 +287,83 @@ function renderDashboard(container) {
             </div>` : ''}
 
             <div class="glass-card" style="padding: 0; overflow: hidden; border-radius: 32px;">
-                <div style="padding: 2.5rem; border-bottom: 1px solid var(--border-main);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; margin-bottom: 2rem;">
+                <div style="padding: 2rem 2.5rem 1.25rem; border-bottom: 1px solid var(--border-main);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; margin-bottom: 1.5rem;">
                         <h3 style="margin:0; font-size: 1.4rem; display: flex; align-items: center; gap: 12px;"><i data-lucide="history" style="color: var(--xiaomi-orange);"></i> Historial de Actividad</h3>
                         <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                            <button id="btnToggleHistoryRange" class="btn-secondary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Alternar Rango/Periodos">
+                            <button id="btnToggleHistoryRange" class="btn-secondary" aria-label="Cambiar entre periodo y rango de fechas" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Alternar Rango/Periodos">
                                 <i data-lucide="calendar" style="width:20px;"></i>
                             </button>
                             ${isAdmin ? `
-                            <button id="btnExportHistory" class="btn-secondary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Exportar Historial CSV">
+                            <button id="btnExportHistory" class="btn-secondary" aria-label="Exportar Historial CSV" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Exportar Historial CSV">
                                 <i data-lucide="download" style="width:20px;"></i>
                             </button>` : ''}
-                            <button onclick="window.dashboardLoadHistory()" class="btn-primary" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0;" title="Filtrar">
-                                <i data-lucide="search" style="width:20px;"></i>
-                            </button>
-                            <button id="btnClearHistory" class="btn-outline" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Limpiar Filtros">
-                                <i data-lucide="rotate-ccw" style="width:20px;"></i>
+                            <button id="btnClearHistory" class="btn-secondary" aria-label="Limpiar filtros del historial" style="height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0; border: 1px solid var(--border-main);" title="Limpiar Filtros">
+                                <i data-lucide="refresh-ccw" style="width:18px;"></i>
                             </button>
                         </div>
                     </div>
                     
-                    <div class="filters-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-bottom: 1.5rem;">
+                    <div class="filters-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-bottom: 0.75rem;">
                         ${isAdmin ? `
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.65rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Trainer</label>
-                            <select id="histFilterTrainer" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterTrainer" class="form-control" style="height: 36px; font-size: 0.8rem; margin:0;">
                                 <option value="Total">Dato Global</option>
                             </select>
                         </div>` : ''}
                         <div id="histPeriodYear" class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Año</label>
-                            <select id="histFilterYear" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterYear" class="form-control" style="font-size: 0.8rem; margin:0;">
                                 <option value="Todos">Todos</option>
                             </select>
                         </div>
                         <div id="histPeriodMonth" class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Mes</label>
-                            <select id="histFilterMonth" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterMonth" class="form-control" style="font-size: 0.8rem; margin:0;">
                                 <option value="Todos">Todos</option>
                             </select>
                         </div>
                         <div id="histPeriodWeek" class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Semana</label>
-                            <select id="histFilterWeek" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterWeek" class="form-control" style="font-size: 0.8rem; margin:0;">
                                 <option value="Todos">Todas</option>
                             </select>
                         </div>
                         <div id="histRangeStart" class="form-group" style="margin:0; display:none;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Desde</label>
-                            <input type="date" id="histFilterDateStart" class="form-control" style="font-size: 0.85rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <input type="date" id="histFilterDateStart" class="form-control" style="font-size: 0.85rem; margin:0;">
                         </div>
                         <div id="histRangeEnd" class="form-group" style="margin:0; display:none;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Hasta</label>
-                            <input type="date" id="histFilterDateEnd" class="form-control" style="font-size: 0.85rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <input type="date" id="histFilterDateEnd" class="form-control" style="font-size: 0.85rem; margin:0;">
                         </div>
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Cuenta</label>
-                            <select id="histFilterAccount" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterAccount" class="form-control" style="font-size: 0.8rem; margin:0;">
                                 <option value="Todos">Todas</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Dispositivo</label>
-                            <select id="histFilterDevice" class="form-control" style="font-size: 0.8rem; margin:0;" onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterDevice" class="form-control" style="font-size: 0.8rem; margin:0;">
                                 <option value="Todos">Todos</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin:0;">
                             <label class="filter-label" style="font-size: 0.7rem; color: var(--graphite-medium); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; display: block;">Metodología</label>
-                            <select id="histFilterMethod" class="form-control" style="font-size: 0.8rem; margin:0;" multiple onchange="window.dashboardLoadHistory()">
+                            <select id="histFilterMethod" class="form-control" style="font-size: 0.8rem; margin:0;" multiple>
                                 <option value="Todos">Todos</option>
                             </select>
                         </div>
                     </div>
+                    <div id="historyStatusBar" class="dashboard-data-status dashboard-filter-status" data-state="loading" role="status" aria-live="polite">
+                        <span class="dashboard-status-indicator" aria-hidden="true"></span>
+                        <span id="historyDataStatus">Cargando datos…</span>
+                        <button type="button" id="historyRetry" class="btn-secondary" hidden>Reintentar</button>
+                    </div>
                 </div>
-                <div style="overflow-x: auto;">
+                <div id="historyTableContainer" style="overflow-x: auto;">
                     <table class="report-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead style="background: #f8fafc;">
                             <tr>
@@ -373,7 +377,7 @@ function renderDashboard(container) {
                             </tr>
                         </thead>
                         <tbody id="historyBody">
-                            <tr><td colspan="6" style="padding: 2rem; text-align: center; color: #94a3b8;">Cargando historial...</td></tr>
+                            <tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2rem; text-align: center; color: #94a3b8;">Cargando historial...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -472,7 +476,7 @@ function renderDashboard(container) {
             // "Todos" es exclusivo; no dejar un instante con valores intermedios.
             if (JSON.stringify(values) !== signature) this.setValue(normalized, true);
             if (isDashboardFilter) scheduleStats();
-            else window.dashboardLoadHistory?.();
+            else scheduleHistory();
         };
 
         window.tsInstances[selectId] = new TomSelect("#" + selectId, config);
@@ -786,32 +790,33 @@ function renderDashboard(container) {
 
     // Toggle para Historial
     const btnToggleHist = document.getElementById('btnToggleHistoryRange');
+    const histPeriodYear = document.getElementById('histPeriodYear');
     const histPeriodMonth = document.getElementById('histPeriodMonth');
     const histPeriodWeek = document.getElementById('histPeriodWeek');
     const histRangeStart = document.getElementById('histRangeStart');
     const histRangeEnd = document.getElementById('histRangeEnd');
     window.isHistoryRangeMode = false;
 
+    const setHistoryRangeMode = (enabled) => {
+        window.isHistoryRangeMode = Boolean(enabled);
+        if (histPeriodYear) histPeriodYear.style.display = window.isHistoryRangeMode ? 'none' : 'block';
+        if (histPeriodMonth) histPeriodMonth.style.display = window.isHistoryRangeMode ? 'none' : 'block';
+        if (histPeriodWeek) histPeriodWeek.style.display = window.isHistoryRangeMode ? 'none' : 'block';
+        if (histRangeStart) histRangeStart.style.display = window.isHistoryRangeMode ? 'block' : 'none';
+        if (histRangeEnd) histRangeEnd.style.display = window.isHistoryRangeMode ? 'block' : 'none';
+        if (btnToggleHist) {
+            btnToggleHist.innerHTML = window.isHistoryRangeMode
+                ? '<i data-lucide="list-filter" style="width:20px;"></i>'
+                : '<i data-lucide="calendar" style="width:20px;"></i>';
+            btnToggleHist.title = window.isHistoryRangeMode ? "Cambiar a Filtro por Periodos" : "Cambiar a Rango de Fechas";
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+
     if(btnToggleHist && histPeriodMonth && histRangeStart) {
         btnToggleHist.onclick = () => {
-            window.isHistoryRangeMode = !window.isHistoryRangeMode;
-            if(window.isHistoryRangeMode) {
-                if(histPeriodMonth) histPeriodMonth.style.display = 'none';
-                if(histPeriodWeek) histPeriodWeek.style.display = 'none';
-                if(histRangeStart) histRangeStart.style.display = 'block';
-                if(histRangeEnd) histRangeEnd.style.display = 'block';
-                btnToggleHist.innerHTML = '<i data-lucide="list-filter" style="width:20px;"></i>';
-                btnToggleHist.title = "Cambiar a Filtro por Periodos";
-            } else {
-                if(histPeriodMonth) histPeriodMonth.style.display = 'block';
-                if(histPeriodWeek) histPeriodWeek.style.display = 'block';
-                if(histRangeStart) histRangeStart.style.display = 'none';
-                if(histRangeEnd) histRangeEnd.style.display = 'none';
-                btnToggleHist.innerHTML = '<i data-lucide="calendar" style="width:20px;"></i>';
-                btnToggleHist.title = "Cambiar a Rango de Fechas";
-            }
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-            // Optional: loadHistory() to trigger refresh automatically if desired
+            setHistoryRangeMode(!window.isHistoryRangeMode);
+            scheduleHistory();
         };
     }
 
@@ -1043,6 +1048,31 @@ function renderDashboard(container) {
         });
     };
 
+    const resetHistoryFilters = () => {
+        if (isAdmin && document.getElementById('histFilterTrainer')) document.getElementById('histFilterTrainer').value = 'Total';
+        ['histFilterYear', 'histFilterMonth', 'histFilterAccount', 'histFilterDevice', 'histFilterMethod'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.value = 'Todos';
+                if (window.tsInstances?.[id]) {
+                    window.tsInstances[id].setValue(id === 'histFilterMethod' ? ['Todos'] : 'Todos', true);
+                }
+            }
+        });
+        if (window.tsInstances?.['histFilterContent']) {
+            window.tsInstances['histFilterContent'].setValue(['Todos'], true);
+        }
+        const hStart = document.getElementById('histFilterDateStart');
+        if (hStart) hStart.value = '';
+        const hEnd = document.getElementById('histFilterDateEnd');
+        if (hEnd) hEnd.value = '';
+        if (window.isHistoryRangeMode) setHistoryRangeMode(false);
+        const hW = document.getElementById('histFilterWeek');
+        if (hW) hW.value = currentWeek;
+        const hS = document.getElementById('historySearch');
+        if (hS) hS.value = '';
+    };
+
     // Botón de Limpiar Filtros
     const clearBtn = document.getElementById('btnClearFilters');
     if(clearBtn) clearBtn.onclick = () => {
@@ -1089,22 +1119,7 @@ function renderDashboard(container) {
         }
 
         // Historial
-        if(isAdmin && document.getElementById('histFilterTrainer')) document.getElementById('histFilterTrainer').value = 'Total';
-        if(document.getElementById('histFilterWeek')) document.getElementById('histFilterWeek').value = currentWeek;
-        document.getElementById('histFilterMonth').value = 'Todos';
-        document.getElementById('histFilterAccount').value = 'Todos';
-        if (window.tsInstances && window.tsInstances['histFilterDevice']) {
-            window.tsInstances['histFilterDevice'].setValue('Todos');
-        } else {
-            document.getElementById('histFilterDevice').value = 'Todos';
-        }
-        if (window.tsInstances && window.tsInstances['histFilterMethod']) {
-            window.tsInstances['histFilterMethod'].setValue(['Todos']);
-        } else {
-            document.getElementById('histFilterMethod').value = 'Todos';
-        }
-        const hS = document.getElementById('historySearch');
-        if(hS) hS.value = '';
+        resetHistoryFilters();
         
         loadStats();
         loadHistory();
@@ -1195,11 +1210,19 @@ function renderDashboard(container) {
                             window.tsInstances['histFilterMethod'].addItem('Todos', true);
                         }
                     } else if (s.id === 'histFilterWeek') {
-                        el.innerHTML = `<option value="Todos">Todas</option>` + 
-                            s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>Semana ${v}</option>`).join('');
+                        const vals = s.data.map(v => v.toString());
+                        const extraOpt = (currentVal && currentVal !== 'Todos' && !vals.includes(currentVal.toString()))
+                            ? `<option value="${esc(currentVal)}" selected>Semana ${esc(currentVal)}</option>`
+                            : '';
+                        el.innerHTML = `<option value="Todos" ${currentVal === 'Todos' ? 'selected' : ''}>Todas</option>` + extraOpt +
+                            s.data.map(v => `<option value="${esc(v)}" ${v.toString() === currentVal.toString() ? 'selected' : ''}>Semana ${esc(v)}</option>`).join('');
                     } else {
-                        el.innerHTML = `<option value="Todos">${s.label}</option>` + 
-                            s.data.map(v => `<option value="${v}" ${v.toString() === currentVal ? 'selected' : ''}>${v}</option>`).join('');
+                        const vals = s.data.map(v => v.toString());
+                        const extraOpt = (currentVal && currentVal !== 'Todos' && !vals.includes(currentVal.toString()))
+                            ? `<option value="${esc(currentVal)}" selected>${esc(currentVal)}</option>`
+                            : '';
+                        el.innerHTML = `<option value="Todos" ${currentVal === 'Todos' ? 'selected' : ''}>${s.label}</option>` + extraOpt +
+                            s.data.map(v => `<option value="${esc(v)}" ${v.toString() === currentVal.toString() ? 'selected' : ''}>${esc(v)}</option>`).join('');
                     }
                 }
             });
@@ -1208,23 +1231,33 @@ function renderDashboard(container) {
     };
 
     const loadHistory = (force = false) => {
-        ++historyRequest;
+        const request = ++historyRequest;
         clearTimeout(historyTimer);
-        historyTimer = setTimeout(() => { if (active()) fetchHistory(force, historyRequest); }, force ? 0 : 400);
+        document.getElementById('historyTableContainer')?.setAttribute('aria-busy', 'true');
+        document.getElementById('historyStatusBar')?.setAttribute('data-state', 'loading');
+        const status = document.getElementById('historyDataStatus');
+        if (status) status.textContent = window.dashboardHistoryData !== null ? 'Actualizando datos…' : 'Cargando datos…';
+        const retry = document.getElementById('historyRetry');
+        if (retry) retry.hidden = true;
+        historyTimer = setTimeout(() => { if (active()) fetchHistory(force, request); }, force ? 0 : 400);
     };
     const fetchHistory = (force, request) => {
-        // Al cargar historial, respetamos si el admin seleccionó un trainer específico ABRAZO
+        // Al cargar historial, respetamos si el admin seleccionó un trainer específico
         const target = isAdmin ? (document.getElementById('histFilterTrainer')?.value || 'Total') : currentUser;
         let year = document.getElementById('histFilterYear')?.value || "Todos";
         let week = document.getElementById('histFilterWeek')?.value || "";
         let month = document.getElementById('histFilterMonth')?.value || "Todos";
         const account = document.getElementById('histFilterAccount')?.value || "Todos";
-        const device = document.getElementById('histFilterDevice')?.value || "Todos";
+        const dHistDevice = document.getElementById('histFilterDevice');
+        const device = (window.tsInstances && window.tsInstances['histFilterDevice'])
+            ? (window.tsInstances['histFilterDevice'].getValue() || "Todos")
+            : (dHistDevice ? dHistDevice.value : "Todos");
         const q = document.getElementById('historySearch')?.value || "";
         
         const dateStart = document.getElementById('histFilterDateStart')?.value || "";
         const dateEnd = document.getElementById('histFilterDateEnd')?.value || "";
-        const useRange = document.getElementById('histRangeStart')?.style.display !== 'none';
+        const histStartDisplay = document.getElementById('histRangeStart')?.style?.display;
+        const useRange = Boolean(window.isHistoryRangeMode || (histStartDisplay && histStartDisplay !== 'none'));
 
         if (useRange) {
             year = "Todos";
@@ -1243,19 +1276,19 @@ function renderDashboard(container) {
         } else {
             const el = document.getElementById('histFilterMethod');
             if (el) {
-                methods = Array.from(el.selectedOptions).map(o => o.value);
+                methods = Array.from(el.selectedOptions || []).map(o => o.value);
             }
         }
         const isMethodTodos = methods.length === 0 || methods.includes('Todos');
         
-                    let contentVal = "Todos";
-          if (window.tsInstances && window.tsInstances['histFilterContent']) {
-              const vals = window.tsInstances['histFilterContent'].getValue();
-              contentVal = Array.isArray(vals) ? vals.join(',') : (vals || "Todos");
-          } else if (document.getElementById('histFilterContent')) {
-              const el = document.getElementById('histFilterContent');
-              contentVal = Array.from(el.selectedOptions).map(o => o.value).join(',');
-          }
+        let contentVal = "Todos";
+        if (window.tsInstances && window.tsInstances['histFilterContent']) {
+            const vals = window.tsInstances['histFilterContent'].getValue();
+            contentVal = Array.isArray(vals) ? vals.join(',') : (vals || "Todos");
+        } else if (document.getElementById('histFilterContent')) {
+            const el = document.getElementById('histFilterContent');
+            contentVal = Array.from(el.selectedOptions || []).map(o => o.value).join(',') || "Todos";
+        }
 
         const parseDuration = (val) => {
             if (!val) return 0;
@@ -1266,19 +1299,6 @@ function renderDashboard(container) {
             }
             return parseFloat(s) || 0;
         };
-
-        const loader = document.getElementById('historyLoading');
-        if(loader) loader.style.visibility = 'visible';
-
-        const isFiltered = (isAdmin && target !== 'Total') || 
-                           (year !== "Todos") ||
-                           (week !== "Todos" && week !== "" && week.toString() !== currentWeek.toString()) || 
-                           (month !== "Todos") || 
-                           (account !== "Todos") || 
-                           (device !== "Todos") || 
-                           (!isMethodTodos) || 
-                           (useRange && (dateStart || dateEnd)) ||
-                           (q.trim() !== "");
 
         const historyParams = { 
             targetUser: target === 'Total' ? '' : target, 
@@ -1296,74 +1316,88 @@ function renderDashboard(container) {
             limit: 250
         };
 
-        api.getReportsHistory(historyParams).then(res => {
+        return api.getReportsHistory(historyParams).then(res => {
             if (!active() || request !== historyRequest) return;
-            if(res.status === 'success' && res.availableFilters) {
+            if (!res || res.status !== 'success') {
+                throw new Error((res && res.message) || 'No se pudo cargar el historial.');
+            }
+            if (res.availableFilters) {
                 updateHistoryFilters(res.availableFilters);
             }
-            const body = document.getElementById('historyBody');
-            if (!body) return; // FIX: Guard if user navigated away
 
-            if(res.status === 'success' && res.data.length > 0) {
-                // Client-side filtering (methodology & dates)
-                let filteredData = res.data;
-                if (!isMethodTodos) {
-                    const normalizeStr = (s) => String(s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-                    const methodsLower = methods.map(normalizeStr);
-                    filteredData = filteredData.filter(r => {
-                        const rowMethod = normalizeStr(r.metodologia);
-                        return methodsLower.includes(rowMethod);
-                    });
-                }
-                
-                if (useRange) {
-                    if (dateStart) {
-                        const dStart = new Date(dateStart).getTime();
-                        filteredData = filteredData.filter(r => new Date(r.fecha).getTime() >= dStart);
-                    }
-                    if (dateEnd) {
-                        const dEnd = new Date(dateEnd);
-                        dEnd.setHours(23, 59, 59, 999);
-                        filteredData = filteredData.filter(r => new Date(r.fecha).getTime() <= dEnd.getTime());
-                    }
-                }
-
-                window.dashboardHistoryData = filteredData;
-
-                if (filteredData.length === 0) {
-                    body.innerHTML = '<tr><td colspan="7" style="padding: 20px; text-align: center; color: var(--text-muted);">No se encontraron reportes que coincidan con la metodología seleccionada.</td></tr>';
-                    return;
-                }
-
-                body.innerHTML = filteredData.map((r, idx) => `
-                    <tr style="border-bottom: 1px solid var(--border-main);">
-                        <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${formatDateSafe(r.fecha)}</td>
-                        ${isAdmin ? `<td data-label="Trainer" style="padding: 12px; font-weight: 600; color: var(--xiaomi-orange);">${esc(r.trainer || '-')}</td>` : ''}
-                        <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${esc(r.cuenta)}</td>
-                        <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${esc(r.metodologia)}</span></td>
-                        <td data-label="Alumnos" style="padding: 12px; text-align: center;">${esc(r.alumnos || '0')}</td>
-                        <td data-label="Horas" style="padding: 12px; text-align: center;">${parseDuration(r.duracion).toFixed(1)}h</td>
-                        <td data-label="Acciones" style="padding: 12px; text-align: right; white-space: nowrap;">
-                            <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
-                            <button onclick="handleHistoryAction('duplicate', ${idx})" class="btn-outline btn-compact" style="border-color: #0ea5e9; color: #0ea5e9;" title="Duplicar"><i data-lucide="copy" style="width:14px;"></i></button>
-                            <button onclick="handleHistoryAction('edit', ${idx})" class="btn-outline btn-compact" title="Editar"><i data-lucide="edit-2" style="width:14px;"></i></button>
-                            <button onclick="handleHistoryAction('delete', ${idx})" class="btn-outline danger btn-compact" style="border-color: #ef4444; color: #ef4444;" title="Eliminar"><i data-lucide="trash-2" style="width:14px;"></i></button>
-                        </td>
-                    </tr>
-                `).join('');
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-            } else {
-                body.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">${q ? 'No hay resultados para esa búsqueda.' : 'No se encontraron reportes.'}</td></tr>`;
+            const rawData = Array.isArray(res.data) ? res.data : [];
+            let filteredData = rawData;
+            if (!isMethodTodos) {
+                const normalizeStr = (s) => String(s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+                const methodsLower = methods.map(normalizeStr);
+                filteredData = filteredData.filter(r => {
+                    const rowMethod = normalizeStr(r.metodologia);
+                    return methodsLower.includes(rowMethod);
+                });
             }
+            
+            if (useRange) {
+                if (dateStart) {
+                    const dStart = new Date(dateStart).getTime();
+                    filteredData = filteredData.filter(r => new Date(r.fecha).getTime() >= dStart);
+                }
+                if (dateEnd) {
+                    const dEnd = new Date(dateEnd);
+                    dEnd.setHours(23, 59, 59, 999);
+                    filteredData = filteredData.filter(r => new Date(r.fecha).getTime() <= dEnd.getTime());
+                }
+            }
+
+            window.dashboardHistoryData = filteredData;
+
+            const body = document.getElementById('historyBody');
+            if (body) {
+                if (filteredData.length === 0) {
+                    body.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">${q ? 'No hay resultados para esa búsqueda.' : 'No se encontraron reportes con los filtros seleccionados.'}</td></tr>`;
+                } else {
+                    body.innerHTML = filteredData.map((r, idx) => `
+                        <tr style="border-bottom: 1px solid var(--border-main);">
+                            <td data-label="Fecha" style="padding: 12px; font-weight: 600;">${formatDateSafe(r.fecha)}</td>
+                            ${isAdmin ? `<td data-label="Trainer" style="padding: 12px; font-weight: 600; color: var(--xiaomi-orange);">${esc(r.trainer || '-')}</td>` : ''}
+                            <td data-label="Cuenta" style="padding: 12px; color: var(--text-medium);">${esc(r.cuenta)}</td>
+                            <td data-label="Método" style="padding: 12px;"><span class="badge ${r.metodologia === 'Classroom' ? 'badge-approved' : 'badge-extra'}">${esc(r.metodologia)}</span></td>
+                            <td data-label="Alumnos" style="padding: 12px; text-align: center;">${esc(r.alumnos || '0')}</td>
+                            <td data-label="Horas" style="padding: 12px; text-align: center;">${parseDuration(r.duracion).toFixed(1)}h</td>
+                            <td data-label="Acciones" style="padding: 12px; text-align: right; white-space: nowrap;">
+                                <button onclick="handleHistoryAction('view', ${idx})" class="btn-outline btn-compact" style="border-color: #10b981; color: #10b981;" title="Ver Detalles"><i data-lucide="eye" style="width:14px;"></i></button>
+                                <button onclick="handleHistoryAction('duplicate', ${idx})" class="btn-outline btn-compact" style="border-color: #0ea5e9; color: #0ea5e9;" title="Duplicar"><i data-lucide="copy" style="width:14px;"></i></button>
+                                <button onclick="handleHistoryAction('edit', ${idx})" class="btn-outline btn-compact" title="Editar"><i data-lucide="edit-2" style="width:14px;"></i></button>
+                                <button onclick="handleHistoryAction('delete', ${idx})" class="btn-outline danger btn-compact" style="border-color: #ef4444; color: #ef4444;" title="Eliminar"><i data-lucide="trash-2" style="width:14px;"></i></button>
+                            </td>
+                        </tr>
+                    `).join('');
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            }
+
+            const statusBar = document.getElementById('historyStatusBar');
+            if (statusBar) statusBar.setAttribute('data-state', res.offline ? 'offline' : 'success');
+            const status = document.getElementById('historyDataStatus');
+            if (status) status.textContent = res.offline ? 'Datos guardados · sin conexión' : 'Datos actualizados';
+            const retry = document.getElementById('historyRetry');
+            if (retry) retry.hidden = true;
+            document.getElementById('historyTableContainer')?.setAttribute('aria-busy', 'false');
         }).catch(error => {
             if (!active() || request !== historyRequest) return;
             console.error('Error loading report history:', error);
             const body = document.getElementById('historyBody');
-            if (body) body.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">No se pudo cargar el historial.</td></tr>`;
-        }).finally(() => { 
-            if (!active() || request !== historyRequest) return;
-            const loader = document.getElementById('historyLoading');
-            if(loader) loader.style.visibility = 'hidden'; 
+            if (body && window.dashboardHistoryData === null) {
+                body.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}" style="padding: 2.5rem; text-align: center; color: var(--text-muted);">No se pudo cargar el historial.</td></tr>`;
+            }
+            document.getElementById('historyTableContainer')?.setAttribute('aria-busy', 'false');
+            const statusBar = document.getElementById('historyStatusBar');
+            if (statusBar) statusBar.setAttribute('data-state', 'error');
+            const status = document.getElementById('historyDataStatus');
+            if (status) status.textContent = window.dashboardHistoryData !== null
+                ? 'Error de actualización · se mantienen los últimos datos.'
+                : 'Error de actualización. Reintenta la consulta.';
+            const retry = document.getElementById('historyRetry');
+            if (retry) retry.hidden = false;
         });
     };
 
@@ -1701,19 +1735,7 @@ function renderDashboard(container) {
 
     const btnClearHistory = document.getElementById('btnClearHistory');
     if(btnClearHistory) btnClearHistory.onclick = () => {
-        ['histFilterYear', 'histFilterMonth', 'histFilterAccount', 'histFilterDevice', 'histFilterMethod'].forEach(id => {
-            const el = document.getElementById(id);
-            if(el) {
-                el.value = 'Todos';
-                if ((id === 'histFilterDevice' || id === 'histFilterMethod') && window.tsInstances && window.tsInstances[id]) {
-                    window.tsInstances[id].setValue(id === 'histFilterMethod' ? ['Todos'] : 'Todos');
-                }
-            }
-        });
-        const hW = document.getElementById('histFilterWeek');
-        if(hW) hW.value = currentWeek;
-        const hS = document.getElementById('historySearch');
-        if(hS) hS.value = '';
+        resetHistoryFilters();
         loadHistory();
     };
 
@@ -1723,17 +1745,22 @@ function renderDashboard(container) {
         loadHistory(true); 
     };
 
-    const btnFilterHistory = document.getElementById('btnFilterHistory');
-    if(btnFilterHistory) btnFilterHistory.onclick = () => { loadHistory(); };
-
     const historySearch = document.getElementById('historySearch');
     if(historySearch) historySearch.onkeyup = (e) => { if(e.key === 'Enter') loadHistory(); };
     
-        // Los cambios de todos los filtros del dashboard usan la misma lectura con debounce.
+        // Los cambios de todos los filtros del dashboard e historial usan lectura automática con debounce.
         ['dashboardTarget', 'dashboardDateStart', 'dashboardDateEnd'].forEach(id => {
             document.getElementById(id)?.addEventListener('change', scheduleStats);
         });
+        [
+            'histFilterTrainer', 'histFilterYear', 'histFilterMonth', 'histFilterWeek',
+            'histFilterDateStart', 'histFilterDateEnd', 'histFilterAccount',
+            'histFilterDevice', 'histFilterMethod'
+        ].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', scheduleHistory);
+        });
         document.getElementById('dashboardRetry')?.addEventListener('click', () => loadStats(true));
+        document.getElementById('historyRetry')?.addEventListener('click', () => loadHistory(true));
         dashboardFiltersReady = true;
         loadStats();
         loadHistory();

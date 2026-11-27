@@ -1,6 +1,13 @@
 XIAOMI TRAINER INTRANET - CHANGELOG DE AUDITORÍA Y ACTUALIZACIÓN
-Versión revisada: 53.8
-Fecha: 24/11/2026
+Versión revisada: 53.9
+Fecha: 27/11/2026
+
+VERSIÓN 53.9
+- Filtros de Historial de Actividad (`src/views/Dashboard.js`) equiparados al bloque principal del Dashboard:
+  * Eliminado el botón manual de lupa y los atributos `onchange` inline; cualquier cambio en Trainer, Año, Mes, Semana, Rango de fechas, Cuenta, Dispositivo o Metodología dispara filtrado automático con debounce (400 ms) y protección frente a respuestas fuera de orden.
+  * Integrada la barra de estado bajo los filtros (`#historyStatusBar`) con indicador circular de carga, verde de "Datos actualizados" y rojo de "Error de actualización" con botón `Reintentar`, conservando las filas previas ante carga o fallo de red.
+  * El alternador de rango de fechas del historial oculta/muestra también el selector de Año y recarga automáticamente al cambiar de modo; `updateHistoryFilters` conserva selecciones activas aunque devuelvan 0 filas.
+- Añadidos tests unitarios para el filtro y carga del historial en `tests/dashboard.test.cjs`.
 
 VERSIÓN 53.8
 - Cierre y traspaso automático anual de período vacacional (Febrero -> Enero): al finalizar el período activo cada 1 de Febrero (vía trigger programado `runAnnualVacationRollover` o automáticamente al consultar Vacaciones/Admin), los días pendientes sin disfrutar de `Vacaciones` base + `Días Extras` se convierten automáticamente en `Días Extras` para el nuevo período.
